@@ -448,6 +448,9 @@ export default async ({ directory, platform: hostPlatform = process.platform, en
             return
           }
 
+          // Mini-trellis: do not rewrite Task / sub-agent prompts.
+          return
+
           if (toolName !== "task") {
             return
           }

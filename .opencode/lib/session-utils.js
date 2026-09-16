@@ -18,105 +18,6 @@ The acknowledgment must not alter the language used for the remainder of the res
 This notice is one-shot: do not repeat it after the first visible assistant reply in this session.
 </first-reply-notice>`
 
-function hasCuratedJsonlEntry(jsonlPath) {
-  try {
-    const content = readFileSync(jsonlPath, "utf-8")
-    for (const rawLine of content.split(/\r?\n/)) {
-      const line = rawLine.trim()
-      if (!line) continue
-      try {
-        const row = JSON.parse(line)
-        if (row && typeof row === "object" && typeof row.file === "string" && row.file) {
-          return true
-        }
-      } catch {
-        // Ignore malformed line
-      }
-    }
-  } catch {
-    return false
-  }
-  return false
-}
-
-function getTaskStatus(ctx, platformInput = null) {
-  const active = ctx.getActiveTask(platformInput)
-  const taskRef = active.taskPath
-  if (!taskRef) {
-    return (
-      "Status: NO ACTIVE TASK\n" +
-      "Next-Action: Classify the current turn before creating any Trellis task. " +
-      "Simple conversation / small task asks only whether this turn should create a Trellis task. " +
-      "Complex task asks whether task creation and planning are allowed."
-    )
-  }
-
-  const taskDir = ctx.resolveTaskDir(taskRef)
-
-  if (active.stale || !taskDir || !existsSync(taskDir)) {
-    return `Status: STALE POINTER\nTask: ${taskRef}\nNext-Action: Task directory not found. Run: python3 ./.trellis/scripts/task.py finish`
-  }
-
-  let taskData = {}
-  const taskJsonPath = join(taskDir, "task.json")
-  if (existsSync(taskJsonPath)) {
-    try {
-      taskData = JSON.parse(readFileSync(taskJsonPath, "utf-8"))
-    } catch {
-      // Ignore parse errors
-    }
-  }
-
-  const taskTitle = taskData.title || taskRef
-  const taskStatus = taskData.status || "unknown"
-
-  if (taskStatus === "completed") {
-    return `Status: COMPLETED\nTask: ${taskTitle}\nNext-Action: Run /trellis:finish-work. If the working tree is dirty, return to Phase 3.4 first.`
-  }
-
-  const hasPrd = existsSync(join(taskDir, "prd.md"))
-  const hasDesign = existsSync(join(taskDir, "design.md"))
-  const hasImplementPlan = existsSync(join(taskDir, "implement.md"))
-  const artifactNames = ["prd.md", "design.md", "implement.md", "implement.jsonl", "check.jsonl"]
-  const present = artifactNames.filter(name => existsSync(join(taskDir, name)))
-  if (existsSync(join(taskDir, "research"))) present.push("research/")
-  const presentLine = present.length > 0 ? present.join(", ") : "(none)"
-  const implementJsonl = join(taskDir, "implement.jsonl")
-  const checkJsonl = join(taskDir, "check.jsonl")
-  const jsonlReady =
-    (!existsSync(implementJsonl) || hasCuratedJsonlEntry(implementJsonl)) &&
-    (!existsSync(checkJsonl) || hasCuratedJsonlEntry(checkJsonl))
-
-  if (taskStatus === "planning" && !hasPrd) {
-    return `Status: PLANNING\nTask: ${taskTitle}\nPresent: ${presentLine}\nNext-Action: Load trellis-brainstorm and write prd.md. Stay in planning.`
-  }
-
-  if (taskStatus === "planning") {
-    const missingComplex = []
-    if (!hasDesign) missingComplex.push("design.md")
-    if (!hasImplementPlan) missingComplex.push("implement.md")
-    const nextBits = []
-    if (missingComplex.length > 0) {
-      nextBits.push(
-        `Lightweight task can request start review with PRD-only; complex task must add ${missingComplex.join(", ")} before start`,
-      )
-    } else {
-      nextBits.push("Planning artifacts are present; ask for review before `task.py start`")
-    }
-    if (!jsonlReady) {
-      nextBits.push("curate `implement.jsonl` and `check.jsonl` before sub-agent mode start")
-    }
-    return `Status: PLANNING\nTask: ${taskTitle}\nPresent: ${presentLine}\nNext-Action: ${nextBits.join("; ")}. Do not enter implementation until the user confirms start.`
-  }
-
-  return (
-    `Status: ${String(taskStatus).toUpperCase()}\nTask: ${taskTitle}\n` +
-    `Present: ${presentLine}\n` +
-    "Next-Action: Follow the matching per-turn workflow-state. " +
-    "Implementation/check context order is jsonl entries -> `prd.md` -> `design.md if present` -> `implement.md if present`."
-  )
-}
-
 function loadTrellisConfig(directory, contextKey = null) {
   const scriptPath = join(directory, ".trellis", "scripts", "get_context.py")
   if (!existsSync(scriptPath)) {
@@ -221,6 +122,26 @@ function resolveSpecScope(config) {
   return null
 }
 
+function collectResearchTopics(directory) {
+  const researchDir = join(directory, ".trellis", "research")
+  if (!existsSync(researchDir)) return []
+  try {
+    return readdirSync(researchDir)
+      .filter(name => {
+        if (name.startsWith(".") || name.toLowerCase() === "readme.md") return false
+        try {
+          return statSync(join(researchDir, name)).isFile() && name.toLowerCase().endsWith(".md")
+        } catch {
+          return false
+        }
+      })
+      .sort()
+      .map(name => `.trellis/research/${name}`)
+  } catch {
+    return []
+  }
+}
+
 function collectSpecIndexPaths(directory, allowedPkgs) {
   const specDir = join(directory, ".trellis", "spec")
   const paths = []
@@ -299,7 +220,7 @@ function runGit(directory, args) {
   }
 }
 
-function buildCompactCurrentState(ctx, platformInput, specIndexPaths) {
+function buildCompactCurrentState(ctx, specIndexPaths, researchTopics) {
   const directory = ctx.directory
   const lines = []
   lines.push(`Developer: ${readDeveloper(directory)}`)
@@ -309,34 +230,6 @@ function buildCompactCurrentState(ctx, platformInput, specIndexPaths) {
     .split(/\r?\n/)
     .filter(line => line.trim()).length
   lines.push(`Git: branch ${branch}; ${dirtyCount === 0 ? "clean" : `dirty ${dirtyCount} paths`}.`)
-
-  const active = ctx.getActiveTask(platformInput)
-  if (active.taskPath) {
-    const taskDir = ctx.resolveTaskDir(active.taskPath)
-    let status = "unknown"
-    if (taskDir) {
-      try {
-        const data = JSON.parse(readFileSync(join(taskDir, "task.json"), "utf-8"))
-        status = data.status || "unknown"
-      } catch {
-        // Ignore parse errors
-      }
-    }
-    lines.push(`Current task: ${active.taskPath}; status=${status}.`)
-  } else {
-    lines.push("Current task: none.")
-  }
-
-  const tasksDir = join(directory, ".trellis", "tasks")
-  if (existsSync(tasksDir)) {
-    try {
-      const activeTasks = readdirSync(tasksDir, { withFileTypes: true })
-        .filter(entry => entry.isDirectory() && entry.name !== "archive" && existsSync(join(tasksDir, entry.name, "task.json")))
-      lines.push(`Active tasks: ${activeTasks.length} total. Use \`python3 ./.trellis/scripts/task.py list --mine\` only if needed.`)
-    } catch {
-      // Ignore task list errors
-    }
-  }
 
   const developer = readDeveloper(directory)
   const workspaceDir = join(directory, ".trellis", "workspace", developer)
@@ -360,6 +253,12 @@ function buildCompactCurrentState(ctx, platformInput, specIndexPaths) {
     lines.push(`Spec indexes: ${specIndexPaths.length} available.`)
   }
 
+  if (researchTopics.length > 0) {
+    lines.push(`Research notes: ${researchTopics.length} in .trellis/research/.`)
+  } else {
+    lines.push("Research notes: none yet. Write .trellis/research/<topic>.md.")
+  }
+
   return lines.join("\n")
 }
 
@@ -372,11 +271,12 @@ export function buildSessionContext(ctx, platformInput = null) {
   const config = loadTrellisConfig(directory, contextKey)
   const allowedPkgs = resolveSpecScope(config)
   const paths = collectSpecIndexPaths(directory, allowedPkgs)
+  const researchTopics = collectResearchTopics(directory)
 
   const parts = []
 
   parts.push(`<session-context>
-Trellis compact SessionStart context. Use it to orient the session; load details on demand.
+Trellis compact SessionStart context. Orient from journal, spec, and research. Do not create or drive Trellis tasks.
 </session-context>`)
   parts.push(FIRST_REPLY_NOTICE)
 
@@ -386,71 +286,39 @@ Trellis compact SessionStart context. Use it to orient the session; load details
   }
 
   parts.push("<current-state>")
-  parts.push(buildCompactCurrentState(ctx, platformInput, paths))
+  parts.push(buildCompactCurrentState(ctx, paths, researchTopics))
   parts.push("</current-state>")
-
-  const workflowContent = ctx.readProjectFile(".trellis/workflow.md")
-  if (workflowContent) {
-    const allLines = workflowContent.split("\n")
-    const overviewLines = [
-      "# Development Workflow - Session Summary",
-      "Full guide: .trellis/workflow.md. Step detail: `python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>`.",
-      "",
-    ]
-
-    let rangeStart = -1
-    let rangeEnd = allLines.length
-    for (let i = 0; i < allLines.length; i++) {
-      const stripped = allLines[i].trim()
-      if (rangeStart === -1 && stripped === "## Phase Index") {
-        rangeStart = i
-      } else if (rangeStart !== -1 && stripped === "## Phase 1: Plan") {
-        rangeEnd = i
-        break
-      }
-    }
-    if (rangeStart !== -1) {
-      const strippedStateBlocks = allLines
-        .slice(rangeStart, rangeEnd)
-        .join("\n")
-        .replace(/\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n[\s\S]*?\n\s*\[\/workflow-state:\1\]\n?/g, "")
-        .replace(/<!--[\s\S]*?-->/g, "")
-        .replace(/^\[(?!\/?workflow-state:)\/?[^\]\n]+\]\s*\n?/gm, "")
-        .replace(/\n{3,}/g, "\n\n")
-      overviewLines.push(strippedStateBlocks.trimEnd())
-    }
-
-    parts.push("<trellis-workflow>")
-    parts.push(overviewLines.join("\n").trimEnd())
-    parts.push("</trellis-workflow>")
-  }
 
   parts.push("<guidelines>")
   parts.push(
-    "Task context order for implementation/check: jsonl entries -> `prd.md` -> " +
-    "`design.md if present` -> `implement.md if present`. Missing optional artifacts " +
-    "are skipped for lightweight tasks.\n"
+    "Memory: journal is git-durable session notes (`/trellis:remember` or " +
+    "`python3 ./.trellis/scripts/add_session.py`). Cross-session dialogue is " +
+    "`trellis mem list|search|context|extract` (ignore `--phase`).\n" +
+    "Research lives in `.trellis/research/<topic>.md`; promote durable " +
+    "boundaries into `.trellis/spec/` as short markdown.\n" +
+    "Do not create, start, or archive Trellis tasks from this context.\n"
   )
 
   if (paths.length > 0) {
-    parts.push("## Available indexes (read on demand)")
+    parts.push("## Spec indexes (read on demand)")
     for (const p of paths) {
       parts.push(`- ${p}`)
     }
     parts.push("")
   }
 
-  parts.push(
-    "Discover more via: " +
-    "`python3 ./.trellis/scripts/get_context.py --mode packages`"
-  )
+  if (researchTopics.length > 0) {
+    parts.push("## Research notes (read on demand)")
+    for (const p of researchTopics) {
+      parts.push(`- ${p}`)
+    }
+    parts.push("")
+  }
+
   parts.push("</guidelines>")
 
-  const taskStatus = getTaskStatus(ctx, platformInput)
-  parts.push(`<task-status>\n${taskStatus}\n</task-status>`)
-
   parts.push(`<ready>
-Context loaded. Follow <task-status>. Load workflow/spec/task details only when needed.
+Context loaded. Use journal, spec, research, and \`trellis mem\` on demand. Remember at session end or after compact.
 </ready>`)
 
   return parts.join("\n\n")

@@ -3,6 +3,8 @@ name: trellis-update-spec
 description: "Captures executable contracts and coding conventions into .trellis/spec/ documents. Use when learning something valuable from debugging, implementing, or discussion that should be preserved for future sessions."
 ---
 
+> Mini-trellis: write short markdown into `.trellis/spec/`. The 7-section code-spec template below is optional, not mandatory.
+
 # Update Code-Spec - Capture Executable Contracts
 
 When you learn something valuable (from debugging, implementing, or discussion), use this to update the relevant code-spec documents.

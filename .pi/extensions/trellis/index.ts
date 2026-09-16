@@ -8,7 +8,7 @@ import {
   relative,
   resolve,
 } from "node:path";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { isUtf8 } from "node:buffer";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -93,7 +93,6 @@ const MAX_TOOL_ARG_CHARS = 2048;
 const MAX_TOOLS = 256;
 const MAX_PARALLEL_PROMPTS = 6;
 const ABORT_KILL_GRACE_MS = 1500;
-const SESSION_OVERVIEW_TIMEOUT_MS = 1500;
 const THROTTLE_MS = 500;
 const FIRST_REPLY_NOTICE = `<first-reply-notice>
 On the first visible assistant reply in this session, briefly acknowledge that Trellis SessionStart context loaded.
@@ -1091,84 +1090,15 @@ function readTaskDir(root: string, key: string | null): string | null {
   }
 }
 
-// ── Workflow State Breadcrumb ─────────────────────────────────────────
-const WF_RE =
-  /\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n([\s\S]*?)\n\s*\[\/workflow-state:\1\]/g;
-function workflowBreadcrumb(root: string, key: string | null): string {
-  const wf = readText(join(root, ".trellis", "workflow.md"));
-  if (!wf) return "";
-  const templates: Record<string, string> = {};
-  for (const m of wf.matchAll(WF_RE)) {
-    const s = m[1] ?? "",
-      b = (m[2] ?? "").trim();
-    if (s && b) templates[s] = b;
-  }
-  const dir = readTaskDir(root, key);
-  let header = "Status: no_task",
-    lookup = "no_task";
-  if (dir) {
-    try {
-      const d = JSON.parse(readText(join(dir, "task.json"))) as JsonObject;
-      const status = str(d.status) ?? "";
-      const id = str(d.id) ?? dir.split(/[\\/]/).pop() ?? "";
-      if (status) {
-        header = `Task: ${id} (${status})`;
-        lookup = status;
-      }
-    } catch {}
-  }
-  const body = templates[lookup] ?? "Refer to workflow.md for current step.";
-  return `<workflow-state>\n${header}\n${body}\n</workflow-state>`;
-}
-
-// ── Session Overview ───────────────────────────────────────────────────
-function runContextScript(root: string, key: string | null, args: string[]): string {
-  const script = join(root, ".trellis", "scripts", "get_context.py");
-  if (!exists(script)) return "";
-  try {
-    const py = process.platform === "win32" ? "python" : "python3";
-    const result = spawnSync(py, [script, ...args], {
-      cwd: root,
-      env: key ? { ...process.env, TRELLIS_CONTEXT_ID: key } : process.env,
-      encoding: "utf-8",
-      timeout: SESSION_OVERVIEW_TIMEOUT_MS,
-      windowsHide: true,
-    });
-    if (result.status !== 0) return "";
-    const stdout = (result.stdout ?? "").trim();
-    return stdout;
-  } catch {
-    return "";
-  }
-}
-
-function sessionOverview(root: string, key: string | null): string {
-  const stdout = runContextScript(root, key, []);
-  return stdout ? `<session-overview>\n${stdout}\n</session-overview>` : "";
-}
-
-function workflowOverview(root: string, key: string | null): string {
-  const stdout = runContextScript(root, key, [
-    "--mode",
-    "phase",
-    "--platform",
-    "pi",
-  ]);
-  return stdout ? `<trellis-workflow>\n${stdout}\n</trellis-workflow>` : "";
-}
-
 function buildStartupContext(
   root: string,
-  key: string | null,
-  overview: string,
+  _key: string | null,
+  _overview: string,
 ): string {
-  const workflow = workflowOverview(root, key);
   return [
-    "<session-context>\nTrellis compact SessionStart context. Use it to orient the session; load details on demand.\n</session-context>",
+    "<session-context>\nTrellis compact SessionStart context. Orient from journal, spec, and research. Do not create or drive Trellis tasks.\n</session-context>",
     FIRST_REPLY_NOTICE,
-    overview,
-    workflow,
-    "<ready>\nUse the current workflow state to decide whether to create, continue, or skip a Trellis task.\n</ready>",
+    "<ready>\nContext loaded. Use journal, spec, research, and `trellis mem` on demand. Remember at session end or after compact.\n</ready>",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -1675,45 +1605,20 @@ export default function trellisExtension(pi: {
     return k;
   };
 
-  // Per-turn cache to avoid double-spawning python
-  let turnCache: {
-    key: string | null;
-    ts: number;
-    wf: string;
-    ov: string;
-  } | null = null;
-  const getTurnCtx = (k: string | null) => {
-    const now = Date.now();
-    if (turnCache && turnCache.key === k && now - turnCache.ts < 1500)
-      return turnCache;
-    turnCache = {
-      key: k,
-      ts: now,
-      wf: workflowBreadcrumb(root, k),
-      ov: sessionOverview(root, k),
-    };
-    return turnCache;
-  };
   // Provider prefix caches invalidate from byte 0 whenever the system prompt
   // changes, so everything injected into systemPrompt is memoized per context
   // key and stays byte-identical for the life of the process. Volatile state
   // travels through persisted custom messages instead (append-only history).
   const startupCtxCache = new Map<string, string>();
-  const getStartupCtx = (
-    k: string | null,
-    turn: { ov: string },
-  ): string => {
+  const getStartupCtx = (k: string | null): string => {
     const key = k ?? "default";
     let startup = startupCtxCache.get(key);
     if (startup === undefined) {
-      startup = buildStartupContext(root, k, turn.ov);
+      startup = buildStartupContext(root, k, "");
       startupCtxCache.set(key, startup);
     }
     return startup;
   };
-  const taskCtxSnapshot = new Map<string, string>();
-  const lastSentTaskCtx = new Map<string, string>();
-  const lastSentRuntimeCtx = new Map<string, string>();
 
   // Toggle only the latest subagent native card; do not use Pi global tool expansion.
   const toggleDetail = (ctx: PiExtensionContext) => {
@@ -1736,11 +1641,11 @@ export default function trellisExtension(pi: {
   pi.registerTool?.({
     name: "trellis_subagent",
     label: "Trellis Subagent",
-    description: "Run a Trellis project sub-agent with active task context.",
-    promptSnippet:
-      'Sub-agent dispatch protocol (Trellis): your dispatch prompt MUST start with one line "Active task: <task path from `task.py current`>" before any other instructions.',
+    description:
+      "Disabled in mini-trellis. Do not use. Persist notes with /trellis-remember.",
+    promptSnippet: "",
     promptGuidelines: [
-      'Use subagent for task delegation. Your dispatch prompt MUST start with "Active task: <task path from `task.py current`>".',
+      "Do not dispatch Trellis sub-agents. Mini-trellis does not manage task creation or execution.",
     ],
     parameters: {
       type: "object",
@@ -1780,6 +1685,15 @@ export default function trellisExtension(pi: {
       onUpdate?: (r: PiToolResult) => void,
       ctx?: PiExtensionContext,
     ) => {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "trellis_subagent is disabled. Mini-trellis does not dispatch Trellis sub-agents. Use /trellis-remember to persist session notes.",
+          },
+        ],
+        details: { error: "disabled" },
+      };
       activeSubagentToolCallId = id;
       const agentName = normalizeAgent(input.agent);
       if (!isTrellisAgent(root, agentName)) {
@@ -1894,7 +1808,7 @@ export default function trellisExtension(pi: {
   pi.on?.("session_start", (event, ctx) => {
     getKey(event, ctx);
     ctx?.ui?.notify?.(
-      "Trellis project context is available. Use /trellis-start to bootstrap or /trellis-continue to resume.",
+      "Trellis context is available. Use /trellis-remember to persist journal notes.",
       "info",
     );
   });
@@ -1931,43 +1845,10 @@ export default function trellisExtension(pi: {
   });
   pi.on?.("before_agent_start", (event, ctx) => {
     const k = getKey(event, ctx);
-    const key = k ?? "default";
     const cur = (event as { systemPrompt?: string }).systemPrompt ?? "";
-    const turn = getTurnCtx(k);
-    const startup = getStartupCtx(k, turn);
-    // Task context is snapshotted into systemPrompt once; later on-disk
-    // changes are delivered as persisted messages so the prefix stays stable.
-    const freshTaskCtx = buildContext(root, "trellis-implement", k);
-    let taskCtx = taskCtxSnapshot.get(key);
-    if (taskCtx === undefined) {
-      taskCtx = freshTaskCtx;
-      taskCtxSnapshot.set(key, taskCtx);
-      lastSentTaskCtx.set(key, freshTaskCtx);
-    }
-    const updates: string[] = [];
-    const runtimeContext = [turn.wf, turn.ov].filter(Boolean).join("\n\n");
-    if (runtimeContext && runtimeContext !== lastSentRuntimeCtx.get(key)) {
-      lastSentRuntimeCtx.set(key, runtimeContext);
-      updates.push(runtimeContext);
-    }
-    if (freshTaskCtx !== lastSentTaskCtx.get(key)) {
-      lastSentTaskCtx.set(key, freshTaskCtx);
-      updates.push(
-        "<trellis-task-context-update>\nTask context changed on disk. This supersedes the Trellis Task Context in the system prompt.\n\n" +
-          freshTaskCtx +
-          "\n</trellis-task-context-update>",
-      );
-    }
-    const content = updates.join("\n\n");
+    const startup = getStartupCtx(k);
     return {
-      message: content
-        ? {
-            customType: "trellis-runtime-context",
-            content,
-            display: false,
-          }
-        : undefined,
-      systemPrompt: [cur, startup, taskCtx].filter(Boolean).join("\n\n"),
+      systemPrompt: [cur, startup].filter(Boolean).join("\n\n"),
     };
   });
   pi.on?.("context", (event, ctx) => {

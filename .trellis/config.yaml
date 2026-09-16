@@ -164,3 +164,27 @@ channel:
 #
 # prompt_injection:
 #   skip_keyword: "no-trellis"   # "" disables the escape hatch entirely
+
+#-------------------------------------------------------------------------------
+# Update skip (mini-trellis installed surface)
+#-------------------------------------------------------------------------------
+# Keep local hook/command/skill trims from being restored by `trellis update`.
+update:
+  skip:
+    - .claude/settings.json
+    - .claude/hooks/session-start.py
+    - .claude/commands/trellis/remember.md
+    - .cursor/hooks.json
+    - .cursor/hooks/session-start.py
+    - .cursor/commands/trellis-remember.md
+    - .codex/hooks.json
+    - .codex/hooks/session-start.py
+    - .opencode/lib/session-utils.js
+    - .opencode/plugins/
+    - .opencode/commands/trellis/remember.md
+    - .pi/extensions/trellis/index.ts
+    - .pi/prompts/trellis-remember.md
+    - .claude/skills/trellis-update-spec/
+    - .cursor/skills/trellis-update-spec/
+    - .opencode/skills/trellis-update-spec/
+    - .pi/skills/trellis-update-spec/

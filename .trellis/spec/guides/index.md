@@ -21,6 +21,7 @@ These guides help you **ask the right questions before coding**.
 
 | Guide | Purpose | When to Use |
 |-------|---------|-------------|
+| [Mini-Trellis Memory Layer](./mini-memory.md) | Journal, research inbox, spec indexes, and SessionStart — no task workflow | Session start, compact, remember, or promoting research into spec |
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
 | [Cross-Platform Thinking Guide](./cross-platform-thinking-guide.md) | Catch OS, shell, Python, path, and persistence assumptions | When commands, hooks, templates, scripts, or persisted JSON must work across platforms |
