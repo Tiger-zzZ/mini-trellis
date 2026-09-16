@@ -30,14 +30,18 @@ import {
   isBootstrapTurn,
 } from "../dialogue.js";
 import { inRangeOverlap, sameProject } from "../filter.js";
-import {
-  openSqliteReadOnly,
-  SqliteParseError,
-  SqliteSnapshotUnstableError,
-  type SqliteRow,
-  type SqliteTableInfo,
-} from "../internal/sqlite-readonly.js";
 import { opencodeDbPath } from "../internal/paths.js";
+import {
+  createSqlitePreparedStore,
+  declaresColumn,
+  findTable,
+  requireColumns,
+  requireOneOfColumns,
+  requireRowColumns,
+  withSqliteDb,
+  type SqliteWarningCopy,
+} from "../internal/sqlite-adapter.js";
+import { type SqliteRow } from "../internal/sqlite-readonly.js";
 import { searchInDialogue } from "../search.js";
 import type {
   DialogueRole,
@@ -92,110 +96,21 @@ const PART_TABLE = "part";
  * renamed store still lists rather than failing closed. */
 const SESSION_CWD_COLUMNS = ["directory", "cwd"] as const;
 
-/**
- * Thrown when the store is a readable SQLite file whose tables/columns do not
- * match anything this adapter knows how to interpret. Kept distinct from a
- * corrupt file so the CLI can tell "OpenCode changed its schema" apart from
- * "this database is damaged" — both degrade to an empty result.
- */
-class OpencodeSchemaError extends SqliteParseError {
-  constructor(message: string) {
-    super(message);
-    this.name = "OpencodeSchemaError";
-  }
-}
+const SQLITE_WARNINGS: SqliteWarningCopy = {
+  unreadableCode: "opencode-db-unreadable",
+  snapshotUnstableCode: "opencode-db-snapshot-unstable",
+  schemaUnsupportedCode: "opencode-db-schema-unsupported",
+  writingMessage: (dbPath) =>
+    `OpenCode is writing to its session database; retry in a moment (${dbPath})`,
+  unreadableMessage: (dbPath, error) =>
+    `cannot read OpenCode session database (${dbPath}): ${error.message}`,
+  unsupportedMessage: (dbPath, error) =>
+    `unsupported OpenCode session schema (${dbPath}): ${error.message}`,
+};
 
-const DB_UNREADABLE_WARNING_CODE = "opencode-db-unreadable";
-const DB_SNAPSHOT_UNSTABLE_WARNING_CODE = "opencode-db-snapshot-unstable";
-const DB_SCHEMA_WARNING_CODE = "opencode-db-schema-unsupported";
-
-/** Record one degradation per condition per command — repeated failures while
- * scanning many sessions must not produce repeated terminal noise. */
-function pushDbWarning(
-  warnings: MemWarning[],
-  dbPath: string,
-  error: SqliteParseError,
-): void {
-  const code =
-    error instanceof SqliteSnapshotUnstableError
-      ? DB_SNAPSHOT_UNSTABLE_WARNING_CODE
-      : error instanceof OpencodeSchemaError
-        ? DB_SCHEMA_WARNING_CODE
-        : DB_UNREADABLE_WARNING_CODE;
-  if (warnings.some((warning) => warning.code === code)) return;
-
-  const message =
-    code === DB_SNAPSHOT_UNSTABLE_WARNING_CODE
-      ? `OpenCode is writing to its session database; retry in a moment (${dbPath})`
-      : code === DB_SCHEMA_WARNING_CODE
-        ? `unsupported OpenCode session schema (${dbPath}): ${error.message}`
-        : `cannot read OpenCode session database (${dbPath}): ${error.message}`;
-  warnings.push({ code, message });
-}
-
-type ReadOnlyDb = ReturnType<typeof openSqliteReadOnly>;
-
-function findTable(db: ReadOnlyDb, name: string): SqliteTableInfo {
-  const table = db.listTables().find((item) => item.name === name);
-  if (!table) {
-    throw new OpencodeSchemaError(`missing table: ${name}`);
-  }
-  return table;
-}
-
-/** True when `CREATE TABLE` sql declares a column of this exact name. Column
- * semantics are matched by name only — never by position, so a reordered or
- * extended schema cannot silently shift values into the wrong field. */
-function declaresColumn(table: SqliteTableInfo, name: string): boolean {
-  const pattern = new RegExp(
-    `(?:\\(|,)\\s*["\`\\[]?${name}(?:["\`\\]]|\\b)`,
-    "i",
-  );
-  return pattern.test(table.sql);
-}
-
-function requireColumns(
-  table: SqliteTableInfo,
-  names: readonly string[],
-): void {
-  const missing = names.filter((name) => !declaresColumn(table, name));
-  if (missing.length > 0) {
-    throw new OpencodeSchemaError(
-      `table ${table.name} is missing column(s): ${missing.join(", ")}`,
-    );
-  }
-}
-
-/** Pick the first accepted spelling a table actually declares. */
-function requireOneOfColumns(
-  table: SqliteTableInfo,
-  candidates: readonly string[],
-): string {
-  const found = candidates.find((name) => declaresColumn(table, name));
-  if (!found) {
-    throw new OpencodeSchemaError(
-      `table ${table.name} has none of the expected column(s): ${candidates.join(" / ")}`,
-    );
-  }
-  return found;
-}
-
-/** The declared schema and the decoded rows can disagree when the sql failed to
- * parse; re-check against a real row before trusting any of it. */
-function requireRowColumns(
-  rows: readonly SqliteRow[],
-  tableName: string,
-  names: readonly string[],
-): void {
-  const first = rows[0];
-  if (!first) return;
-  const missing = names.filter((name) => !(name in first));
-  if (missing.length > 0) {
-    throw new OpencodeSchemaError(
-      `table ${tableName} is missing column(s): ${missing.join(", ")}`,
-    );
-  }
-}
+type ReadOnlyDb = Parameters<
+  typeof findTable
+>[0];
 
 // ---------- message / part store ----------
 
@@ -328,33 +243,31 @@ function scanMessagesAndParts(
 
 /** Search-scoped whole-db store, prepared and released by the orchestrator.
  * One-session extract / context calls never populate it. */
-let preparedStore: { dbPath: string; store: OpencodeSessionStore } | null =
-  null;
+const preparedStore = createSqlitePreparedStore<OpencodeSessionStore>();
+
+function loadSessionStore(
+  dbPath: string,
+  warnings: MemWarning[],
+  sessionId?: string,
+): OpencodeSessionStore {
+  return withSqliteDb(
+    dbPath,
+    warnings,
+    SQLITE_WARNINGS,
+    emptySessionStore(),
+    (db) => scanMessagesAndParts(db, sessionId),
+  );
+}
 
 export function prepareOpencodeSessionStore(
   dbPath: string,
   warnings: MemWarning[] = [],
 ): void {
-  let store = emptySessionStore();
-  if (fs.existsSync(dbPath)) {
-    try {
-      const db = openSqliteReadOnly(dbPath);
-      try {
-        store = scanMessagesAndParts(db, undefined);
-      } finally {
-        db.close();
-      }
-    } catch (error) {
-      if (!(error instanceof SqliteParseError)) throw error;
-      pushDbWarning(warnings, dbPath, error);
-      store = emptySessionStore();
-    }
-  }
-  preparedStore = { dbPath, store };
+  preparedStore.prepare(dbPath, () => loadSessionStore(dbPath, warnings));
 }
 
 export function releaseOpencodeSessionStore(): void {
-  preparedStore = null;
+  preparedStore.release();
 }
 
 /** Read one session's messages + parts, reusing the search-scoped store when
@@ -367,27 +280,14 @@ function readSessionMessages(
   messages: OpencodeMessageRow[];
   partsByMsg: Map<string, OpencodePartRow[]>;
 } {
-  if (preparedStore?.dbPath === dbPath) {
+  const prepared = preparedStore.get(dbPath);
+  if (prepared) {
     return {
-      messages: preparedStore.store.messagesBySession.get(sessionId) ?? [],
-      partsByMsg: preparedStore.store.partsByMsg,
+      messages: prepared.messagesBySession.get(sessionId) ?? [],
+      partsByMsg: prepared.partsByMsg,
     };
   }
-  if (!fs.existsSync(dbPath)) return { messages: [], partsByMsg: new Map() };
-
-  let store: OpencodeSessionStore;
-  try {
-    const db = openSqliteReadOnly(dbPath);
-    try {
-      store = scanMessagesAndParts(db, sessionId);
-    } finally {
-      db.close();
-    }
-  } catch (error) {
-    if (!(error instanceof SqliteParseError)) throw error;
-    pushDbWarning(warnings, dbPath, error);
-    return { messages: [], partsByMsg: new Map() };
-  }
+  const store = loadSessionStore(dbPath, warnings, sessionId);
   return {
     messages: store.messagesBySession.get(sessionId) ?? [],
     partsByMsg: store.partsByMsg,
@@ -506,29 +406,27 @@ export function opencodeListSessions(
   const dbPath = opencodeDbPath();
   if (dbPath === undefined || !fs.existsSync(dbPath)) return [];
 
-  let rows: SqliteRow[];
-  let cwdColumn: string;
-  try {
-    const db = openSqliteReadOnly(dbPath);
-    try {
+  const listed = withSqliteDb(
+    dbPath,
+    warnings,
+    SQLITE_WARNINGS,
+    null as { rows: SqliteRow[]; cwdColumn: string } | null,
+    (db) => {
       const table = findTable(db, SESSION_TABLE);
       requireColumns(table, ["id", "time_created", "time_updated"]);
-      cwdColumn = requireOneOfColumns(table, SESSION_CWD_COLUMNS);
-      rows = db.scanTable(SESSION_TABLE);
+      const cwdColumn = requireOneOfColumns(table, SESSION_CWD_COLUMNS);
+      const rows = db.scanTable(SESSION_TABLE);
       requireRowColumns(rows, SESSION_TABLE, [
         "id",
         cwdColumn,
         "time_created",
         "time_updated",
       ]);
-    } finally {
-      db.close();
-    }
-  } catch (error) {
-    if (!(error instanceof SqliteParseError)) throw error;
-    pushDbWarning(warnings, dbPath, error);
-    return [];
-  }
+      return { rows, cwdColumn };
+    },
+  );
+  if (!listed) return [];
+  const { rows, cwdColumn } = listed;
 
   const out: MemSessionInfo[] = [];
   for (const row of rows) {

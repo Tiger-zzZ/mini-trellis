@@ -559,6 +559,7 @@ describe("listMemProjects", () => {
     expect(ours?.by_platform.claude).toBe(1);
     expect(ours?.by_platform.pi).toBe(0);
     expect(ours?.by_platform.zcode).toBe(0);
+    expect(ours?.by_platform.devin).toBe(0);
   });
 
   it("includes Pi sessions in project aggregation", () => {
@@ -571,5 +572,6 @@ describe("listMemProjects", () => {
     expect(ours?.by_platform.pi).toBe(1);
     expect(ours?.by_platform.claude).toBe(0);
     expect(ours?.by_platform.zcode).toBe(0);
+    expect(ours?.by_platform.devin).toBe(0);
   });
 });

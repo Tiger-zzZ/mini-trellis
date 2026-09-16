@@ -42,6 +42,52 @@ export function opencodeDataDir(): string {
 }
 
 /**
+ * Cognition Devin CLI data root (terminal agent, not Devin Desktop / Cascade
+ * and not Factory Droid):
+ *   - Unix: `$XDG_DATA_HOME/devin/cli`, else `~/.local/share/devin/cli`
+ *   - Windows: `%APPDATA%\devin\cli` (official logs path; falls back to
+ *     `~/AppData/Roaming` when `APPDATA` is unset)
+ *
+ * Read per call so tests (and a caller that sets `XDG_DATA_HOME` / `APPDATA`)
+ * see their own value. `os.platform()` is also read per call, matching
+ * `HOME` reflecting a mocked `os.homedir()`.
+ */
+export function devinCliDataDir(): string {
+  if (os.platform() === "win32") {
+    const appData = process.env.APPDATA?.trim();
+    const base =
+      appData && appData.length > 0
+        ? appData
+        : path.join(HOME, "AppData", "Roaming");
+    return path.join(base, "devin", "cli");
+  }
+  const xdg = process.env.XDG_DATA_HOME?.trim();
+  if (xdg) return path.join(xdg, "devin", "cli");
+  return path.join(HOME, ".local", "share", "devin", "cli");
+}
+
+/**
+ * Resolve the Devin CLI session database (`sessions.db`), or `undefined`
+ * when `DEVIN_DB_PATH=:memory:` (no file to read).
+ *
+ *   1. `DEVIN_DB_PATH` — absolute path used as-is, `~/` expanded, relative
+ *      name joined to the data dir, `:memory:` meaning there is no file.
+ *   2. `<data>/sessions.db` — Cognition's default store. Missing file is a
+ *      normal empty result; the adapter checks existence.
+ */
+export function devinCliDbPath(): string | undefined {
+  const override = process.env.DEVIN_DB_PATH?.trim();
+  if (override) {
+    if (override === ":memory:") return undefined;
+    const expanded = expandHome(override);
+    return path.isAbsolute(expanded)
+      ? expanded
+      : path.join(devinCliDataDir(), expanded);
+  }
+  return path.join(devinCliDataDir(), "sessions.db");
+}
+
+/**
  * Resolve the OpenCode session database, or `undefined` when this machine has
  * none (a normal empty result, not an error).
  *

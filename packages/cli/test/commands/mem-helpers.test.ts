@@ -81,6 +81,12 @@ describe("buildFilter", () => {
     expect(f.cwd).toBeUndefined();
   });
 
+  it("accepts devin as a platform filter", () => {
+    const f = buildFilter({ platform: "devin", global: true });
+    expect(f.platform).toBe("devin");
+    expect(f.cwd).toBeUndefined();
+  });
+
   it("--global drops the cwd scope", () => {
     const f = buildFilter({ global: true });
     expect(f.cwd).toBeUndefined();

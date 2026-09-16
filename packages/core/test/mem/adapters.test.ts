@@ -94,6 +94,10 @@ const {
 const { ZCODE_DB } = await import("../../src/mem/internal/paths.js");
 
 import type { MemFilter, MemSessionInfo } from "../../src/mem/types.js";
+import {
+  findPythonForSqlite,
+  runPythonScript,
+} from "./sqlite-fixture.js";
 
 /** Minimal global-scope filter; overrides merge in. */
 function mkFilter(overrides: Partial<MemFilter> = {}): MemFilter {
@@ -1373,44 +1377,11 @@ describe("piListSessions / piExtractDialogue", () => {
 // native addon may be required, here or at runtime.
 // =============================================================================
 
-/** Detect a python launcher with the sqlite3 stdlib module. */
-function findPythonForSqlite(): string[] | null {
-  const { execFileSync } =
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require("node:child_process") as typeof import("node:child_process");
-  const candidates =
-    process.platform === "win32" ? ["py", "python"] : ["python3", "python"];
-  for (const cmd of candidates) {
-    try {
-      execFileSync(cmd, ["-c", "import sqlite3"], { stdio: "ignore" });
-      return [cmd];
-    } catch {
-      /* next */
-    }
-  }
-  return null;
-}
-
 const SQLITE_PY = findPythonForSqlite();
 
 /** Run a python program from a temp file (avoids `-c` quoting limits). */
 function runPython(script: string): void {
-  const pyCmd = SQLITE_PY?.[0];
-  if (!pyCmd) throw new Error("python unavailable");
-  const { execFileSync } =
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require("node:child_process") as typeof import("node:child_process");
-  const pyDir = nodeFs.mkdtempSync(nodePath.join(fakeHome, "py-oc-"));
-  const pyFile = nodePath.join(pyDir, "fixture.py");
-  nodeFs.writeFileSync(pyFile, script);
-  try {
-    execFileSync(pyCmd, [pyFile], {
-      stdio: "ignore",
-      maxBuffer: 64 * 1024 * 1024,
-    });
-  } finally {
-    nodeFs.rmSync(pyDir, { recursive: true, force: true });
-  }
+  runPythonScript(fakeHome, SQLITE_PY, script);
 }
 
 const OPENCODE_DB = nodePath.join(

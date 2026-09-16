@@ -7,8 +7,9 @@
  * PATH so CI environments without Python do not fail.
  */
 
-import { describe, it, expect, afterAll } from "vitest";
-import * as nodeFs from "node:fs";
+import { describe, it, expect, afterAll, vi } from "vitest";
+import nodeFsDefault, * as nodeFs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import * as nodeOs from "node:os";
 import * as nodePath from "node:path";
 import { execFileSync } from "node:child_process";
@@ -189,6 +190,124 @@ describe.skipIf(SKIP)("sqlite-readonly parser", () => {
     db.close();
   });
 
+  it("keys rows by column name when CREATE TABLE has -- comments between columns", () => {
+    buildSqlite(dbPath, {
+      schema: [
+        `CREATE TABLE message_nodes (
+  row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id TEXT NOT NULL,
+  node_id INTEGER NOT NULL,           -- node_id within this session's forest
+  parent_node_id INTEGER,             -- NULL for root nodes
+  chat_message TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+)`,
+      ],
+      rows: {
+        message_nodes: [
+          {
+            session_id: "s1",
+            node_id: 1,
+            parent_node_id: null,
+            chat_message: "hello",
+            created_at: 1700000000,
+          },
+        ],
+      },
+    });
+    const db = openSqliteReadOnly(dbPath);
+    expect(db.scanTable("message_nodes")).toEqual([
+      {
+        row_id: 1,
+        session_id: "s1",
+        node_id: 1,
+        parent_node_id: null,
+        chat_message: "hello",
+        created_at: 1700000000,
+      },
+    ]);
+    db.close();
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "reads a sparse database larger than the readFileSync limit",
+    () => {
+      const largeDbPath = nodePath.join(tmpDir, "large.db");
+      buildSqlite(largeDbPath, {
+        schema: ["CREATE TABLE session (id TEXT PRIMARY KEY, title TEXT)"],
+        rows: { session: [{ id: "s1", title: "still-readable" }] },
+      });
+      // APFS/ext4 create a hole here; skip Windows because extending a file is
+      // not guaranteed to stay sparse and could allocate or zero-fill 2 GiB.
+      nodeFs.truncateSync(largeDbPath, 2 * 1024 ** 3);
+
+      const db = openSqliteReadOnly(largeDbPath);
+      expect(db.scanTable("session")).toEqual([
+        { id: "s1", title: "still-readable" },
+      ]);
+      db.close();
+    },
+  );
+
+  it("retries partial positional reads", () => {
+    buildSqlite(dbPath, {
+      schema: ["CREATE TABLE session (id TEXT PRIMARY KEY, title TEXT)"],
+      rows: { session: [{ id: "s1", title: "partial" }] },
+    });
+    const readSync = nodeFs.readSync;
+    const readSpy = vi
+      .spyOn(nodeFsDefault, "readSync")
+      .mockImplementation((fd, buffer, offset, length, position) =>
+        readSync(
+          fd,
+          buffer,
+          offset,
+          Math.max(1, Math.ceil(length / 2)),
+          position,
+        ),
+      );
+    syncBuiltinESMExports();
+
+    try {
+      const db = openSqliteReadOnly(dbPath);
+      try {
+        expect(db.scanTable("session")).toEqual([
+          { id: "s1", title: "partial" },
+        ]);
+      } finally {
+        db.close();
+      }
+    } finally {
+      readSpy.mockRestore();
+      syncBuiltinESMExports();
+    }
+  });
+
+  it("normalizes lazy read errors as SqliteParseError", () => {
+    buildSqlite(dbPath, {
+      schema: ["CREATE TABLE session (id TEXT PRIMARY KEY)"],
+      rows: { session: [{ id: "s1" }] },
+    });
+    const db = openSqliteReadOnly(dbPath);
+    const readSpy = vi
+      .spyOn(nodeFsDefault, "readSync")
+      .mockImplementation(() => {
+        const error = new Error(
+          "simulated read failure",
+        ) as NodeJS.ErrnoException;
+        error.code = "EIO";
+        throw error;
+      });
+    syncBuiltinESMExports();
+
+    try {
+      expect(() => db.listTables()).toThrow(SqliteParseError);
+    } finally {
+      readSpy.mockRestore();
+      syncBuiltinESMExports();
+      db.close();
+    }
+  });
+
   it("handles NULL values", () => {
     buildSqlite(dbPath, {
       schema: ["CREATE TABLE t (id INTEGER, a TEXT, b INTEGER)"],
@@ -233,6 +352,44 @@ describe.skipIf(SKIP)("sqlite-readonly parser", () => {
     const rows = db.scanTable("session");
     const ids = rows.map((r) => r.id).sort();
     expect(ids).toEqual(["main", "wal1"]);
+    db.close();
+  });
+
+  it("keeps its captured WAL snapshot after a later WAL commit", () => {
+    nodeFs.rmSync(dbPath, { force: true });
+    nodeFs.rmSync(dbPath + "-wal", { force: true });
+    nodeFs.rmSync(dbPath + "-shm", { force: true });
+    buildSqliteWithWal(
+      dbPath,
+      {
+        schema: ["CREATE TABLE session (id TEXT PRIMARY KEY, title TEXT)"],
+        rows: { session: [{ id: "main", title: "in-main" }] },
+      },
+      [{ table: "session", row: { id: "wal1", title: "captured" } }],
+    );
+
+    const mainBefore = nodeFs.readFileSync(dbPath);
+    const walSizeBefore = nodeFs.statSync(dbPath + "-wal").size;
+    const db = openSqliteReadOnly(dbPath);
+    runPy(`import sqlite3, os
+db = sqlite3.connect(${JSON.stringify(dbPath)})
+db.execute("PRAGMA journal_mode=WAL")
+db.execute("PRAGMA wal_autocheckpoint=0")
+db.execute("INSERT INTO session (id, title) VALUES (?, ?)", ("wal2", "later"))
+db.commit()
+os._exit(0)
+`);
+
+    expect(nodeFs.readFileSync(dbPath)).toEqual(mainBefore);
+    expect(nodeFs.statSync(dbPath + "-wal").size).toBeGreaterThan(
+      walSizeBefore,
+    );
+    expect(
+      db
+        .scanTable("session")
+        .map((row) => row.id)
+        .sort(),
+    ).toEqual(["main", "wal1"]);
     db.close();
   });
 

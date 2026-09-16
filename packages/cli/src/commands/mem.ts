@@ -22,6 +22,7 @@ import {
   extractMemDialogue,
   listMemProjects,
   listMemSessions,
+  MEM_SOURCE_KINDS,
   MemSessionNotFoundError,
   readMemContext,
   searchMemSessions,
@@ -65,15 +66,8 @@ export function parseArgv(argv: readonly string[]): Argv {
   return { cmd, positional, flags };
 }
 
-const VALID_PLATFORMS: readonly string[] = [
-  "claude",
-  "codex",
-  "grok",
-  "opencode",
-  "pi",
-  "zcode",
-  "all",
-];
+const VALID_PLATFORMS: readonly string[] = [...MEM_SOURCE_KINDS, "all"];
+const PLATFORM_HELP = VALID_PLATFORMS.join("|");
 
 /** Translate parsed CLI flags into a core `MemFilter`. Validation failures
  * exit the process — core never sees raw CLI flags. */
@@ -453,7 +447,7 @@ function cmdExtract(argv: Argv): void {
 }
 
 function cmdHelp(): void {
-  console.log(`trellis mem — list/search Claude/Codex/Grok/OpenCode/Pi/ZCode sessions
+  console.log(`trellis mem — list/search Claude/Codex/Devin/Grok/OpenCode/Pi/ZCode sessions
 
 commands:
   list                          list sessions (default if no command)
@@ -465,7 +459,7 @@ commands:
                                 use this to discover which --cwd to pass to search
 
 flags:
-  --platform claude|codex|grok|opencode|pi|zcode|all   default all
+  --platform ${PLATFORM_HELP}   default all
   --since YYYY-MM-DD                     inclusive lower bound
   --until YYYY-MM-DD                     inclusive upper bound
   --global                               include all projects (default: cwd-scoped)
@@ -474,7 +468,7 @@ flags:
   --grep KW                              extract / context: filter turns by keyword (multi-token AND)
   --phase brainstorm|implement|all       extract: slice by Trellis brainstorm windows
                                          (default all; brainstorm = [task.py create, task.py start);
-                                         Claude/Codex/Grok/Pi/ZCode supported; OpenCode warns + returns all)
+                                         Claude/Codex/Devin/Grok/Pi/ZCode supported; OpenCode warns + returns all)
   --turns N                              context: number of hit turns to return (default 3)
   --around N                             context: turns of surrounding context per hit (default 1)
   --max-chars N                          context: total char budget (default 6000, ~1500 tokens)

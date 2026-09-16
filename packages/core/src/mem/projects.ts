@@ -4,11 +4,20 @@
  */
 
 import { listAll, resolveFilter, WIDE_LIMIT } from "./sessions.js";
-import type {
-  ListMemProjectsOptions,
-  MemProjectSummary,
-  MemWarning,
+import {
+  MEM_SOURCE_KINDS,
+  type ListMemProjectsOptions,
+  type MemProjectSummary,
+  type MemSourceKind,
+  type MemWarning,
 } from "./types.js";
+
+function emptyByPlatform(): Record<MemSourceKind, number> {
+  return Object.fromEntries(MEM_SOURCE_KINDS.map((kind) => [kind, 0])) as Record<
+    MemSourceKind,
+    number
+  >;
+}
 
 /**
  * Aggregate distinct project cwds across every platform. Always scans
@@ -34,14 +43,7 @@ export function listMemProjects(
         cwd: s.cwd,
         last_active: ts,
         sessions: 0,
-        by_platform: {
-          claude: 0,
-          codex: 0,
-          grok: 0,
-          opencode: 0,
-          pi: 0,
-          zcode: 0,
-        },
+        by_platform: emptyByPlatform(),
       };
       byCwd.set(s.cwd, agg);
     }

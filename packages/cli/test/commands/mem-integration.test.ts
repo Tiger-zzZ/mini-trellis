@@ -668,7 +668,7 @@ describe("runMem subcommand integration", () => {
     runMem(["help"]);
     const joined = logs.join("\n");
     expect(joined).toContain("trellis mem");
-    expect(joined).toContain("claude|codex|grok|opencode|pi|zcode|all");
+    expect(joined).toContain("claude|codex|devin|grok|opencode|pi|zcode|all");
   });
 
   it("unknown command exits non-zero with 'unknown command' error", () => {

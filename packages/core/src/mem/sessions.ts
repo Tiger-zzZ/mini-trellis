@@ -4,62 +4,26 @@
  * `searchMemSessions`, and `extractMemDialogue` entry points.
  */
 
-import {
-  claudeExtractDialogue,
-  claudeListSessions,
-  claudeSearch,
-  collectClaudeTurnsAndEvents,
-} from "./adapters/claude.js";
-import {
-  codexExtractDialogue,
-  codexListSessions,
-  codexSearch,
-  collectCodexTurnsAndEvents,
-} from "./adapters/codex.js";
-import {
-  collectGrokTurnsAndEvents,
-  grokExtractDialogue,
-  grokListSessions,
-  grokSearch,
-} from "./adapters/grok.js";
-import {
-  opencodeExtractDialogue,
-  opencodeListSessions,
-  opencodeSearch,
-  prepareOpencodeSessionStore,
-  releaseOpencodeSessionStore,
-} from "./adapters/opencode.js";
-import {
-  collectPiTurnsAndEvents,
-  piExtractDialogue,
-  piListSessions,
-  piSearch,
-} from "./adapters/pi.js";
-import {
-  collectZcodeTurnsAndEvents,
-  prepareZcodeSessionStore,
-  releaseZcodeSessionStore,
-  zcodeExtractDialogue,
-  zcodeListSessions,
-  zcodeSearch,
-} from "./adapters/zcode.js";
+import { MEM_PLATFORMS } from "./platforms.js";
 import { buildBrainstormWindows } from "./phase.js";
 import { relevanceScore, searchInDialogue } from "./search.js";
-import type {
-  DialogueTurn,
-  ExtractMemDialogueOptions,
-  ListMemSessionsOptions,
-  MemDialogueGroup,
-  MemExtractResult,
-  MemFilter,
-  MemPhase,
-  MemSearchMatch,
-  MemSearchResult,
-  MemSessionInfo,
-  MemWarning,
-  SearchHit,
-  SearchMemSessionsOptions,
-  TaskPyEvent,
+import {
+  MEM_SOURCE_KINDS,
+  type DialogueTurn,
+  type ExtractMemDialogueOptions,
+  type ListMemSessionsOptions,
+  type MemDialogueGroup,
+  type MemExtractResult,
+  type MemFilter,
+  type MemPhase,
+  type MemSearchMatch,
+  type MemSearchResult,
+  type MemSessionInfo,
+  type MemSourceKind,
+  type MemWarning,
+  type SearchHit,
+  type SearchMemSessionsOptions,
+  type TaskPyEvent,
 } from "./types.js";
 
 /** Internal wide limit — `limit` only caps display; search recall and session
@@ -90,24 +54,20 @@ export function resolveFilter(filter?: MemFilter): MemFilter {
   };
 }
 
+function inPlatformScope(f: MemFilter, kind: MemSourceKind): boolean {
+  return f.platform === "all" || f.platform === kind;
+}
+
 /** Fan out to every in-scope platform, merge by recency, cap at `f.limit`. */
 export function listAll(
   f: MemFilter,
   warnings: MemWarning[] = [],
 ): MemSessionInfo[] {
   const all: MemSessionInfo[] = [];
-  if (f.platform === "all" || f.platform === "claude")
-    all.push(...claudeListSessions(f));
-  if (f.platform === "all" || f.platform === "codex")
-    all.push(...codexListSessions(f));
-  if (f.platform === "all" || f.platform === "grok")
-    all.push(...grokListSessions(f));
-  if (f.platform === "all" || f.platform === "opencode")
-    all.push(...opencodeListSessions(f, warnings));
-  if (f.platform === "all" || f.platform === "pi")
-    all.push(...piListSessions(f));
-  if (f.platform === "all" || f.platform === "zcode")
-    all.push(...zcodeListSessions(f, warnings));
+  for (const kind of MEM_SOURCE_KINDS) {
+    if (!inPlatformScope(f, kind)) continue;
+    all.push(...MEM_PLATFORMS[kind].list(f, warnings));
+  }
   all.sort((a, b) =>
     (b.updated ?? b.created ?? "").localeCompare(a.updated ?? a.created ?? ""),
   );
@@ -118,20 +78,7 @@ function extractDialogue(
   s: MemSessionInfo,
   warnings: MemWarning[] = [],
 ): DialogueTurn[] {
-  switch (s.platform) {
-    case "claude":
-      return claudeExtractDialogue(s);
-    case "codex":
-      return codexExtractDialogue(s, warnings);
-    case "grok":
-      return grokExtractDialogue(s, warnings);
-    case "opencode":
-      return opencodeExtractDialogue(s, warnings);
-    case "pi":
-      return piExtractDialogue(s);
-    case "zcode":
-      return zcodeExtractDialogue(s, warnings);
-  }
+  return MEM_PLATFORMS[s.platform].extract(s, warnings);
 }
 
 function searchSession(
@@ -139,43 +86,31 @@ function searchSession(
   kw: string,
   warnings: MemWarning[] = [],
 ): SearchHit {
-  switch (s.platform) {
-    case "claude":
-      return claudeSearch(s, kw);
-    case "codex":
-      return codexSearch(s, kw);
-    case "grok":
-      return grokSearch(s, kw);
-    case "opencode":
-      return opencodeSearch(s, kw, warnings);
-    case "pi":
-      return piSearch(s, kw);
-    case "zcode":
-      return zcodeSearch(s, kw, warnings);
-  }
+  return MEM_PLATFORMS[s.platform].search(s, kw, warnings);
 }
 
 function collectTurnsAndEvents(
   s: MemSessionInfo,
   warnings: MemWarning[] = [],
-): {
-  turns: DialogueTurn[];
-  events: TaskPyEvent[];
-} {
-  switch (s.platform) {
-    case "claude":
-      return collectClaudeTurnsAndEvents(s);
-    case "codex":
-      return collectCodexTurnsAndEvents(s, warnings);
-    case "grok":
-      return collectGrokTurnsAndEvents(s, warnings);
-    case "opencode":
-      return { turns: opencodeExtractDialogue(s, warnings), events: [] };
-    case "pi":
-      return collectPiTurnsAndEvents(s);
-    case "zcode":
-      return collectZcodeTurnsAndEvents(s, warnings);
+): { turns: DialogueTurn[]; events: TaskPyEvent[] } {
+  return MEM_PLATFORMS[s.platform].collect(s, warnings);
+}
+
+function prepareSqliteStores(
+  candidates: readonly MemSessionInfo[],
+  warnings: MemWarning[],
+): (() => void)[] {
+  const seen = new Set<MemSourceKind>();
+  const releases: (() => void)[] = [];
+  for (const s of candidates) {
+    if (seen.has(s.platform)) continue;
+    seen.add(s.platform);
+    const platform = MEM_PLATFORMS[s.platform];
+    if (!platform.prepare || !platform.release) continue;
+    platform.prepare(s.filePath, warnings);
+    releases.push(platform.release);
   }
+  return releases;
 }
 
 /** Build a parent → descendants index (transitively flattened) for OpenCode
@@ -236,19 +171,20 @@ interface PhaseSlice {
   warnings: MemWarning[];
 }
 
-/** Slice cleaned dialogue by phase. Claude / Codex / Grok / Pi / ZCode have
- * native boundary detection; OpenCode degrades to "all turns + warning". */
+/** Slice cleaned dialogue by phase. Platforms with `phaseSupported: false`
+ * (OpenCode) degrade to "all turns + warning". */
 function sliceMemPhase(
   s: MemSessionInfo,
   phase: MemPhase,
   warnings: MemWarning[] = [],
 ): PhaseSlice {
-  if (phase === "all" || s.platform === "opencode") {
-    if (phase !== "all" && s.platform === "opencode") {
+  const platform = MEM_PLATFORMS[s.platform];
+  if (phase === "all" || !platform.phaseSupported) {
+    if (phase !== "all" && !platform.phaseSupported) {
       warnings.push({
-        code: "opencode-phase-unsupported",
+        code: `${s.platform}-phase-unsupported`,
         message:
-          `--phase ${phase} on platform=opencode is not yet supported; ` +
+          `--phase ${phase} on platform=${s.platform} is not yet supported; ` +
           `returning full dialogue.`,
       });
     }
@@ -318,8 +254,8 @@ function sliceMemPhase(
 
 // ---------- public API ----------
 
-/** List session metadata across Claude / Codex / Grok / OpenCode / Pi / ZCode,
- * sorted by recency and capped at the filter's `limit` (default 50). */
+/** List session metadata across every mem platform, sorted by recency and
+ * capped at the filter's `limit` (default 50). */
 export function listMemSessions(
   options?: ListMemSessionsOptions,
 ): MemSessionInfo[] {
@@ -351,17 +287,8 @@ export function searchMemSessions(
     candidateIds.has(s.parent_id);
 
   const matches: MemSearchMatch[] = [];
-  const zcodeCandidate = candidates.find((s) => s.platform === "zcode");
-  if (zcodeCandidate) {
-    prepareZcodeSessionStore(zcodeCandidate.filePath, warnings);
-  }
+  const releases = prepareSqliteStores(candidates, warnings);
   try {
-    const opencodeCandidate = candidates.find(
-      (s) => s.platform === "opencode",
-    );
-    if (opencodeCandidate) {
-      prepareOpencodeSessionStore(opencodeCandidate.filePath, warnings);
-    }
     for (const s of candidates) {
       if (isAbsorbedChild(s)) continue;
       const hit = includeChildren
@@ -376,8 +303,7 @@ export function searchMemSessions(
       });
     }
   } finally {
-    releaseZcodeSessionStore();
-    releaseOpencodeSessionStore();
+    for (const release of releases) release();
   }
   matches.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;

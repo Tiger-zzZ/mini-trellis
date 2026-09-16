@@ -21,8 +21,6 @@
  * install on Windows for the OpenCode adapter.
  */
 
-import * as fs from "node:fs";
-
 import {
   compactionBoundaryTurn,
   stripInjectionTags,
@@ -30,11 +28,14 @@ import {
 } from "../dialogue.js";
 import { inRangeOverlap, sameProject } from "../filter.js";
 import {
-  openSqliteReadOnly,
-  SqliteParseError,
-  SqliteSnapshotUnstableError,
-  type SqliteRow,
-} from "../internal/sqlite-readonly.js";
+  createSqlitePreparedStore,
+  findTable,
+  requireColumns,
+  requireRowColumns,
+  withSqliteDb,
+  type SqliteWarningCopy,
+} from "../internal/sqlite-adapter.js";
+import { type SqliteRow } from "../internal/sqlite-readonly.js";
 import { ZCODE_DB } from "../internal/paths.js";
 import { parseTaskPyCommandsAll } from "../phase.js";
 import { searchInDialogue } from "../search.js";
@@ -118,83 +119,50 @@ interface ZcodeSessionStore {
   partsByMsg: Map<string, ZcodePartRow[]>;
 }
 
-const ZCODE_DB_UNREADABLE_WARNING_CODE = "zcode-db-unreadable";
-const ZCODE_DB_SNAPSHOT_UNSTABLE_WARNING_CODE =
-  "zcode-db-snapshot-unstable";
+const SQLITE_WARNINGS: SqliteWarningCopy = {
+  unreadableCode: "zcode-db-unreadable",
+  snapshotUnstableCode: "zcode-db-snapshot-unstable",
+  writingMessage: (dbPath) => `ZCode 正在写入，请重试。 (${dbPath})`,
+  unreadableMessage: (dbPath, error) =>
+    `cannot read ZCode session database (${dbPath}): ${error.message}`,
+};
 
 function emptySessionStore(): ZcodeSessionStore {
   return { messagesBySession: new Map(), partsByMsg: new Map() };
 }
 
-function pushDbWarning(
-  warnings: MemWarning[],
-  dbPath: string,
-  error: SqliteParseError,
-): void {
-  const isSnapshotUnstable = error instanceof SqliteSnapshotUnstableError;
-  const code = isSnapshotUnstable
-    ? ZCODE_DB_SNAPSHOT_UNSTABLE_WARNING_CODE
-    : ZCODE_DB_UNREADABLE_WARNING_CODE;
-  if (warnings.some((warning) => warning.code === code)) return;
-  warnings.push({
-    code,
-    message: isSnapshotUnstable
-      ? `ZCode 正在写入，请重试。 (${dbPath})`
-      : `cannot read ZCode session database (${dbPath}): ${error.message}`,
-  });
-}
+function scanMessagesAndParts(
+  db: Parameters<typeof findTable>[0],
+  sessionId: string | undefined,
+): ZcodeSessionStore {
+  const messageTable = findTable(db, "message");
+  requireColumns(messageTable, ["id", "session_id", "data"]);
+  const partTable = findTable(db, "part");
+  requireColumns(partTable, ["message_id", "data"]);
 
-function requireTables(
-  db: ReturnType<typeof openSqliteReadOnly>,
-  names: readonly string[],
-): void {
-  const available = new Set(db.listTables().map((table) => table.name));
-  const missing = names.filter((name) => !available.has(name));
-  if (missing.length > 0) {
-    throw new SqliteParseError(
-      `ZCode database schema is missing table(s): ${missing.join(", ")}`,
-    );
-  }
-}
+  const messages =
+    sessionId === undefined
+      ? db.scanTable("message")
+      : db.scanTable("message", (row) => row.session_id === sessionId);
+  requireRowColumns(messages, "message", ["id", "session_id", "data"]);
 
-function requireTableColumns(
-  db: ReturnType<typeof openSqliteReadOnly>,
-  tableName: string,
-  names: readonly string[],
-): void {
-  const table = db.listTables().find((item) => item.name === tableName);
-  if (!table) {
-    throw new SqliteParseError(
-      `ZCode database schema is missing table: ${tableName}`,
+  let parts: SqliteRow[];
+  if (sessionId === undefined) {
+    parts = db.scanTable("part");
+  } else {
+    const messageIds = new Set(
+      messages
+        .map((row) => row.id)
+        .filter((id): id is string => typeof id === "string"),
+    );
+    parts = db.scanTable(
+      "part",
+      (row) =>
+        typeof row.message_id === "string" && messageIds.has(row.message_id),
     );
   }
-  const missing = names.filter((name) => {
-    const pattern = new RegExp(
-      `(?:\\(|,)\\s*["\`\\[]?${name}(?:["\`\\]]|\\b)`,
-      "i",
-    );
-    return !pattern.test(table.sql);
-  });
-  if (missing.length > 0) {
-    throw new SqliteParseError(
-      `ZCode table ${tableName} is missing column(s): ${missing.join(", ")}`,
-    );
-  }
-}
-
-function requireRowColumns(
-  rows: readonly SqliteRow[],
-  tableName: string,
-  names: readonly string[],
-): void {
-  const first = rows[0];
-  if (!first) return;
-  const missing = names.filter((name) => !(name in first));
-  if (missing.length > 0) {
-    throw new SqliteParseError(
-      `ZCode table ${tableName} is missing column(s): ${missing.join(", ")}`,
-    );
-  }
+  requireRowColumns(parts, "part", ["message_id", "data"]);
+  return buildSessionStore(messages, parts);
 }
 
 function buildSessionStore(
@@ -239,49 +207,31 @@ function buildSessionStore(
 
 /** Search-scoped whole-db store. It is explicitly prepared/released by the
  * orchestrator; one-session extract/context calls never populate it. */
-let preparedStore: { dbPath: string; store: ZcodeSessionStore } | null = null;
+const preparedStore = createSqlitePreparedStore<ZcodeSessionStore>();
 
-/** Load a full-db search store for `dbPath`. Returns a degraded empty store
- * when the db is missing/corrupt so callers never crash. */
 function loadSessionStore(
   dbPath: string,
   warnings: MemWarning[],
+  sessionId?: string,
 ): ZcodeSessionStore {
-  if (!fs.existsSync(dbPath)) return emptySessionStore();
-  let allMessages: SqliteRow[];
-  let allParts: SqliteRow[];
-  try {
-    const db = openSqliteReadOnly(dbPath);
-    try {
-      requireTables(db, ["message", "part"]);
-      requireTableColumns(db, "message", ["id", "session_id", "data"]);
-      requireTableColumns(db, "part", ["message_id", "data"]);
-      allMessages = db.scanTable("message");
-      allParts = db.scanTable("part");
-      requireRowColumns(allMessages, "message", ["id", "session_id", "data"]);
-      requireRowColumns(allParts, "part", ["message_id", "data"]);
-    } finally {
-      db.close();
-    }
-  } catch (e) {
-    if (e instanceof SqliteParseError) {
-      pushDbWarning(warnings, dbPath, e);
-      return emptySessionStore();
-    }
-    throw e;
-  }
-  return buildSessionStore(allMessages, allParts);
+  return withSqliteDb(
+    dbPath,
+    warnings,
+    SQLITE_WARNINGS,
+    emptySessionStore(),
+    (db) => scanMessagesAndParts(db, sessionId),
+  );
 }
 
 export function prepareZcodeSessionStore(
   dbPath: string,
   warnings: MemWarning[],
 ): void {
-  preparedStore = { dbPath, store: loadSessionStore(dbPath, warnings) };
+  preparedStore.prepare(dbPath, () => loadSessionStore(dbPath, warnings));
 }
 
 export function releaseZcodeSessionStore(): void {
-  preparedStore = null;
+  preparedStore.release();
 }
 
 /** Read one session with row filtering unless a search-scoped whole-db store
@@ -291,48 +241,14 @@ function readSessionMessages(
   sessionId: string,
   warnings: MemWarning[],
 ): { messages: ZcodeMessageRow[]; partsByMsg: Map<string, ZcodePartRow[]> } {
-  if (preparedStore?.dbPath === dbPath) {
+  const prepared = preparedStore.get(dbPath);
+  if (prepared) {
     return {
-      messages: preparedStore.store.messagesBySession.get(sessionId) ?? [],
-      partsByMsg: preparedStore.store.partsByMsg,
+      messages: prepared.messagesBySession.get(sessionId) ?? [],
+      partsByMsg: prepared.partsByMsg,
     };
   }
-  if (!fs.existsSync(dbPath)) return { messages: [], partsByMsg: new Map() };
-
-  let store: ZcodeSessionStore;
-  try {
-    const db = openSqliteReadOnly(dbPath);
-    try {
-      requireTables(db, ["message", "part"]);
-      requireTableColumns(db, "message", ["id", "session_id", "data"]);
-      requireTableColumns(db, "part", ["message_id", "data"]);
-      const messages = db.scanTable(
-        "message",
-        (row) => row.session_id === sessionId,
-      );
-      const messageIds = new Set(
-        messages
-          .map((row) => row.id)
-          .filter((id): id is string => typeof id === "string"),
-      );
-      const parts = db.scanTable(
-        "part",
-        (row) =>
-          typeof row.message_id === "string" && messageIds.has(row.message_id),
-      );
-      requireRowColumns(messages, "message", ["id", "session_id", "data"]);
-      requireRowColumns(parts, "part", ["message_id", "data"]);
-      store = buildSessionStore(messages, parts);
-    } finally {
-      db.close();
-    }
-  } catch (error) {
-    if (error instanceof SqliteParseError) {
-      pushDbWarning(warnings, dbPath, error);
-      return { messages: [], partsByMsg: new Map() };
-    }
-    throw error;
-  }
+  const store = loadSessionStore(dbPath, warnings, sessionId);
   return {
     messages: store.messagesBySession.get(sessionId) ?? [],
     partsByMsg: store.partsByMsg,
@@ -425,35 +341,30 @@ export function zcodeListSessions(
   f: MemFilter,
   warnings: MemWarning[] = [],
 ): MemSessionInfo[] {
-  if (!fs.existsSync(ZCODE_DB)) return [];
-  let rows: SqliteRow[];
-  try {
-    const db = openSqliteReadOnly(ZCODE_DB);
-    try {
-      requireTables(db, ["session"]);
-      requireTableColumns(db, "session", [
+  const rows = withSqliteDb(
+    ZCODE_DB,
+    warnings,
+    SQLITE_WARNINGS,
+    null as SqliteRow[] | null,
+    (db) => {
+      const table = findTable(db, "session");
+      requireColumns(table, [
         "id",
         "directory",
         "time_created",
         "time_updated",
       ]);
-      rows = db.scanTable("session");
-      requireRowColumns(rows, "session", [
+      const scanned = db.scanTable("session");
+      requireRowColumns(scanned, "session", [
         "id",
         "directory",
         "time_created",
         "time_updated",
       ]);
-    } finally {
-      db.close();
-    }
-  } catch (e) {
-    if (e instanceof SqliteParseError) {
-      pushDbWarning(warnings, ZCODE_DB, e);
-      return [];
-    }
-    throw e;
-  }
+      return scanned;
+    },
+  );
+  if (!rows) return [];
 
   const out: MemSessionInfo[] = [];
   for (const row of rows) {

@@ -1,4 +1,10 @@
-import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  statSync,
+} from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import {
   delimiter,
@@ -8,6 +14,7 @@ import {
   relative,
   resolve,
 } from "node:path";
+import { homedir } from "node:os";
 import { spawn, spawnSync } from "node:child_process";
 import { isUtf8 } from "node:buffer";
 
@@ -1413,6 +1420,93 @@ function formatPiOutput(stdout: string, stderr: string): string {
   return ft || stdout || stderr;
 }
 
+// ── Permission-forwarding parent session (issue #610) ───────────
+// Headless `pi --mode json` children have no UI. `@gotgenes/pi-permission-system`
+// forwards `ask` to the parent only when the child env names the *serving*
+// parent session and is marked as a subagent. Three layers, all required:
+//   1. PI_SUBAGENT_PARENT_SESSION — out-of-process convention
+//   2. PI_SUBAGENT_CHILD=1 — stops pi-subagents overwriting that parent id
+//      with the child's own session id
+//   3. serving heartbeat id, not stale PI_SESSION_ID (compaction can fork
+//      the live id while the permission extension still listens on the
+//      activation-time id). Drop inherited PI_SESSION_ID so the child
+//      mints its own instead of colliding with the parent.
+let lastLiveSessionId: string | null = null;
+
+function currentSessionId(ctx?: PiExtensionContext): string | null {
+  const viaCtx = callStr(
+    ctx?.sessionManager?.getSessionId,
+    ctx?.sessionManager,
+  );
+  if (viaCtx) {
+    lastLiveSessionId = viaCtx;
+    return viaCtx;
+  }
+  return (
+    lastLiveSessionId ??
+    str(process.env.PI_SESSION_ID) ??
+    str(process.env.PI_SESSIONID)
+  );
+}
+
+function piSessionsRoot(): string {
+  const sessionDir = str(process.env.PI_CODING_AGENT_SESSION_DIR);
+  if (sessionDir) return sessionDir;
+  const agentDir = str(process.env.PI_CODING_AGENT_DIR);
+  if (agentDir) return join(agentDir, "sessions");
+  return join(homedir(), ".pi", "agent", "sessions");
+}
+
+function servingSessionId(): string | null {
+  try {
+    const dir = join(piSessionsRoot(), "permission-forwarding", "serving");
+    let best: { sessionId: string; updatedAt: number } | null = null;
+    for (const name of readdirSync(dir)) {
+      if (!name.endsWith(".json")) continue;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(readFileSync(join(dir, name), "utf-8"));
+      } catch {
+        continue;
+      }
+      if (!isObj(parsed) || parsed.pid !== process.pid) continue;
+      const sessionId = str(parsed.sessionId);
+      const updatedAt =
+        typeof parsed.updatedAt === "number" && Number.isFinite(parsed.updatedAt)
+          ? parsed.updatedAt
+          : 0;
+      if (!sessionId) continue;
+      if (!best || updatedAt > best.updatedAt) best = { sessionId, updatedAt };
+    }
+    return best?.sessionId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function parentSessionIdForChild(ctx?: PiExtensionContext): string | null {
+  return servingSessionId() ?? currentSessionId(ctx);
+}
+
+function buildChildEnv(
+  key?: string | null,
+  parentSessionId?: string | null,
+): NodeJS.ProcessEnv {
+  const childEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    TRELLIS_SUBAGENT_CHILD: "1",
+    // Stops pi-subagents from overwriting PI_SUBAGENT_PARENT_SESSION with the
+    // child's own session id, and lets the permission system treat this process
+    // as a subagent (ParentAuthorizer forwarding) even when no parent id is known.
+    PI_SUBAGENT_CHILD: "1",
+    ...(key ? { TRELLIS_CONTEXT_ID: key } : {}),
+    ...(parentSessionId ? { PI_SUBAGENT_PARENT_SESSION: parentSessionId } : {}),
+  };
+  delete childEnv.PI_SESSION_ID;
+  delete childEnv.PI_SESSIONID;
+  return childEnv;
+}
+
 // ── runPi: subprocess execution + event processing ───────────────────
 function runPi(
   root: string,
@@ -1422,6 +1516,7 @@ function runPi(
   emit: () => void,
   key?: string | null,
   signal?: AbortSignal,
+  parentSessionId?: string | null,
 ): Promise<{ output: string; failed: boolean }> {
   return new Promise((resolve) => {
     if (signal?.aborted) {
@@ -1433,11 +1528,7 @@ function runPi(
       return;
     }
     const inv = resolvePiCli();
-    const childEnv = {
-      ...process.env,
-      TRELLIS_SUBAGENT_CHILD: "1",
-      ...(key ? { TRELLIS_CONTEXT_ID: key } : {}),
-    };
+    const childEnv = buildChildEnv(key, parentSessionId);
     const cli = spawn(inv.command, [...inv.args, ...buildPiArgs(cfg)], {
       cwd: root,
       env: childEnv,
@@ -1538,7 +1629,9 @@ async function runSubagent(
   onUpdate?: (r: PiToolResult) => void,
   inheritedThinking?: string,
   inheritedModel?: string,
+  ctx?: PiExtensionContext,
 ): Promise<{ output: string; details: ProgressDetails; failed: boolean }> {
+  const parentSessionId = parentSessionIdForChild(ctx);
   const agentName = normalizeAgent(input.agent);
   const agentRaw = readText(join(root, ".pi", "agents", `${agentName}.md`));
   const agentCfg = parseAgentFM(agentRaw);
@@ -1606,6 +1699,7 @@ async function runSubagent(
             emit,
             key,
             signal,
+            parentSessionId,
           ),
         ),
       );
@@ -1638,6 +1732,7 @@ async function runSubagent(
           emit,
           key,
           signal,
+          parentSessionId,
         );
         prev = result.output;
         failed = failed || result.failed;
@@ -1657,6 +1752,7 @@ async function runSubagent(
       emit,
       key,
       signal,
+      parentSessionId,
     );
     return finish(result.output, result.failed);
   } catch (e) {
@@ -1875,6 +1971,7 @@ export default function trellisExtension(pi: {
         onUpdate,
         inheritedThinking,
         inheritedModel,
+        ctx,
       );
       return {
         content: [{ type: "text", text: result.output }],

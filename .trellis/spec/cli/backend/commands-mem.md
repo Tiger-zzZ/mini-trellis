@@ -1,7 +1,7 @@
 # `tl mem` — Cross-Platform AI Session Memory
 
 How Trellis indexes, searches, and extracts dialogue from on-disk session files
-written by Claude Code, Codex, OpenCode, Pi Agent, and ZCode.
+written by Claude Code, Codex, Devin CLI, OpenCode, Pi Agent, and ZCode.
 
 The retrieval engine lives in `@mindfoldhq/trellis-core/mem` (`packages/core/src/mem/`);
 `packages/cli/src/commands/mem.ts` is a thin CLI wrapper over it. See "Package
@@ -19,7 +19,8 @@ CLIs already drop on disk:
 | ----------- | -------------------------------------------------------------------------------------------------- |
 | Claude Code | `~/.claude/projects/<sanitized-cwd>/<id>.jsonl`                                                    |
 | Codex       | `~/.codex/sessions/**/rollout-<ts>-<id>.jsonl`                                                     |
-| OpenCode    | Reader unavailable in 0.6.0-beta.4 (reverted, see Notes)                                           |
+| Devin CLI   | `~/.local/share/devin/cli/sessions.db` (Cognition terminal agent; `$XDG_DATA_HOME` / `%APPDATA%\devin\cli`; `DEVIN_DB_PATH` override). Not `trellis init --devin` (Desktop / Cascade) and not Factory Droid. |
+| OpenCode    | `~/.local/share/opencode/opencode.db` (SQLite, zero-dependency reader)                             |
 | Pi Agent    | `~/.pi/agent/sessions/--<encoded-cwd>--/<timestamp>_<id>.jsonl` or env/settings custom session dir |
 | ZCode       | `~/.zcode/cli/db/db.sqlite` plus active `db.sqlite-wal` / `db.sqlite-shm` files                    |
 
@@ -50,8 +51,8 @@ invoked from the `tl` Commander wire.
 **Core owns** (`packages/core/src/mem/`, public surface at the
 `@mindfoldhq/trellis-core/mem` subpath — **not** the root barrel):
 
-- persisted-session readers / adapters for Claude Code, Codex, OpenCode, Pi,
-  and ZCode (`adapters/{claude,codex,opencode,pi,zcode}.ts`)
+- persisted-session readers / adapters for Claude Code, Codex, Devin CLI, OpenCode, Pi,
+  and ZCode (`adapters/{claude,codex,devin,opencode,pi,zcode}.ts`)
 - search, relevance scoring, excerpt selection (`search.ts`)
 - dialogue cleaning (`dialogue.ts`), filtering (`filter.ts`)
 - dialogue-context extraction (`context.ts`), brainstorm-phase slicing
@@ -106,7 +107,7 @@ Cross-cutting (`buildFilter`):
 
 | Flag                                          | Default         | Notes                                                                                                                                                                |
 | --------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--platform claude\|codex\|opencode\|pi\|zcode\|all` | `all` | Validated by the CLI against the `MemSourceFilter` union (hand-written guard, no zod). Unknown value → exit 2. |
+| `--platform claude\|codex\|devin\|grok\|opencode\|pi\|zcode\|all` | `all` | Validated by the CLI against the `MemSourceFilter` union (hand-written guard, no zod). Unknown value → exit 2. `devin` is Cognition Devin CLI, not `trellis init --devin`. |
 | `--since YYYY-MM-DD`                          | none            | Inclusive lower bound. Parsed by `new Date(value)`; invalid → exit 2.                                                                                                |
 | `--until YYYY-MM-DD`                          | none            | Inclusive upper bound; parser appends `T23:59:59.999Z` so a date string covers the whole UTC day.                                                                    |
 | `--cwd <path>`                                | `process.cwd()` | Project scope. Resolved with `path.resolve`. Combined with `--global` → `--global` wins.                                                                             |
@@ -135,6 +136,7 @@ three functions:
 | -------- | ---------------------------------------------------- | ------------------------- | ------------------------------------------------- |
 | Claude   | `core/mem/adapters/claude.ts:claudeListSessions`     | `claudeExtractDialogue`   | `claudeSearch`                                    |
 | Codex    | `core/mem/adapters/codex.ts:codexListSessions`       | `codexExtractDialogue`    | `codexSearch`                                     |
+| Devin    | `core/mem/adapters/devin.ts:devinListSessions`       | `devinExtractDialogue`    | `devinSearch`                                     |
 | OpenCode | `core/mem/adapters/opencode.ts:opencodeListSessions` | `opencodeExtractDialogue` | `opencodeSearch` (degraded no-op in 0.6.0-beta.4) |
 | Pi       | `core/mem/adapters/pi.ts:piListSessions`             | `piExtractDialogue`       | `piSearch`                                        |
 | ZCode    | `core/mem/adapters/zcode.ts:zcodeListSessions`       | `zcodeExtractDialogue`    | `zcodeSearch`                                     |
@@ -302,6 +304,35 @@ for (const entry of effective) addCleanTurnAndTaskEvents(entry);
   the effective dialogue at the latest summary; Bash tool parts provide
   `task.py create|start` boundaries.
 
+### Devin CLI (Cognition terminal agent)
+
+Reads `~/.local/share/devin/cli/sessions.db` (WAL SQLite; Windows
+`%APPDATA%\devin\cli\sessions.db`; `DEVIN_DB_PATH` override) through the same
+zero-dependency parser as ZCode / OpenCode. This is **not** `trellis init
+--devin` (Devin Desktop / former Windsurf Cascade) and **not** Factory Droid.
+
+- **Sessions**: `sessions` table; skip `hidden != 0`. cwd is
+  `working_directory`; timestamps are Unix seconds.
+- **Dialogue**: `message_nodes` is a forest. Walk `parent_node_id` from
+  `main_chain_id` so revert/fork side branches are dropped. A missing
+  `main_chain_id` column is a schema warning; a null/unknown tip yields an
+  empty chain plus `devin-main-chain-missing` (never `max(node_id)`, which
+  is often an abandoned fork). `parent_node_id` is required. Keep
+  `role=user` with `metadata.is_user_input === true` and
+  `role=assistant` `content` strings; drop `tool` / `system` / `thinking`.
+- **Compaction**: `system` nodes with `metadata.extensions["devin-rs/summary"]`
+  become a boundary marker; pre-compact turns stay in the pool.
+- **Phase**: assistant `tool_calls` named `exec` feed `parseTaskPyCommandsAll`.
+- **Memory**: `scanTable` predicates keep slim `{nodeId,parent,role,text,exec}`
+  records and return false so raw `chat_message` JSON (hundreds of MB) is
+  never retained. Search prepares one whole-db store and releases it in
+  `finally`.
+- **Degradation**: missing db → no sessions. Corrupt / unstable / schema-
+  mismatched db → empty output plus one `devin-db-unreadable` /
+  `devin-db-snapshot-unstable` / `devin-db-schema-unsupported` warning.
+- **Out of v1**: Devin Cloud, Desktop Cascade, `transcripts/*.json`,
+  `--include-children` (local `subagent_heads` is unused).
+
 ### OpenCode (reader unavailable as of 0.6.0-beta.4+)
 
 In 0.6.0-beta.3 a SQLite-backed reader was added for OpenCode 1.2+
@@ -345,10 +376,10 @@ Every list function emits items conforming to the `MemSessionInfo` type
 
 | Field       | Required      | Source                                                                                                                                                  |
 | ----------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `platform`  | yes           | `claude` / `codex` / `opencode` / `pi` / `zcode`                                                                                                        |
+| `platform`  | yes           | `claude` / `codex` / `devin` / `grok` / `opencode` / `pi` / `zcode`                                                                                    |
 | `id`        | yes           | platform session id                                                                                                                                     |
-| `title`     | optional      | Claude index `title`, OpenCode `title`, Pi latest `session_info.name`; Codex has no title                                                               |
-| `cwd`       | optional      | OpenCode `directory`, Claude index/event `cwd`, Codex first-event `payload.cwd`, Pi session header `cwd`                                                |
+| `title`     | optional      | Claude index `title`, OpenCode `title`, Devin `sessions.title`, Pi latest `session_info.name`; Codex has no title                                       |
+| `cwd`       | optional      | OpenCode `directory`, Claude index/event `cwd`, Codex first-event `payload.cwd`, Pi session header `cwd`, Devin `working_directory`                     |
 | `created`   | optional ISO  | first-event/header timestamp; Codex falls back to filename timestamp                                                                                    |
 | `updated`   | optional ISO  | `fs.statSync(file).mtime` for Claude/Codex fallback; Pi prefers latest user/assistant activity and falls back to mtime; OpenCode `session.time_updated` |
 | `filePath`  | yes           | absolute path to the session's primary file (OpenCode: shared `opencode.db`)                                                                            |
@@ -780,6 +811,7 @@ machine-readable stdout used by `--json` consumers.
 | Codex    | Native — boundary detection on `function_call` events whose `name` is `exec_command` or `shell` (Codex's Bash twin)                         |
 | Pi       | Native — boundary detection on assistant `toolCall` blocks named `bash` / `shell` and `bashExecution.command` messages on the active branch |
 | ZCode    | Native — boundary detection on `part.data` Bash tool records after compaction has selected the effective dialogue                         |
+| Devin    | Native — `exec` tool_calls' `arguments.command`                                                                                            |
 | OpenCode | Reader unavailable in 0.6.0-beta.4+ (returns empty + warning)                                                                               |
 
 `core/mem/adapters/codex.ts:collectCodexTurnsAndEvents` is the Codex twin of
@@ -953,7 +985,7 @@ checks. The public domain types live in `core/mem/types.ts`:
 
 | Type                                                                 | Domain                                                              |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `MemSourceKind` / `MemSourceFilter`                                  | `"claude" \| "codex" \| "opencode" \| "pi" \| "zcode"` (+ `"all"` for filters) |
+| `MemSourceKind` / `MemSourceFilter`                                  | `"claude" \| "codex" \| "devin" \| "grok" \| "opencode" \| "pi" \| "zcode"` (+ `"all"` for filters) |
 | `MemSessionInfo`                                                     | unified session metadata across platforms                           |
 | `DialogueRole` / `DialogueTurn`                                      | `"user" \| "assistant"` and a cleaned turn                          |
 | `SearchExcerpt` / `SearchHit` / `MemSearchMatch` / `MemSearchResult` | search output                                                       |
