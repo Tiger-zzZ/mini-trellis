@@ -1,9 +1,0 @@
-{
-  "version": "0.6.15",
-  "description": "Adds DeepSeek Harness platform support and fixes task session tracking",
-  "breaking": false,
-  "recommendMigrate": false,
-  "changelog": "**Enhancements:**\n- `trellis init --dsh` sets up DeepSeek Harness with shared workflow skills in `.agents/skills/`, entry skills in `.dsh/skills/`, and a guide at `.dsh/DSH.md`.\n\n**Bug Fixes:**\n- Active tasks on DeepSeek Harness no longer link to Codex sessions by mistake when `CODEX_THREAD_ID` is present; Trellis now checks `DSH_SESSION_ID` first.",
-  "migrations": [],
-  "notes": "No file migrations required. Backfilled: 0.6.15 shipped on npm without this manifest; it first ships inside 0.6.16."
-}

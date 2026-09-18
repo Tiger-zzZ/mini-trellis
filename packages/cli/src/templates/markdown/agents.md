@@ -1,21 +1,15 @@
 <!-- TRELLIS:START -->
-# Trellis Instructions
+# mini-trellis
 
-These instructions are for AI assistants working in this project.
+This project uses mini-trellis as a memory layer. Working knowledge lives under `.trellis/`:
 
-This project is managed by Trellis. The working knowledge you need lives under `.trellis/`:
+- `.trellis/spec/` — durable contracts (short markdown; read `index.md` first)
+- `.trellis/research/` — topic inbox (`<topic>.md`; `README.md` is not a topic)
+- `.trellis/workspace/` — per-developer journals
 
-- `.trellis/workflow.md` — development phases, when to create tasks, skill routing
-- `.trellis/spec/` — package- and layer-scoped coding guidelines (read before writing code in a given layer)
-- `.trellis/workspace/` — per-developer journals and session traces
-- `.trellis/tasks/` — active and archived tasks (PRDs, research, jsonl context)
+Record a session with `{{CMD_REF:remember}}` (or `python3 ./.trellis/scripts/add_session.py`). Search past dialogue with `trellis mem`. Promote lasting boundaries into spec with `trellis-update-spec`.
 
-If a Trellis command is available on your platform (e.g. `/trellis:finish-work`, `/trellis:continue`), prefer it over manual steps. Not every platform exposes every command.
+mini-trellis does not create or drive tasks.
 
-If you're using Codex or another agent-capable tool, additional project-scoped helpers may live in:
-- `.agents/skills/` — reusable Trellis skills
-- `.codex/agents/` — optional custom subagents
-
-Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
-
+Managed by mini-trellis. Edits outside this block are preserved.
 <!-- TRELLIS:END -->

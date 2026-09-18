@@ -1,9 +1,0 @@
-{
-  "version": "0.6.12",
-  "description": "Pi session isolation for concurrent windows.",
-  "breaking": false,
-  "recommendMigrate": false,
-  "changelog": "**Bug Fixes:**\n- fix(pi): isolate each main window by native Pi session ID and prevent normalized key collisions",
-  "migrations": [],
-  "notes": "Upgrade to 0.6.12, then run trellis update to refresh the Pi extension. No --migrate required."
-}

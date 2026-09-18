@@ -1,9 +1,6 @@
 /**
- * Shared ownership-aware removal planning used by `uninstall` and `ablate`.
- *
- * The template hash manifest is the ownership boundary. This module deliberately
- * keeps planning pure with respect to mutations: it reads manifest-listed files,
- * runs the existing pure scrubbers, and returns the exact post-removal content.
+ * Ownership-aware removal planning for `uninstall`.
+ * Paths come from the current platform template maps, not a hash manifest.
  */
 
 import fs from "node:fs";
@@ -11,11 +8,6 @@ import path from "node:path";
 
 import { DIR_NAMES, FILE_NAMES } from "../constants/paths.js";
 import { ALL_MANAGED_DIRS } from "../configurators/index.js";
-import {
-  COPILOT_INSTRUCTIONS_BLOCK_END,
-  COPILOT_INSTRUCTIONS_BLOCK_START,
-  COPILOT_INSTRUCTIONS_PATH,
-} from "../templates/copilot/index.js";
 import {
   scrubCodexConfigToml,
   scrubHooksJson,
@@ -31,11 +23,8 @@ import {
 } from "./managed-paths.js";
 
 export interface StructuredFileSpec {
-  /** Manifest path (POSIX). */
   posixPath: string;
-  /** Human-readable reason for the mixed-file edit. */
   reason: string;
-  /** Pure scrubber for this path. */
   scrub: (content: string, deletedPaths: readonly string[]) => ScrubResult;
 }
 
@@ -60,11 +49,9 @@ export interface ManagedRemovalPlan {
 }
 
 export interface BuildManagedRemovalPlanOptions {
-  /** Strict path/symlink handling required by reversible ablation. */
   strictPaths?: boolean;
 }
 
-/** A safe lstat that distinguishes an absent path from a filesystem error. */
 export function lstatIfPresent(absPath: string): fs.Stats | null {
   try {
     return fs.lstatSync(absPath);
@@ -94,12 +81,6 @@ function assertWithinProject(projectRoot: string, absPath: string): void {
   }
 }
 
-/**
- * Validate a manifest key before it reaches path.join/path.resolve.
- * Manifest keys are intentionally stricter than generic relative paths: empty,
- * dot, dotdot, NUL, absolute, and Windows-separator segments are not ownership
- * claims that Trellis can safely act on.
- */
 export function validateManagedRelativePath(posixPath: string): void {
   if (
     posixPath.length === 0 ||
@@ -126,10 +107,6 @@ export function validateManagedRelativePath(posixPath: string): void {
   }
 }
 
-/**
- * Reject parent symlink traversal outside the project while allowing a leaf
- * symlink to be treated as an opaque managed entry.
- */
 export function assertSafeManagedPath(
   projectRoot: string,
   posixPath: string,
@@ -156,37 +133,14 @@ export function assertSafeManagedPath(
   return current;
 }
 
-/**
- * Build the one structured-file registry shared by permanent uninstall and
- * reversible ablation. Keep path ownership here; scrubber behavior remains in
- * `uninstall-scrubbers.ts`.
- */
 export function buildStructuredFileSpecs(): Map<string, StructuredFileSpec> {
   const specs: StructuredFileSpec[] = [
-    ...(
-      [
-        ".claude/settings.json",
-        ".gemini/settings.json",
-        ".factory/settings.json",
-        ".codebuddy/settings.json",
-        ".qoder/settings.json",
-        ".codex/hooks.json",
-        ".trae/hooks.json",
-      ] as const
-    ).map(
+    ...([".claude/settings.json", ".codex/hooks.json"] as const).map(
       (posixPath): StructuredFileSpec => ({
         posixPath,
-        reason: "Strip trellis hooks; preserve user fields",
+        reason: "Strip mini-trellis hooks; preserve user fields",
         scrub: (content, deletedPaths) =>
           scrubHooksJson(content, deletedPaths, "nested"),
-      }),
-    ),
-    ...([".cursor/hooks.json", ".github/copilot/hooks.json"] as const).map(
-      (posixPath): StructuredFileSpec => ({
-        posixPath,
-        reason: "Strip trellis hooks; preserve user fields",
-        scrub: (content, deletedPaths) =>
-          scrubHooksJson(content, deletedPaths, "flat"),
       }),
     ),
     {
@@ -197,27 +151,17 @@ export function buildStructuredFileSpecs(): Map<string, StructuredFileSpec> {
     {
       posixPath: ".pi/settings.json",
       reason:
-        "Strip trellis extension/skills/prompts entries; preserve user fields",
+        "Strip mini-trellis extension/prompts entries; preserve user fields",
       scrub: (content) => scrubPiSettings(content),
     },
     {
       posixPath: ".codex/config.toml",
-      reason: "Remove trellis project_doc_fallback_filenames and notes",
+      reason: "Remove mini-trellis project_doc_fallback_filenames and notes",
       scrub: (content) => scrubCodexConfigToml(content),
     },
     {
-      posixPath: COPILOT_INSTRUCTIONS_PATH,
-      reason: "Remove Trellis Copilot guidance; preserve repo instructions",
-      scrub: (content) =>
-        scrubManagedMarkdownBlock(
-          content,
-          COPILOT_INSTRUCTIONS_BLOCK_START,
-          COPILOT_INSTRUCTIONS_BLOCK_END,
-        ),
-    },
-    {
       posixPath: FILE_NAMES.AGENTS,
-      reason: "Strip Trellis managed block; preserve user instructions",
+      reason: "Strip mini-trellis managed block; preserve user instructions",
       scrub: (content) =>
         scrubManagedMarkdownBlock(
           content,
@@ -230,11 +174,6 @@ export function buildStructuredFileSpecs(): Map<string, StructuredFileSpec> {
   return new Map(specs.map((spec) => [spec.posixPath, spec]));
 }
 
-/**
- * Build a removal plan from the authoritative v2 manifest. Structured files
- * are scrubbed only when they are regular files; a leaf symlink is opaque and
- * is therefore unlinked rather than dereferenced.
- */
 export function buildManagedRemovalPlan(
   cwd: string,
   hashes: Record<string, string>,
@@ -302,10 +241,6 @@ export function buildManagedRemovalPlan(
   };
 }
 
-/**
- * Preserve the uninstall execution semantics after planner extraction. Ablate
- * uses the same plan but applies its own backup/rollback transaction around it.
- */
 export function executeManagedRemovalPlan(
   cwd: string,
   plan: ManagedRemovalPlan,
@@ -326,7 +261,7 @@ export function executeManagedRemovalPlan(
       deletedFiles += 1;
       deletedDirCandidates.add(path.posix.dirname(deletion.posixPath));
     } catch {
-      // Preserve uninstall's best-effort behavior for individual unlink errors.
+      // best-effort unlink
     }
   }
 
@@ -367,7 +302,7 @@ export function executeManagedRemovalPlan(
         parentPosix = path.posix.dirname(parentPosix);
       }
     } catch {
-      // Preserve uninstall's best-effort directory cleanup semantics.
+      // best-effort directory cleanup
     }
   }
 

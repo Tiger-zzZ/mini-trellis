@@ -55,7 +55,7 @@ describe("requireSupportedPython", () => {
     vi.mocked(execSync).mockReturnValue("Python 3.8.18");
 
     expect(() => requireSupportedPython("python3")).toThrow(
-      'Python 3.8.18 detected via "python3", but Trellis init requires Python ≥ 3.9.',
+      'Python 3.8.18 detected via "python3", but mini-trellis init requires Python ≥ 3.9.',
     );
   });
 
@@ -65,7 +65,7 @@ describe("requireSupportedPython", () => {
     });
 
     expect(() => requireSupportedPython("python")).toThrow(
-      'Python command "python" not found. Trellis init requires Python ≥ 3.9.',
+      'Python command "python" not found. mini-trellis init requires Python ≥ 3.9.',
     );
   });
 

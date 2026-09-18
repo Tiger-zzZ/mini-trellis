@@ -1,23 +1,17 @@
 <!-- TRELLIS:START -->
-# Trellis Instructions
+# mini-trellis
 
-These instructions are for AI assistants working in this project.
+This project uses mini-trellis as a memory layer. Working knowledge lives under `.trellis/`:
 
-This project is managed by Trellis. The working knowledge you need lives under `.trellis/`:
+- `.trellis/spec/` — durable contracts (short markdown; read `index.md` first)
+- `.trellis/research/` — topic inbox (`<topic>.md`; `README.md` is not a topic)
+- `.trellis/workspace/` — per-developer journals
 
-- `.trellis/workflow.md` — development phases, when to create tasks, skill routing
-- `.trellis/spec/` — package- and layer-scoped coding guidelines (read before writing code in a given layer)
-- `.trellis/workspace/` — per-developer journals and session traces
-- `.trellis/tasks/` — active and archived tasks (PRDs, research, jsonl context)
+Record a session with `/trellis:remember` (Claude/OpenCode), `/trellis-remember` (Pi), or `$trellis-remember` (Codex). Search past dialogue with `trellis mem`. Promote lasting boundaries into spec with `trellis-update-spec`.
 
-If a Trellis command is available on your platform (e.g. `/trellis:finish-work`, `/trellis:continue`), prefer it over manual steps. Not every platform exposes every command.
+mini-trellis does not create or drive tasks.
 
-If you're using Codex or another agent-capable tool, additional project-scoped helpers may live in:
-- `.agents/skills/` — reusable Trellis skills
-- `.codex/agents/` — optional custom subagents
-
-Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
-
+Managed by mini-trellis. Edits outside this block are preserved.
 <!-- TRELLIS:END -->
 
 <!-- gitnexus:start -->
@@ -41,25 +35,4 @@ This project is indexed by GitNexus as **Trellis** (14336 symbols, 20870 relatio
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
 - NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
 - NEVER commit changes without running `detect_changes()` to check affected scope.
-
-## Resources
-
-| Resource | Use for |
-|----------|---------|
-| `gitnexus://repo/Trellis/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/Trellis/clusters` | All functional areas |
-| `gitnexus://repo/Trellis/processes` | All execution flows |
-| `gitnexus://repo/Trellis/process/{name}` | Step-by-step execution trace |
-
-## CLI
-
-| Task | Read this skill file |
-|------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-
 <!-- gitnexus:end -->

@@ -1,16 +1,6 @@
-import {
-  createTemplateReader,
-  type AgentTemplate,
-  type HookTemplate,
-} from "../template-utils.js";
+import { createTemplateReader, type HookTemplate } from "../template-utils.js";
 
-const { listMdAgents, getSettings, readTemplate } = createTemplateReader(
-  import.meta.url,
-);
-
-export function getAllAgents(): AgentTemplate[] {
-  return listMdAgents();
-}
+const { getSettings, readTemplate } = createTemplateReader(import.meta.url);
 
 export function getSettingsTemplate(): HookTemplate {
   return getSettings();

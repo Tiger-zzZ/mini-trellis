@@ -12,14 +12,7 @@ import type { TemplateContext } from "../types/ai-tools.js";
  * Defined here (not in index.ts) so configurators can reference it without
  * a circular import.
  */
-export interface PlatformConfigureOptions {
-  /**
-   * Claude Code only: install the opt-in Trellis statusLine
-   * (`trellis init --with-statusline`). Off by default — see
-   * `configureClaude` in `claude.ts`.
-   */
-  withStatusline?: boolean;
-}
+export type PlatformConfigureOptions = Record<string, never>;
 
 /**
  * Module-level resolved Python command, set by the init flow after probing.
@@ -237,22 +230,10 @@ export function resolvePlaceholdersNeutral(
 
 /** Skill description registry — maps template name to auto-trigger description. */
 const SKILL_DESCRIPTIONS: Record<string, string> = {
-  start:
-    "Initializes an AI development session by reading workflow guides, developer identity, git status, active tasks, and project guidelines from .trellis/. Classifies incoming tasks and routes to brainstorm, direct edit, or task workflow. Use when beginning a new coding session, resuming work, starting a new task, or re-establishing project context.",
-  continue:
-    "Resume work on the current task. Loads the workflow Phase Index, figures out which phase/step to pick up at, then pulls the step-level detail via get_context.py --mode phase. Use when coming back to an in-progress task and you need to know what to do next.",
-  "finish-work":
-    "Wrap up the current session: verify quality gate passed, remind user to commit, archive completed tasks, and record session progress to the developer journal. Use when done coding and ready to end the session.",
-  "before-dev":
-    "Discovers and injects project-specific coding guidelines from .trellis/spec/ before implementation begins. Reads spec indexes, pre-development checklists, and shared thinking guides for the target package. Use when starting a new coding task, before writing any code, switching to a different package, or needing to refresh project conventions and standards.",
-  brainstorm:
-    "Guides collaborative requirements discovery before implementation. Creates task directory, seeds PRD, asks high-value questions one at a time, researches technical choices, and converges on MVP scope. Use when requirements are unclear, there are multiple valid approaches, or the user describes a new feature or complex task.",
-  check:
-    "Comprehensive quality verification: spec compliance, lint, type-check, tests, cross-layer data flow, code reuse, and consistency checks. Use when code is written and needs quality verification, before committing changes, or to catch context drift during long sessions.",
-  "break-loop":
-    "Deep bug analysis to break the fix-forget-repeat cycle. Analyzes root cause category, why fixes failed, prevention mechanisms, and captures knowledge into specs. Use after fixing a bug to prevent the same class of bugs.",
+  remember:
+    "Record this session into the mini-trellis journal. Use when the user asks to remember, persist notes, end the session, or after compact. May also write .trellis/research/<topic>.md.",
   "update-spec":
-    "Captures executable contracts and coding conventions into .trellis/spec/ documents. Use when learning something valuable from debugging, implementing, or discussion that should be preserved for future sessions.",
+    "Captures durable contracts and conventions into .trellis/spec/ as short markdown. Use when a debugging, implementation, or discussion produced a boundary that should still hold next session.",
 };
 
 /**
@@ -279,10 +260,7 @@ export function wrapWithSkillFrontmatter(
  * SKILL_DESCRIPTIONS, which is long prose aimed at the skill matcher.
  */
 const COMMAND_DESCRIPTIONS: Record<string, string> = {
-  start: "Initialize a Trellis development session.",
-  continue: "Resume work on the current task at the correct phase.",
-  "finish-work":
-    "Wrap up the current session: quality gate, commit reminder, archive, journal.",
+  remember: "Record this session into the mini-trellis journal.",
 };
 
 /** Wrap resolved command content with YAML frontmatter (name + description). */
@@ -390,11 +368,8 @@ export interface ResolvedSkillFile {
  */
 function filterCommands(
   templates: CommonTemplate[],
-  ctx: TemplateContext,
+  _ctx: TemplateContext,
 ): CommonTemplate[] {
-  if (ctx.agentCapable && ctx.hasHooks) {
-    return templates.filter((t) => t.name !== "start");
-  }
   return templates;
 }
 
