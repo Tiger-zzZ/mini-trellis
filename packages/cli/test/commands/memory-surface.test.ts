@@ -121,3 +121,15 @@ describe("mem help", () => {
     expect(text).not.toMatch(/brainstorm|finish-work/);
   });
 });
+
+describe("session_context update hint", () => {
+  it("points at mini-trellis upgrade, never the deleted trellis update", () => {
+    const src = readFileSync(
+      join(ROOT, "src/templates/trellis/scripts/common/session_context.py"),
+      "utf-8",
+    );
+    expect(src).not.toMatch(/run trellis update/);
+    expect(src).not.toMatch(/@mindfoldhq\/trellis/);
+    expect(src).toMatch(/run mini-trellis upgrade/);
+  });
+});
