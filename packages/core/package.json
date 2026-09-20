@@ -1,7 +1,7 @@
 {
-  "name": "@mindfoldhq/trellis-core",
-  "version": "0.6.17",
-  "description": "Trellis core SDK — channel and task domain primitives consumed by the Trellis CLI and downstream Node services",
+  "name": "mini-trellis-core",
+  "version": "0.1.0",
+  "description": "mini-trellis core — mem primitives consumed by the CLI",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,11 +11,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
-    },
-    "./channel": {
-      "types": "./dist/channel/index.d.ts",
-      "import": "./dist/channel/index.js",
-      "default": "./dist/channel/index.js"
     },
     "./mem": {
       "types": "./dist/mem/index.d.ts",
@@ -38,8 +33,7 @@
   ],
   "sideEffects": false,
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "scripts": {
     "build": "pnpm run clean && tsc",
@@ -52,11 +46,9 @@
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
-    "trellis",
-    "channel",
-    "sdk",
-    "agent",
-    "events"
+    "mini-trellis",
+    "memory",
+    "sdk"
   ],
   "author": "Mindfold LLC",
   "license": "AGPL-3.0-only",
@@ -70,9 +62,5 @@
   },
   "engines": {
     "node": ">=18.17.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/mindfold-ai/trellis.git"
   }
 }

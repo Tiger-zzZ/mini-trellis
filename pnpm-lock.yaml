@@ -17,9 +17,6 @@ importers:
 
   packages/cli:
     dependencies:
-      '@mindfoldhq/trellis-core':
-        specifier: workspace:*
-        version: link:../core
       chalk:
         specifier: ^5.3.0
         version: 5.6.2
@@ -35,6 +32,9 @@ importers:
       inquirer:
         specifier: ^9.3.7
         version: 9.3.8(@types/node@20.19.28)
+      mini-trellis-core:
+        specifier: workspace:*
+        version: link:../core
       undici:
         specifier: ^6.21.0
         version: 6.23.0

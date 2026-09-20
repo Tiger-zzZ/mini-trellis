@@ -1,9 +1,14 @@
 Trellis - All-in-one AI framework & toolkit for Claude Code & Cursor
 Copyright (C) 2026 Mindfold LLC
 
+mini-trellis is a modified version of Trellis 0.6.17.
+Changes: reduced to a memory layer (spec, research, journal, mem);
+dropped the four-phase task workflow and extra agent hosts.
+Copyright (C) 2026 mini-trellis contributors.
+
 This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,

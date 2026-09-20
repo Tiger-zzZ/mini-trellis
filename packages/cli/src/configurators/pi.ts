@@ -16,7 +16,7 @@ export function collectPiTemplates(): Map<string, string> {
   const ctx = AI_TOOLS.pi.templateContext;
 
   for (const command of resolveCommands(ctx)) {
-    files.set(`.pi/prompts/trellis-${command.name}.md`, command.content);
+    files.set(`.pi/prompts/mini-trellis-${command.name}.md`, command.content);
   }
 
   for (const [filePath, content] of collectSkillTemplates(
@@ -27,7 +27,7 @@ export function collectPiTemplates(): Map<string, string> {
     files.set(filePath, content);
   }
 
-  files.set(".pi/extensions/trellis/index.ts", getExtensionTemplate());
+  files.set(".pi/extensions/mini-trellis/index.ts", getExtensionTemplate());
 
   const settings = getSettingsTemplate();
   files.set(

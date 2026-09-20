@@ -55,11 +55,11 @@ export const ALL_MANAGED_DIRS = [".trellis", ...new Set(PLATFORM_MANAGED_DIRS)];
 const DETECT_FILES: Record<AITool, string[]> = {
   "claude-code": [
     ".claude/hooks/session-start.py",
-    ".claude/commands/trellis/remember.md",
+    ".claude/commands/mini-trellis/remember.md",
   ],
   codex: [".codex/hooks.json", ".codex/hooks/session-start.py"],
   opencode: [".opencode/plugins/session-start.js"],
-  pi: [".pi/extensions/trellis/index.ts", ".pi/settings.json"],
+  pi: [".pi/extensions/mini-trellis/index.ts", ".pi/settings.json"],
 };
 
 export function getConfiguredPlatforms(cwd: string): Set<AITool> {

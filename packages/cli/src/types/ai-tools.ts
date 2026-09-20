@@ -9,7 +9,7 @@ export type TemplateDir = "common" | "claude" | "codex" | "opencode" | "pi";
 export type CliFlag = "claude" | "codex" | "opencode" | "pi";
 
 export interface TemplateContext {
-  cmdRefPrefix: "/trellis:" | "/trellis-" | "$";
+  cmdRefPrefix: "/mini-trellis:" | "/mini-trellis-" | "$";
   executorAI: "Bash scripts or Task calls" | "Bash scripts or tool calls";
   userActionLabel: "Slash commands" | "Skills";
   agentCapable: boolean;
@@ -38,7 +38,7 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     defaultChecked: true,
     hasPythonHooks: true,
     templateContext: {
-      cmdRefPrefix: "/trellis:",
+      cmdRefPrefix: "/mini-trellis:",
       executorAI: "Bash scripts or Task calls",
       userActionLabel: "Slash commands",
       agentCapable: true,
@@ -54,7 +54,7 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     defaultChecked: false,
     hasPythonHooks: false,
     templateContext: {
-      cmdRefPrefix: "/trellis:",
+      cmdRefPrefix: "/mini-trellis:",
       executorAI: "Bash scripts or Task calls",
       userActionLabel: "Slash commands",
       agentCapable: true,
@@ -88,7 +88,7 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     defaultChecked: false,
     hasPythonHooks: false,
     templateContext: {
-      cmdRefPrefix: "/trellis-",
+      cmdRefPrefix: "/mini-trellis-",
       executorAI: "Bash scripts or tool calls",
       userActionLabel: "Slash commands",
       agentCapable: true,

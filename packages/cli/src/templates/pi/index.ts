@@ -7,5 +7,5 @@ export function getSettingsTemplate(): HookTemplate {
 }
 
 export function getExtensionTemplate(): string {
-  return readTemplate("extensions/trellis/index.ts.txt");
+  return readTemplate("extensions/mini-trellis/index.ts.txt");
 }

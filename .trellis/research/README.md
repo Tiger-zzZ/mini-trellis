@@ -1,9 +1,9 @@
 # Research
 
-Topic-level research notes. Independent of `.trellis/tasks/`.
+Topic-level research notes.
 
 - Write `.trellis/research/<topic>.md` while investigating.
-- Promote durable contracts and conventions into `.trellis/spec/` (short markdown).
-- Historical `tasks/*/research/` stays put; promote by hand if a note is still useful.
+- Promote durable contracts into `.trellis/spec/` (short markdown).
+- Move finished or stale topics to `.trellis/research/archive/` with `git mv`. SessionStart does not list `archive/`.
 
-This directory is the research inbox. It is not a task, workflow phase, or archive gate.
+`README.md` is not a topic.

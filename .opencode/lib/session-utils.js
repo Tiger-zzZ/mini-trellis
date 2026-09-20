@@ -291,9 +291,9 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
 
   parts.push("<guidelines>")
   parts.push(
-    "Memory: journal is git-durable session notes (`/trellis:remember` or " +
+    "Memory: journal is git-durable session notes (`/mini-trellis:remember` or " +
     "`python3 ./.trellis/scripts/add_session.py`). Cross-session dialogue is " +
-    "`trellis mem list|search|context|extract`.\n" +
+    "`mini-trellis mem list|search|context|extract`.\n" +
     "Research lives in `.trellis/research/<topic>.md`; promote durable " +
     "boundaries into `.trellis/spec/` as short markdown.\n"
   )
@@ -317,7 +317,7 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
   parts.push("</guidelines>")
 
   parts.push(`<ready>
-Context loaded. Use journal, spec, research, and \`trellis mem\` on demand. Remember at session end or after compact.
+Context loaded. Use journal, spec, research, and \`mini-trellis mem\` on demand. Remember at session end or after compact.
 </ready>`)
 
   return parts.join("\n\n")

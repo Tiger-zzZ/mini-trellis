@@ -657,12 +657,11 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
 
     output.write("<guidelines>\n")
     output.write(
-        "Memory: journal is git-durable session notes (`/trellis:remember` or "
+        "Memory: journal is git-durable session notes (`/mini-trellis:remember` or "
         "`python3 ./.trellis/scripts/add_session.py`). Cross-session dialogue is "
-        "`trellis mem list|search|context|extract` (ignore `--phase`).\n"
+        "`mini-trellis mem list|search|context|extract`.\n"
         "Research lives in `.trellis/research/<topic>.md`; promote durable "
-        "boundaries into `.trellis/spec/` as short markdown.\n"
-        "Do not create, start, or archive Trellis tasks from this context.\n\n"
+        "boundaries into `.trellis/spec/` as short markdown.\n\n"
     )
 
     if spec_index_paths:
@@ -681,12 +680,12 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
         output.write(
             "This SessionStart was triggered by compact. If durable decisions "
             "or research from the compacted window are not in journal yet, "
-            "run `/trellis:remember` before continuing.\n"
+            "run `/mini-trellis:remember` before continuing.\n"
         )
     output.write("</guidelines>\n\n")
 
     output.write("""<ready>
-Context loaded. Use journal, spec, research, and `trellis mem` on demand. Remember at session end or after compact.
+Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. Remember at session end or after compact.
 </ready>""")
 
     context_text = output.getvalue()

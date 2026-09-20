@@ -66,7 +66,7 @@ export function collectClaudeTemplates(): Map<string, string> {
   const files = walkClaudeTemplateDir();
 
   for (const cmd of resolveCommands(ctx)) {
-    files.set(`.claude/commands/trellis/${cmd.name}.md`, cmd.content);
+    files.set(`.claude/commands/mini-trellis/${cmd.name}.md`, cmd.content);
   }
   for (const [filePath, content] of collectSkillTemplates(
     ".claude/skills",

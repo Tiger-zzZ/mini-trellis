@@ -13,7 +13,7 @@ export { VERSION, PACKAGE_NAME };
 const program = new Command();
 
 program
-  .name("trellis")
+  .name("mini-trellis")
   .description(
     "mini-trellis — spec, research, journal, and cross-session memory",
   )
@@ -102,7 +102,7 @@ program
 program
   .command("mem")
   .description(
-    "Search/recall AI conversation history (run 'trellis mem help' for subcommands)",
+    "Search/recall AI conversation history (run 'mini-trellis mem help' for subcommands)",
   )
   .allowUnknownOption(true)
   .helpOption(false)

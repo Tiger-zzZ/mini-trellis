@@ -519,10 +519,10 @@ export async function init(options: InitOptions): Promise<void> {
   console.log(chalk.green("\n✓ mini-trellis initialized."));
   console.log(
     chalk.gray(
-      "  Record sessions with /trellis:remember (or $trellis-remember on Codex).",
+      "  Record sessions with /mini-trellis:remember (or $mini-trellis-remember on Codex).",
     ),
   );
   console.log(
-    chalk.gray("  Search past dialogue with: trellis mem search <kw>\n"),
+    chalk.gray("  Search past dialogue with: mini-trellis mem search <kw>\n"),
   );
 }

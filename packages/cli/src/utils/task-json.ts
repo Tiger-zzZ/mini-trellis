@@ -11,7 +11,7 @@
 import {
   emptyTaskRecord,
   type TrellisTaskRecord,
-} from "@mindfoldhq/trellis-core/task";
+} from "mini-trellis-core/task";
 
 export type TaskJson = TrellisTaskRecord;
 

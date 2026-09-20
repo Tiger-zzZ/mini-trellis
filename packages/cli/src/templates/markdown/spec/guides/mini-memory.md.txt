@@ -9,7 +9,7 @@
 | Journal | `.trellis/workspace/<dev>/journal-*.md` | Git-durable session notes |
 | Research | `.trellis/research/<topic>.md` | Topic inbox. `README.md` is not a topic |
 | Spec | `.trellis/spec/**/index.md`, then linked files | Durable contracts. Short markdown |
-| Dialogue | `trellis mem list\|search\|context\|extract` | Cross-session chat |
+| Dialogue | `mini-trellis mem list\|search\|context\|extract` | Cross-session chat |
 
 ## SessionStart contract
 

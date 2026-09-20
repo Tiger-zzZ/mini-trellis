@@ -245,7 +245,7 @@ export function wrapWithSkillFrontmatter(
   content: string,
 ): string {
   // Look up description by base name (without trellis- prefix)
-  const baseName = name.replace(/^trellis-/, "");
+  const baseName = name.replace(/^mini-trellis-/, "").replace(/^trellis-/, "");
   const description = SKILL_DESCRIPTIONS[baseName];
   if (!description) {
     throw new Error(
@@ -268,7 +268,7 @@ export function wrapWithCommandFrontmatter(
   name: string,
   content: string,
 ): string {
-  const baseName = name.replace(/^trellis-/, "");
+  const baseName = name.replace(/^mini-trellis-/, "").replace(/^trellis-/, "");
   const description = COMMAND_DESCRIPTIONS[baseName];
   if (!description) {
     throw new Error(
@@ -299,7 +299,7 @@ const COMMAND_ARGUMENT_HINTS: Record<string, string> = {
  * because OMP's frontmatter replaces its role.
  */
 export function wrapWithOmpFrontmatter(name: string, content: string): string {
-  const baseName = name.replace(/^trellis-/, "");
+  const baseName = name.replace(/^mini-trellis-/, "").replace(/^trellis-/, "");
   const description = COMMAND_DESCRIPTIONS[baseName];
   if (!description) {
     throw new Error(
@@ -386,9 +386,9 @@ export function resolveAllAsSkills(ctx: TemplateContext): ResolvedTemplate[] {
     ...getSkillTemplates(),
   ];
   return templates.map((tmpl) => ({
-    name: `trellis-${tmpl.name}`,
+    name: `mini-trellis-${tmpl.name}`,
     content: wrapWithSkillFrontmatter(
-      `trellis-${tmpl.name}`,
+      `mini-trellis-${tmpl.name}`,
       resolvePlaceholders(tmpl.content, ctx),
     ),
   }));
@@ -413,9 +413,9 @@ export function resolveCommands(ctx: TemplateContext): ResolvedTemplate[] {
  */
 export function resolveSkills(ctx: TemplateContext): ResolvedTemplate[] {
   return getSkillTemplates().map((tmpl) => ({
-    name: `trellis-${tmpl.name}`,
+    name: `mini-trellis-${tmpl.name}`,
     content: wrapWithSkillFrontmatter(
-      `trellis-${tmpl.name}`,
+      `mini-trellis-${tmpl.name}`,
       resolvePlaceholders(tmpl.content, ctx),
     ),
   }));
@@ -430,9 +430,9 @@ export function resolveSkills(ctx: TemplateContext): ResolvedTemplate[] {
  */
 export function resolveSkillsNeutral(ctx: TemplateContext): ResolvedTemplate[] {
   return getSkillTemplates().map((tmpl) => ({
-    name: `trellis-${tmpl.name}`,
+    name: `mini-trellis-${tmpl.name}`,
     content: wrapWithSkillFrontmatter(
-      `trellis-${tmpl.name}`,
+      `mini-trellis-${tmpl.name}`,
       resolvePlaceholdersNeutral(tmpl.content, ctx),
     ),
   }));
@@ -453,9 +453,9 @@ export function resolveAllAsSkillsNeutral(
     ...getSkillTemplates(),
   ];
   return templates.map((tmpl) => ({
-    name: `trellis-${tmpl.name}`,
+    name: `mini-trellis-${tmpl.name}`,
     content: wrapWithSkillFrontmatter(
-      `trellis-${tmpl.name}`,
+      `mini-trellis-${tmpl.name}`,
       resolvePlaceholdersNeutral(tmpl.content, ctx),
     ),
   }));
