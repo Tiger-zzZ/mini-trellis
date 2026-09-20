@@ -1,52 +1,44 @@
 # mini-trellis
 
-给 AI 编码助手用的极简记忆层。从 [Trellis](https://github.com/mindfold-ai/Trellis) 0.6.17 fork。
+AI 编码助手的记忆层。[Trellis](https://github.com/mindfold-ai/Trellis) 0.6.17 的精简 fork。
 
-只保留四件事：**spec**、**research**、**journal**、**跨 session 对话检索**。四阶段任务流已去掉。
+## 为什么有这个项目
 
-许可 AGPL-3.0。原版权 Mindfold LLC；本 fork 的修改声明在 `COPYRIGHT`。
+Trellis 给了我四样真正离不开的东西：spec 沉淀、research 笔记、session journal、跨 session 的对话检索。但它同时也是一整套四阶段任务流：task.py、PRD 门、子代理验收。用了一阵，我发现自己一直在绕开任务流，每天用的只有记忆层。
+
+这个 fork 做的事很单纯：把任务流拆掉，留下记忆层。取名 mini，少就是目的。
+
+谢谢 Trellis 的作者们。站在巨人的肩膀上，我做的主要是删代码。
+
+## 留下的四件事
+
+| 路径 | 作用 |
+|------|------|
+| `.trellis/spec/` | 长期约定，短 markdown，先读 `index.md` |
+| `.trellis/research/<topic>.md` | 调研 inbox；过期的手动 `git mv` 进 `research/archive/` |
+| `.trellis/workspace/<你>/journal-*.md` | session 笔记，remember 自动 commit |
+| `mini-trellis mem search <kw>` | 检索 Claude / Codex / OpenCode / Pi 的历史对话 |
 
 ## 安装
 
 ```bash
 npm install -g mini-trellis
 mini-trellis init -u your-name --claude
-# 还可：--codex --opencode --pi
+# 还可叠加：--codex --opencode --pi
 ```
 
-journal 脚本和 SessionStart hook 需要 Python ≥ 3.9。
+journal 脚本和 SessionStart hook 需要 Python ≥ 3.9。Codex 的 SessionStart 要在 `~/.codex/config.toml` 里开 `[features].hooks = true`，再在 TUI 里 `/hooks` 批准一次。
 
-## 用法
+升级 CLI 用 `mini-trellis upgrade`。没有会改写项目文件的 `update`。
 
-| 路径 | 作用 |
-|------|------|
-| `.trellis/spec/` | 长期约定（短 markdown，先读 `index.md`） |
-| `.trellis/research/<topic>.md` | 调研 inbox。过期的 `git mv` 到 `research/archive/` |
-| `.trellis/workspace/<你>/journal-*.md` | session 笔记 |
-| `mini-trellis mem search <kw>` | 检索 Claude / Codex / OpenCode / Pi 的历史对话 |
-
-记下本 session：
+## 记一笔
 
 - Claude / OpenCode：`/mini-trellis:remember`
-- Pi：`/mini-trellis-remember`
 - Codex：`$mini-trellis-remember`
+- Pi：`/mini-trellis-remember`
 
-长期边界用 `mini-trellis-update-spec` 写进 spec。
+长期边界用 `mini-trellis-update-spec` 沉淀进 spec。
 
-## 宿主
+## 许可
 
-Claude Code、Codex、OpenCode、Pi。数据目录都是 `.trellis/`。
-
-Codex 的 SessionStart 需要用户级 `~/.codex/config.toml` 里 `[features].hooks = true`，再在 TUI 里 `/hooks` 批准一次。
-
-## CLI
-
-```
-mini-trellis init
-mini-trellis mem list|search|context|extract|projects
-mini-trellis platforms
-mini-trellis upgrade
-mini-trellis uninstall
-```
-
-没有会改写项目文件的 `update`。升 CLI 用 `mini-trellis upgrade`。
+AGPL-3.0。原版权 Mindfold LLC，修改声明见 `COPYRIGHT`。
