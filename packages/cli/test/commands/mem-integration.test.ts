@@ -47,7 +47,6 @@ const { runMem } = await import("../../src/commands/mem.js");
 
 const CLAUDE_PROJECTS = nodePath.join(fakeHome, ".claude", "projects");
 const PI_SESSIONS = nodePath.join(fakeHome, ".pi", "agent", "sessions");
-const ZCODE_DB = nodePath.join(fakeHome, ".zcode", "cli", "db", "db.sqlite");
 const projectCwd = "/tmp/mem-int-project";
 const encodedCwd = projectCwd.replace(/[/_]/g, "-");
 const projectDir = nodePath.join(CLAUDE_PROJECTS, encodedCwd);
@@ -205,10 +204,6 @@ describe("runMem subcommand integration", () => {
       recursive: true,
       force: true,
     });
-    nodeFs.rmSync(nodePath.join(fakeHome, ".zcode"), {
-      recursive: true,
-      force: true,
-    });
     noop();
   });
 
@@ -245,14 +240,6 @@ describe("runMem subcommand integration", () => {
         expect.objectContaining({ id: piId, platform: "pi" }),
       ]),
     );
-  });
-
-  it("list --platform zcode: warns when the database is corrupt", () => {
-    nodeFs.mkdirSync(nodePath.dirname(ZCODE_DB), { recursive: true });
-    nodeFs.writeFileSync(ZCODE_DB, "not sqlite");
-    runMem(["list", "--platform", "zcode", "--global", "--json"]);
-    expect(JSON.parse(logs[0] ?? "null")).toEqual([]);
-    expect(errs.join("\n")).toContain("cannot read ZCode session database");
   });
 
   // ---------- search ----------
@@ -668,7 +655,7 @@ describe("runMem subcommand integration", () => {
     runMem(["help"]);
     const joined = logs.join("\n");
     expect(joined).toContain("mini-trellis mem");
-    expect(joined).toContain("claude|codex|devin|grok|opencode|pi|zcode|all");
+    expect(joined).toContain("claude|codex|opencode|pi|all");
   });
 
   it("unknown command exits non-zero with 'unknown command' error", () => {

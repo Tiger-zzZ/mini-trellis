@@ -76,8 +76,7 @@ jobs:
           set -euo pipefail
           test -d packages/core/dist
           test -f packages/core/dist/index.js
-          test -f packages/core/dist/channel/index.js
-          test -f packages/core/dist/task/index.js
+          test -f packages/core/dist/mem/index.js
           test -d packages/cli/dist
           test -f packages/cli/dist/index.js
           echo "Build verification passed"

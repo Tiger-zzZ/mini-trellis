@@ -16,16 +16,6 @@
       "types": "./dist/mem/index.d.ts",
       "import": "./dist/mem/index.js",
       "default": "./dist/mem/index.js"
-    },
-    "./task": {
-      "types": "./dist/task/index.d.ts",
-      "import": "./dist/task/index.js",
-      "default": "./dist/task/index.js"
-    },
-    "./testing": {
-      "types": "./dist/testing/index.d.ts",
-      "import": "./dist/testing/index.js",
-      "default": "./dist/testing/index.js"
     }
   },
   "files": [

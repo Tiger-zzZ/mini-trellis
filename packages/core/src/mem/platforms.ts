@@ -1,6 +1,6 @@
 /**
  * One descriptor per mem platform. `sessions.ts` loops this table instead of
- * growing a seventh if-chain / switch / prepare-release special case.
+ * growing an if-chain / switch / prepare-release special case.
  */
 
 import {
@@ -16,20 +16,6 @@ import {
   collectCodexTurnsAndEvents,
 } from "./adapters/codex.js";
 import {
-  collectDevinTurnsAndEvents,
-  devinExtractDialogue,
-  devinListSessions,
-  devinSearch,
-  prepareDevinSessionStore,
-  releaseDevinSessionStore,
-} from "./adapters/devin.js";
-import {
-  collectGrokTurnsAndEvents,
-  grokExtractDialogue,
-  grokListSessions,
-  grokSearch,
-} from "./adapters/grok.js";
-import {
   opencodeExtractDialogue,
   opencodeListSessions,
   opencodeSearch,
@@ -42,14 +28,6 @@ import {
   piListSessions,
   piSearch,
 } from "./adapters/pi.js";
-import {
-  collectZcodeTurnsAndEvents,
-  prepareZcodeSessionStore,
-  releaseZcodeSessionStore,
-  zcodeExtractDialogue,
-  zcodeListSessions,
-  zcodeSearch,
-} from "./adapters/zcode.js";
 import type {
   DialogueTurn,
   MemFilter,
@@ -94,13 +72,6 @@ export const MEM_PLATFORMS: Record<MemSourceKind, MemPlatformAdapter> = {
     search: (s, kw) => codexSearch(s, kw),
     collect: (s, warnings) => collectCodexTurnsAndEvents(s, warnings),
   },
-  grok: {
-    phaseSupported: true,
-    list: (f) => grokListSessions(f),
-    extract: (s, warnings) => grokExtractDialogue(s, warnings),
-    search: (s, kw) => grokSearch(s, kw),
-    collect: (s, warnings) => collectGrokTurnsAndEvents(s, warnings),
-  },
   opencode: {
     phaseSupported: false,
     list: (f, warnings) => opencodeListSessions(f, warnings),
@@ -119,23 +90,5 @@ export const MEM_PLATFORMS: Record<MemSourceKind, MemPlatformAdapter> = {
     extract: (s) => piExtractDialogue(s),
     search: (s, kw) => piSearch(s, kw),
     collect: (s) => collectPiTurnsAndEvents(s),
-  },
-  zcode: {
-    phaseSupported: true,
-    list: (f, warnings) => zcodeListSessions(f, warnings),
-    extract: (s, warnings) => zcodeExtractDialogue(s, warnings),
-    search: (s, kw, warnings) => zcodeSearch(s, kw, warnings),
-    collect: (s, warnings) => collectZcodeTurnsAndEvents(s, warnings),
-    prepare: prepareZcodeSessionStore,
-    release: releaseZcodeSessionStore,
-  },
-  devin: {
-    phaseSupported: true,
-    list: (f, warnings) => devinListSessions(f, warnings),
-    extract: (s, warnings) => devinExtractDialogue(s, warnings),
-    search: (s, kw, warnings) => devinSearch(s, kw, warnings),
-    collect: (s, warnings) => collectDevinTurnsAndEvents(s, warnings),
-    prepare: prepareDevinSessionStore,
-    release: releaseDevinSessionStore,
   },
 };

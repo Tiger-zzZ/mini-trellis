@@ -75,16 +75,8 @@ describe("buildFilter", () => {
     expect(f.cwd).toBeUndefined();
   });
 
-  it("accepts zcode as a platform filter", () => {
-    const f = buildFilter({ platform: "zcode", global: true });
-    expect(f.platform).toBe("zcode");
-    expect(f.cwd).toBeUndefined();
-  });
-
-  it("accepts devin as a platform filter", () => {
-    const f = buildFilter({ platform: "devin", global: true });
-    expect(f.platform).toBe("devin");
-    expect(f.cwd).toBeUndefined();
+  it("rejects platforms mini-trellis no longer reads", () => {
+    expect(() => buildFilter({ platform: "zcode" })).toThrow();
   });
 
   it("--global drops the cwd scope", () => {
