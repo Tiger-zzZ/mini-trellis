@@ -42,7 +42,7 @@ mini-trellis migrate --dry-run   # list what would go
 mini-trellis migrate             # asks first, defaults to no
 ```
 
-It rewrites the four host surfaces with mini-trellis's versions, deletes the Trellis-only instruction files (skills, commands, agents, per-turn injectors, `workflow.md`, `task.py`), and drops `.trellis/.version` so the Trellis CLI stops offering to update the project back to the four-phase workflow.
+It rewrites the four host surfaces with mini-trellis's versions, deletes the Trellis-only instruction files (skills, commands, agents, per-turn injectors, `workflow.md`, `task.py`), replaces the Trellis block in `AGENTS.md`, and drops `.trellis/.version` so the Trellis CLI stops offering to update the project back to the four-phase workflow.
 
 **There is no backup.** Deleting is permanent, so commit or copy anything you might want back first.
 
@@ -51,7 +51,7 @@ It rewrites the four host surfaces with mini-trellis's versions, deletes the Tre
 - `.trellis/spec/`, `research/`, `workspace/`, and `tasks/` are left alone. Your spec content survives, including any `backend/`/`frontend/` docs Trellis wrote — those still show up in the SessionStart spec list.
 - `.trellis/config.yaml` and `.trellis/scripts/` get overwritten with mini-trellis's versions. Re-apply any local edits.
 - Old task directories stay on disk, but with `task.py` gone nothing reads them. Delete them by hand when you're ready.
-- `.trellis/.version` is removed. Running `mini-trellis init` in that project again writes it back, which re-arms the Trellis CLI's update prompt.
+- `.trellis/.version` is removed and mini-trellis never writes one, so the Trellis CLI stays quiet in that project.
 
 ## Record a session
 

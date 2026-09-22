@@ -42,7 +42,7 @@ mini-trellis migrate --dry-run   # 先看会删什么
 mini-trellis migrate             # 会先问，默认 no
 ```
 
-它会把四个宿主的 hook、settings、skill、命令换成 mini-trellis 的版本，删掉 Trellis 独有的指令面（skill、命令、agent、每轮注入的插件、`workflow.md`、`task.py`），并移除 `.trellis/.version`，让 Trellis CLI 不再提示把项目更新回四阶段流程。
+它会把四个宿主的 hook、settings、skill、命令换成 mini-trellis 的版本，删掉 Trellis 独有的指令面（skill、命令、agent、每轮注入的插件、`workflow.md`、`task.py`），把 `AGENTS.md` 里的 Trellis 块换成 mini-trellis 的，并移除 `.trellis/.version`，让 Trellis CLI 不再提示把项目更新回四阶段流程。
 
 **不做备份。** 删除不可逆，先 commit 或拷走你想留的东西。
 
@@ -51,7 +51,7 @@ mini-trellis migrate             # 会先问，默认 no
 - `.trellis/spec/`、`research/`、`workspace/`、`tasks/` 原样保留。你的 spec 内容还在，包括 Trellis 写下的 `backend/`、`frontend/` 文档——它们仍会出现在 SessionStart 的 spec 列表里。
 - `.trellis/config.yaml` 和 `.trellis/scripts/` 会被 mini-trellis 的版本覆盖，本地改过的要重新加回去。
 - 老任务目录留在磁盘上，但 `task.py` 没了之后不再有人读它们。想清就手动清。
-- `.trellis/.version` 被移除。之后在这个项目里再跑一次 `mini-trellis init` 会把它写回来，Trellis CLI 的更新提示也就跟着回来了。
+- `.trellis/.version` 被移除，mini-trellis 自己不会再写这个文件，Trellis CLI 在这个项目里不会再有更新提示。
 
 ## 记一笔
 

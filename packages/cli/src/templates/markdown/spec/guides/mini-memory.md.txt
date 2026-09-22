@@ -16,7 +16,7 @@
 - Inject the active journal path, spec **index** paths, and research topic files.
 - Do **not** list individual spec articles — only `index.md`.
 - Do **not** inject `.trellis/research/archive/`.
-- Compact source: remind `{{CMD_REF:remember}}` if durable notes from the compacted window are missing.
+- Compact source: remind the user to run remember (`/mini-trellis:remember`, `/mini-trellis-remember` on Pi, `$mini-trellis-remember` on Codex) if durable notes from the compacted window are missing.
 
 ## Remember
 

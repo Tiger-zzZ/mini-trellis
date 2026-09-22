@@ -6,9 +6,10 @@
  * discoverable: Trellis's skills, commands, and agents sit next to
  * mini-trellis's, and OpenCode keeps loading `.opencode/plugins/inject-*.js`
  * from the directory scan. This command overwrites the host surfaces with
- * mini-trellis's versions, deletes the Trellis-only instruction files, and
- * drops `.trellis/.version` so the Trellis CLI stops offering to "update" the
- * project back to the four-phase workflow.
+ * mini-trellis's versions, deletes the Trellis-only instruction files,
+ * replaces the Trellis block in AGENTS.md, and drops `.trellis/.version` so
+ * the Trellis CLI stops offering to "update" the project back to the
+ * four-phase workflow.
  *
  * Memory data is never touched: `.trellis/spec/`, `research/`, `workspace/`,
  * and `tasks/` survive as-is. `.trellis/scripts/` IS overwritten, because the
@@ -20,10 +21,11 @@ import path from "node:path";
 import chalk from "chalk";
 import inquirer from "inquirer";
 
-import { DIR_NAMES, PATHS } from "../constants/paths.js";
+import { DIR_NAMES, FILE_NAMES, PATHS } from "../constants/paths.js";
 import { copyTrellisDir } from "../templates/extract.js";
 import { configYamlTemplate } from "../templates/trellis/index.js";
 import {
+  agentsMdContent,
   guidesIndexContent,
   miniMemoryGuideContent,
   researchReadmeContent,
@@ -35,6 +37,11 @@ import {
   homedirBypassEnabled,
 } from "../utils/cwd-guard.js";
 import { configurePlatform } from "../configurators/index.js";
+import { scrubManagedMarkdownBlock } from "../utils/uninstall-scrubbers.js";
+import {
+  TRELLIS_BLOCK_END,
+  TRELLIS_BLOCK_START,
+} from "../utils/managed-paths.js";
 import { AI_TOOLS, type AITool } from "../types/ai-tools.js";
 
 export interface MigrateOptions {
@@ -51,6 +58,8 @@ export interface MigratePlan {
   rewrites: string[];
   /** `.trellis/.version` exists and will be removed. */
   dropsVersion: boolean;
+  /** AGENTS.md carries a Trellis-managed block that will be replaced. */
+  rewritesAgents: boolean;
   /** `.trellis/tasks/` holds content the user should review. */
   tasksHasContent: boolean;
 }
@@ -150,8 +159,38 @@ export function buildMigratePlan(cwd: string): MigratePlan {
     reconfigure: platformsToReconfigure(cwd, deletions),
     rewrites: REWRITES,
     dropsVersion: fs.existsSync(path.join(cwd, DIR_NAMES.WORKFLOW, ".version")),
+    rewritesAgents: agentsHasManagedBlock(cwd),
     tasksHasContent: dirHasContent(path.join(cwd, PATHS.TASKS)),
   };
+}
+
+function agentsHasManagedBlock(cwd: string): boolean {
+  try {
+    const content = fs.readFileSync(path.join(cwd, FILE_NAMES.AGENTS), "utf-8");
+    return (
+      content.includes(TRELLIS_BLOCK_START) &&
+      content.includes(TRELLIS_BLOCK_END)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Swap the Trellis-managed block in AGENTS.md for mini-trellis's. Everything
+ * outside the markers is the user's and is kept verbatim; the block moves to
+ * the top, which is where both inits write it.
+ */
+function rewriteAgentsMd(cwd: string): void {
+  const abs = path.join(cwd, FILE_NAMES.AGENTS);
+  const scrubbed = scrubManagedMarkdownBlock(
+    fs.readFileSync(abs, "utf-8"),
+    TRELLIS_BLOCK_START,
+    TRELLIS_BLOCK_END,
+  );
+  const block = agentsMdContent.trimEnd();
+  const rest = scrubbed.fullyEmpty ? "" : `\n${scrubbed.content.trimStart()}`;
+  fs.writeFileSync(abs, `${block}\n${rest}`);
 }
 
 function renderPlan(cwd: string, plan: MigratePlan): void {
@@ -182,6 +221,13 @@ function renderPlan(cwd: string, plan: MigratePlan): void {
     console.log(
       `  ${chalk.yellow("~")} ${AI_TOOLS[id].configDir}/  ${chalk.gray(
         `(rewrite ${AI_TOOLS[id].name} hooks, settings, and mini-trellis skills)`,
+      )}`,
+    );
+  }
+  if (plan.rewritesAgents) {
+    console.log(
+      `  ${chalk.yellow("~")} ${FILE_NAMES.AGENTS}  ${chalk.gray(
+        "(replace the Trellis block; text outside it is kept)",
       )}`,
     );
   }
@@ -308,6 +354,7 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
   // Delete first so the install pass never writes a file this plan removes.
   executePlan(cwd, plan);
   await installMemoryLayer(cwd);
+  if (plan.rewritesAgents) rewriteAgentsMd(cwd);
   for (const id of plan.reconfigure) {
     setWriteMode("force");
     await configurePlatform(id, cwd);
@@ -317,19 +364,13 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
   console.log(
     chalk.green(
       `Migrated to mini-trellis: ${plan.deletions.length} Trellis path(s) ` +
-        `removed, ${plan.reconfigure.length + plan.rewrites.length} surface(s) ` +
-        "rewritten.",
+        `removed, ${
+          plan.reconfigure.length +
+          plan.rewrites.length +
+          (plan.rewritesAgents ? 1 : 0)
+        } surface(s) rewritten.`,
     ),
   );
-  if (plan.dropsVersion) {
-    console.log(
-      chalk.gray(
-        `Removed ${DIR_NAMES.WORKFLOW}/.version — a later \`mini-trellis init\` ` +
-          "in this project will write it again, which re-arms the Trellis CLI's " +
-          "update prompt.",
-      ),
-    );
-  }
   console.log(
     chalk.gray(
       `Kept: ${PRESERVED.join(", ")}. Review ${PATHS.SPEC}/ and ${PATHS.TASKS}/ ` +

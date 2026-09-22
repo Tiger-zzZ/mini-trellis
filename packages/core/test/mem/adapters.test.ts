@@ -282,6 +282,29 @@ describe("claudeListSessions / claudeExtractDialogue", () => {
     expect(ids).not.toContain("22222222-2222-2222-2222-222222222222");
   });
 
+  it("drops a session with no recoverable cwd under --cwd scoping", () => {
+    writeJsonl(sessionFile, [
+      {
+        type: "user",
+        cwd: projectCwd,
+        timestamp: "2026-04-15T10:00:00Z",
+        message: { role: "user", content: "x" },
+      },
+    ]);
+    // A title-only log (no event carries `cwd`) parked in the same project dir.
+    const orphanId = "33333333-3333-3333-3333-333333333333";
+    writeJsonl(nodePath.join(projectDir, `${orphanId}.jsonl`), [
+      { type: "ai-title", aiTitle: "orphan", sessionId: orphanId },
+    ]);
+    const scoped = claudeListSessions(mkFilter({ cwd: projectCwd })).map(
+      (s) => s.id,
+    );
+    expect(scoped).toContain(sessionId);
+    expect(scoped).not.toContain(orphanId);
+    // Without scoping it is still listed.
+    expect(claudeListSessions(mkFilter()).map((s) => s.id)).toContain(orphanId);
+  });
+
   it("falls back to scanning all project dirs when the derived dir name doesn't exist (#300)", () => {
     // Simulate a future Claude naming scheme the derive fn can't reproduce: the
     // on-disk dir name is unrelated to `claudeProjectDirFromCwd(scopedCwd)`, so

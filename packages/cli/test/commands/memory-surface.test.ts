@@ -122,14 +122,19 @@ describe("mem help", () => {
   });
 });
 
-describe("session_context update hint", () => {
-  it("points at mini-trellis upgrade, never the deleted trellis update", () => {
+describe("session_context has no update probe", () => {
+  it("never spawns a version check or teaches trellis update", () => {
     const src = readFileSync(
       join(ROOT, "src/templates/trellis/scripts/common/session_context.py"),
       "utf-8",
     );
-    expect(src).not.toMatch(/run trellis update/);
-    expect(src).not.toMatch(/@mindfoldhq\/trellis/);
-    expect(src).toMatch(/run mini-trellis upgrade/);
+    const hook = readFileSync(
+      join(ROOT, "src/templates/shared-hooks/session-start.py"),
+      "utf-8",
+    );
+    for (const text of [src, hook]) {
+      expect(text).not.toMatch(/get_update_hint|update available/);
+      expect(text).not.toMatch(/run trellis update|@mindfoldhq\/trellis/);
+    }
   });
 });

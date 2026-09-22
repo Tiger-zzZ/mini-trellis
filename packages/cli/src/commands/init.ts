@@ -20,7 +20,6 @@ import {
 } from "../configurators/shared.js";
 import { AI_TOOLS, type CliFlag } from "../types/ai-tools.js";
 import { DIR_NAMES, FILE_NAMES, PATHS } from "../constants/paths.js";
-import { VERSION } from "../constants/version.js";
 import { agentsMdContent } from "../templates/markdown/index.js";
 import {
   setWriteMode,
@@ -526,9 +525,6 @@ export async function init(options: InitOptions): Promise<void> {
 
   console.log(chalk.blue("📁 Creating memory skeleton..."));
   await createWorkflowStructure(cwd);
-
-  const versionPath = path.join(cwd, DIR_NAMES.WORKFLOW, ".version");
-  fs.writeFileSync(versionPath, VERSION);
 
   for (const tool of tools) {
     const platformId = resolveCliFlag(tool);

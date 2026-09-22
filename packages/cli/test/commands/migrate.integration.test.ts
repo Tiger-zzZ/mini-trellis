@@ -182,6 +182,39 @@ describe("migrate", () => {
     }
   });
 
+  it("replaces the Trellis block in AGENTS.md and keeps the user's text", async () => {
+    // What a real `trellis init` leaves at the top, plus the user's own notes.
+    plant(
+      tmpDir,
+      "AGENTS.md",
+      [
+        "<!-- TRELLIS:START -->",
+        "# Trellis Instructions",
+        "",
+        "- `.trellis/workflow.md` — development phases, when to create tasks",
+        "- `.trellis/tasks/` — active and archived tasks",
+        "",
+        "Prefer `/trellis:finish-work` and `/trellis:continue`.",
+        "<!-- TRELLIS:END -->",
+        "",
+        "# House rules",
+        "",
+        "Run the linter before every commit.",
+        "",
+      ].join("\n"),
+    );
+
+    await migrate({ yes: true });
+
+    const agents = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
+    expect(agents).toMatch(/^<!-- TRELLIS:START -->\n# mini-trellis/);
+    expect(agents).toContain("Run the linter before every commit.");
+    expect(agents).not.toMatch(/workflow\.md|\.trellis\/tasks|finish-work|\/trellis:continue/);
+    expect(agents).not.toMatch(/\{\{/);
+    // Exactly one managed block.
+    expect(agents.match(/<!-- TRELLIS:START -->/g)).toHaveLength(1);
+  });
+
   it("does nothing when the project has no Trellis install", async () => {
     removeAll(tmpDir);
     expect(collectTrellisResidue(tmpDir)).toEqual([]);

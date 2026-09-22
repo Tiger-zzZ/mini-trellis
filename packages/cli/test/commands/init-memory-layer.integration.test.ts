@@ -132,6 +132,20 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
     const agents = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
     expect(agents).toMatch(/mini-trellis/);
     expect(agents).not.toMatch(/finish-work|continue-work|\/trellis:start/);
+
+    // AGENTS.md and the spec seed are shared across hosts and written without
+    // placeholder resolution, so they must not carry {{...}} literals.
+    const memoryGuide = fs.readFileSync(
+      path.join(tmpDir, ".trellis/spec/guides/mini-memory.md"),
+      "utf-8",
+    );
+    expect(agents).not.toMatch(/\{\{/);
+    expect(memoryGuide).not.toMatch(/\{\{/);
+    expect(agents).toMatch(/\/mini-trellis:remember/);
+
+    // init never writes .trellis/.version: nothing in mini-trellis reads it,
+    // and its presence only re-arms the Trellis CLI's update prompt.
+    expect(exists(tmpDir, ".trellis/.version")).toBe(false);
   });
 
   it("does not write task.py, workflow.md, tasks/, or start/finish-work", () => {

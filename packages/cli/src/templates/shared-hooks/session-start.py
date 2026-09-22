@@ -67,10 +67,9 @@ def _normalize_windows_shell_path(path_str: str) -> str:
     return path_str
 
 
-_FIRST_REPLY_NOTICE_HEAD = """<first-reply-notice>
-On the first visible assistant reply in this session, briefly acknowledge that mini-trellis SessionStart context loaded."""
-
-_FIRST_REPLY_NOTICE_TAIL = """Choose the acknowledgment language in this order:
+FIRST_REPLY_NOTICE = """<first-reply-notice>
+On the first visible assistant reply in this session, briefly acknowledge that mini-trellis SessionStart context loaded.
+Choose the acknowledgment language in this order:
 1. Use the language of the user's current request (the user message that triggered this reply).
 2. If that request has no clear natural language, use an explicitly established project communication language.
 3. If neither provides a language, output the language-neutral fallback exactly: `mini-trellis SessionStart ✓`.
@@ -78,28 +77,6 @@ Continue directly with the user's request after the acknowledgment.
 The acknowledgment must not alter the language used for the remainder of the response.
 This notice is one-shot: do not repeat it after the first visible assistant reply in this session.
 </first-reply-notice>"""
-
-FIRST_REPLY_NOTICE = f"{_FIRST_REPLY_NOTICE_HEAD}\n{_FIRST_REPLY_NOTICE_TAIL}"
-
-
-def _build_first_reply_notice(update_hint: str | None) -> str:
-    """First-reply notice, carrying the Trellis update reminder when there is one.
-
-    The reminder has to reach the *user*, not just the model's context — a line
-    buried in SessionStart context is exactly how the update step kept getting
-    skipped. This block is already the payload's one "say it out loud" channel,
-    so the hint rides along instead of growing a second mechanism.
-
-    With no hint the notice is byte-identical to the plain constant: no empty
-    block, no placeholder line.
-    """
-    if not update_hint:
-        return FIRST_REPLY_NOTICE
-    return (
-        f"{_FIRST_REPLY_NOTICE_HEAD}\n"
-        f"Also relay this mini-trellis maintenance notice on its own line in that same reply: {update_hint}\n"
-        f"{_FIRST_REPLY_NOTICE_TAIL}"
-    )
 
 
 # Force UTF-8 on stdin/stdout/stderr on Windows. Default codepage there is
@@ -300,29 +277,6 @@ def _last_context_key_export(env_file: str) -> str | None:
     except FileNotFoundError:
         return None
     return last_export
-
-
-def _resolve_update_hint(trellis_dir: Path, context_key: str | None) -> str | None:
-    """Ask common.session_context whether a Trellis update is available.
-
-    Throttling lives there: the first SessionStart of a session writes a marker
-    under `.trellis/.runtime/`, and later ones (clear, compact) return without
-    spawning `trellis --version`. The resolved `context_key` is passed through so
-    the marker is scoped to the same session identity the rest of the hook uses,
-    rather than session_context's environment-only fallback.
-
-    Best-effort: a missing scripts dir, an import error, or anything raised while
-    probing versions leaves the rest of the payload untouched.
-    """
-    scripts_dir = trellis_dir / "scripts"
-    if str(scripts_dir) not in sys.path:
-        sys.path.insert(0, str(scripts_dir))
-    try:
-        from common.session_context import get_update_hint  # type: ignore[import-not-found]
-
-        return get_update_hint(trellis_dir.parent, context_key)
-    except Exception:
-        return None  # Optional reminder; keep session-start non-fatal.
 
 
 def run_script(script_path: Path, context_key: str | None = None) -> str:
@@ -643,7 +597,7 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
 </session-context>
 
 """)
-    output.write(_build_first_reply_notice(_resolve_update_hint(trellis_dir, context_key)))
+    output.write(FIRST_REPLY_NOTICE)
     output.write("\n\n")
 
     # Legacy migration warning
