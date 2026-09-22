@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/cli/backend/platform-integration.md", "reason": "Verify R1's per-platform configure()-returns-written-set change still respects the configurator contract; no platform was missed."}
-{"file": ".trellis/spec/cli/backend/migrations.md", "reason": "Verify R3's pruneOrphanManifestKeys does NOT remove manifest entries referenced by pending rename/delete migration items (would break upgrade path)."}
-{"file": ".trellis/spec/cli/backend/quality-guidelines.md", "reason": "Defensive-coding standards (try/catch placement, error message tone). R2 homedir guard uses try-catch-permissive — verify it matches house style."}
-{"file": ".trellis/spec/cli/backend/release-process.md", "reason": "Check that the patch release adds the migration manifest entry per the documented release flow."}
-{"file": ".trellis/spec/cli/unit-test/conventions.md", "reason": "Verify R4 tests avoid the documented anti-patterns (no hardcoded counts, no tautological tests, no type checks in TS)."}
-{"file": ".trellis/spec/cli/unit-test/integration-patterns.md", "reason": "Verify R4 integration tests follow the temp-dir-spawn-real-CLI pattern, with proper cleanup."}
-{"file": ".trellis/tasks/05-13-uninstall-overdelete-manifest-leak/prd.md", "reason": "Acceptance criteria checklist + reproductions. Check agent confirms every AC item is covered by code+tests."}

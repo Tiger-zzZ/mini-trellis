@@ -1,3 +1,0 @@
-{"file": ".trellis/tasks/05-10-spec-sweep-may10/prd.md", "reason": "AC list — 6 themes coverage, file ownership respected, no race conflicts"}
-{"file": ".trellis/spec/cli/backend/platform-integration.md", "reason": "Style reference — all 4 sub-agents output should consistent with this file's voice"}
-{"file": ".trellis/spec/cli/backend/index.md", "reason": "If new file added, verify index linked"}

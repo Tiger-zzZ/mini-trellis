@@ -1,3 +1,0 @@
-{"file": ".trellis/spec/cli/backend/platform-integration.md", "reason": "Acceptance: verify every hook-based platform (claude/codebuddy/droid/qoder/copilot/cursor/gemini/codex) actually changed to the new values per spec — no platform missed"}
-{"file": ".trellis/spec/cli/unit-test/conventions.md", "reason": "Acceptance: new regression test for default timeouts ≥30/≥15 must follow test conventions (no hardcoded counts on platform lists, etc.)"}
-{"file": ".trellis/tasks/05-11-bump-default-hook-timeouts-to-survive-windows-python-cold-start/prd.md", "reason": "Final acceptance checklist — every box must verifiably pass"}

@@ -13,4 +13,4 @@ Capture durable contracts and conventions into `.trellis/spec/` as short markdow
 - Link the new or updated file from the matching `index.md`.
 - Prefer one concrete rule over a catalogue of principles.
 
-Do not create a Trellis task. Spec lives under `.trellis/spec/`, independent of any task directory.
+Spec lives under `.trellis/spec/`. There are no task directories; do not create one.

@@ -1,6 +1,0 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
-{"file": ".trellis/spec/cli/backend/commands-mem.md", "reason": "mem adapter contracts, phase slicing, filtering, and test requirements"}
-{"file": ".trellis/spec/cli/backend/trellis-core-sdk.md", "reason": "core/CLI package boundary for mem API changes"}
-{"file": ".trellis/spec/cli/backend/quality-guidelines.md", "reason": "TypeScript quality and native dependency policy"}
-{"file": ".trellis/spec/cli/unit-test/conventions.md", "reason": "unit and integration test conventions"}
-{"file": ".trellis/tasks/06-18-pi-mem-adapter/research/pi-session-store.md", "reason": "Pi session storage layout, active branch, compaction, and phase boundary research"}

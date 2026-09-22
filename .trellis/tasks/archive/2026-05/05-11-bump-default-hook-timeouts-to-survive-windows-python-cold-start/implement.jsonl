@@ -1,2 +1,0 @@
-{"file": ".trellis/spec/cli/backend/platform-integration.md", "reason": "Authoritative spec for per-platform hook protocol (which platforms use seconds vs ms, which use hooks.json vs settings.json) — required reading before touching any template config"}
-{"file": ".trellis/tasks/05-11-bump-default-hook-timeouts-to-survive-windows-python-cold-start/prd.md", "reason": "Decided timeout values: SessionStart 10→30, UserPromptSubmit 5→15; gemini ×1000; PreToolUse unchanged. File-by-file change table is in the PRD"}

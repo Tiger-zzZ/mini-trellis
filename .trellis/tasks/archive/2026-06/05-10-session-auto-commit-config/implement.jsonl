@@ -1,4 +1,0 @@
-{"file": ".trellis/tasks/05-10-session-auto-commit-config/prd.md", "reason": "Locked decisions (session_auto_commit key, full/stage/none, drop 0.5.10 -f retry), AC, mode behavior table"}
-{"file": ".trellis/spec/cli/backend/script-conventions.md", "reason": "Script conventions — auto-commit pattern is documented here; may need note about new config flag"}
-{"file": ".trellis/spec/cli/backend/quality-guidelines.md", "reason": "Surgical-changes — touch only safe_commit.py / config.py / add_session.py / task_store.py / config.yaml"}
-{"file": ".trellis/spec/cli/unit-test/conventions.md", "reason": "Test conventions — regression test rewrites; new mode-coverage tests"}

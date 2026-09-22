@@ -141,15 +141,9 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Ralph Loop state file
-.trellis/.ralph-state.json
-
-# Trellis local state (should not be committed)
-.trellis/.current-task
-.trellis/.runtime/
-.trellis/.developer
-.trellis/hooks.local.json
-.gitnexus/
+# This repo's own mini-trellis memory layer (journals, research, spec) stays
+# local. Run `mini-trellis init` after cloning to create yours.
+.trellis/
 
 # Multi-agent temp files
 .session-id
@@ -159,9 +153,6 @@ vite.config.ts.timestamp-*
 # OpenCode local config (contains local proxy settings)
 opencode.json
 
-# iFlow local config (if it has local state files)
-.iflow/settings.local.json
-
 # Python cache
 __pycache__/
 *.pyc
@@ -169,13 +160,8 @@ __pycache__/
 
 .reference
 
-.trellis/tasks/01-23-eng-blog-research
-
 # External reference code
 third/
-
-# Test scripts (development only)
-.trellis/scripts/test/
 
 doc/
 smoke_test/
@@ -183,11 +169,6 @@ smoke_test/
 # Claude Code scheduled tasks session lock
 .claude/scheduled_tasks.lock
 
-# Snow CLI generated project configuration and local runtime data
-/.snow/
-
 tmp/
 tmp1/
 .playwright-mcp
-.gitnexus
-.codegraph/

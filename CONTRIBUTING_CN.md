@@ -17,4 +17,7 @@ pnpm --filter mini-trellis typecheck
 pnpm --filter mini-trellis test
 ```
 
+`.trellis/` 不进仓库，它是每个贡献者自己的记忆层。`pnpm build` 之后跑一次
+`node packages/cli/bin/mini-trellis.js init -u <你> --claude`，`.claude/` 里的 SessionStart hook 才有东西可读。
+
 不要写到 Trellis `main`。在 `mini-trellis` 分支工作。

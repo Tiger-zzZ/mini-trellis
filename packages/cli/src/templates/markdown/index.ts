@@ -20,9 +20,6 @@ export const workspaceIndexContent: string =
 
 export const agentProgressIndexContent = workspaceIndexContent;
 
-export const workflowGitignoreContent: string =
-  readLocalTemplate("gitignore.txt");
-
 export const researchReadmeContent: string =
   readLocalTemplate("research-readme.md");
 

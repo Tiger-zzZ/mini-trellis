@@ -20,4 +20,8 @@ pnpm --filter mini-trellis typecheck
 pnpm --filter mini-trellis test
 ```
 
+`.trellis/` is not tracked here: it is each contributor's own memory layer.
+After `pnpm build`, run `node packages/cli/bin/mini-trellis.js init -u <you> --claude`
+once so the SessionStart hook in `.claude/` has something to read.
+
 Do not write onto Trellis `main`. Work on the `mini-trellis` branch.

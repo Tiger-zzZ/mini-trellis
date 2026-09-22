@@ -1,2 +1,0 @@
-{"file": ".trellis/spec/cli/backend/quality-guidelines.md", "reason": "Quality bar for cli changes; check tests against it"}
-{"file": ".trellis/tasks/07-22-subagent-context-limits/design.md", "reason": "Behavioral contract both implementations must satisfy; check inlined/indexed decisions and notice texts match"}
