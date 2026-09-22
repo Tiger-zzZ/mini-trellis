@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { Command } from "commander";
 import { init } from "../commands/init.js";
+import { migrate } from "../commands/migrate.js";
 import { upgrade } from "../commands/upgrade.js";
 import { uninstall } from "../commands/uninstall.js";
 import { runMem } from "../commands/mem.js";
@@ -36,6 +37,31 @@ program
   .action(async (options: Record<string, unknown>) => {
     try {
       await init(options);
+    } catch (error) {
+      console.error(
+        chalk.red("Error:"),
+        error instanceof Error ? error.message : error,
+      );
+      if (process.env.DEBUG || process.env.TRELLIS_DEBUG) {
+        console.error(error instanceof Error ? error.stack : error);
+      }
+      process.exit(1);
+    }
+  });
+
+program
+  .command("migrate")
+  .description(
+    "Switch a project set up by Trellis over to mini-trellis (deletes Trellis skills, commands, and agents)",
+  )
+  .option("-y, --yes", "Skip confirmation prompt")
+  .option("--dry-run", "List what would be removed without changing anything")
+  .action(async (options: Record<string, unknown>) => {
+    try {
+      await migrate({
+        yes: options.yes as boolean,
+        dryRun: options.dryRun as boolean,
+      });
     } catch (error) {
       console.error(
         chalk.red("Error:"),

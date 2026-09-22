@@ -31,6 +31,28 @@ Python ≥ 3.9 is required for the journal scripts and SessionStart hooks. Codex
 
 Upgrade the CLI with `mini-trellis upgrade`. There is no `update` command that rewrites project files.
 
+## Coming from Trellis?
+
+If Trellis is already running in one of your projects, my honest advice is: leave it there. Point mini-trellis at a new project instead. The two share `.trellis/`, and their instruction surfaces don't merge cleanly — Trellis's skills, commands, and agents stay discoverable right next to mini-trellis's.
+
+If you do want to convert one, `mini-trellis migrate` handles it:
+
+```bash
+mini-trellis migrate --dry-run   # list what would go
+mini-trellis migrate             # asks first, defaults to no
+```
+
+It rewrites the four host surfaces with mini-trellis's versions, deletes the Trellis-only instruction files (skills, commands, agents, per-turn injectors, `workflow.md`, `task.py`), and drops `.trellis/.version` so the Trellis CLI stops offering to update the project back to the four-phase workflow.
+
+**There is no backup.** Deleting is permanent, so commit or copy anything you might want back first.
+
+### What you get afterwards
+
+- `.trellis/spec/`, `research/`, `workspace/`, and `tasks/` are left alone. Your spec content survives, including any `backend/`/`frontend/` docs Trellis wrote — those still show up in the SessionStart spec list.
+- `.trellis/config.yaml` and `.trellis/scripts/` get overwritten with mini-trellis's versions. Re-apply any local edits.
+- Old task directories stay on disk, but with `task.py` gone nothing reads them. Delete them by hand when you're ready.
+- `.trellis/.version` is removed. Running `mini-trellis init` in that project again writes it back, which re-arms the Trellis CLI's update prompt.
+
 ## Record a session
 
 - Claude / OpenCode: `/mini-trellis:remember`

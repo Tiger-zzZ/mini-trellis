@@ -30,7 +30,7 @@ function has(cmd: string, args: string[]): boolean {
 }
 const canRun = has("git", ["--version"]) && has("python3", ["--version"]);
 
-const noop = () => {};
+const noop = (): void => undefined;
 
 function git(cwd: string, ...args: string[]): void {
   execFileSync("git", ["-C", cwd, ...args], { stdio: "ignore" });
