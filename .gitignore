@@ -172,3 +172,8 @@ smoke_test/
 tmp/
 tmp1/
 .playwright-mcp
+
+# Copied into the package dirs by prepublishOnly
+packages/*/LICENSE
+packages/*/COPYRIGHT
+packages/cli/README.md

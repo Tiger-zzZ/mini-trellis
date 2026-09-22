@@ -2,6 +2,14 @@
   "name": "mini-trellis",
   "version": "0.1.0",
   "description": "Minimal memory layer for AI coding agents: spec, research, journal, and cross-session recall. Fork of Trellis 0.6.17.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tiger-zzZ/mini-trellis.git"
+  },
+  "homepage": "https://github.com/Tiger-zzZ/mini-trellis#readme",
+  "bugs": {
+    "url": "https://github.com/Tiger-zzZ/mini-trellis/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -27,7 +35,7 @@
     "typecheck": "tsc --noEmit",
     "lint:py": "basedpyright",
     "lint:all": "pnpm lint && pnpm lint:py",
-    "prepublishOnly": "pnpm test && pnpm run build && cp ../../README.md ../../LICENSE ."
+    "prepublishOnly": "pnpm test && pnpm run build && cp ../../README.md ../../LICENSE ../../COPYRIGHT ."
   },
   "keywords": [
     "ai",
@@ -67,6 +75,7 @@
     "dist",
     "bin",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "COPYRIGHT"
   ]
 }

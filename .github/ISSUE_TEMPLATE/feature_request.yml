@@ -1,6 +1,6 @@
 name: Feature Request
 description: Suggest a new feature or improvement
-labels: ["enhancement", "pkg:cli"]
+labels: ["enhancement"]
 body:
   - type: textarea
     id: description
