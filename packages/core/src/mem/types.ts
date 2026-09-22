@@ -7,15 +7,7 @@
  * reads channel events.
  */
 
-export const MEM_SOURCE_KINDS = [
-  "claude",
-  "codex",
-  "devin",
-  "grok",
-  "opencode",
-  "pi",
-  "zcode",
-] as const;
+export const MEM_SOURCE_KINDS = ["claude", "codex", "opencode", "pi"] as const;
 export type MemSourceKind = (typeof MEM_SOURCE_KINDS)[number];
 export type MemSourceFilter = MemSourceKind | "all";
 export type MemPhase = "brainstorm" | "implement" | "all";

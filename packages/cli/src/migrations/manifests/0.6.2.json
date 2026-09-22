@@ -1,9 +1,0 @@
-{
-  "version": "0.6.2",
-  "description": "Fix stale Phase 3.1 routing in /continue command left over from 0.6.1 workflow simplification.",
-  "breaking": false,
-  "recommendMigrate": false,
-  "changelog": "**Bug Fixes:**\n- `/continue` command (`commands/continue.md`): the resume-routing table still pointed `status=in_progress + check passed` at the deleted Phase **3.1**. Now routes to **3.3** (spec update) → **3.4** (commit), matching the 0.6.1 workflow simplification. The 0.6.1 cleanup updated `workflow.md`, the marketplace variants, the trellis-meta skill, and the Copilot prompt, but missed `continue.md` because its routing uses a bare-number syntax (`→ **3.1**`) that the `Phase 3.1` grep did not catch.\n\n**Internal:**\n- `.trellis/spec/docs-site/docs/sync-on-change.md` Trigger 1 now lists every in-template file that carries step-routing references and adds a bare-number grep pattern, so a future step delete/renumber audits all routing sites — not just `workflow.md`.\n\nNo source code changed. Run `trellis update` to refresh `.trellis/.../commands/trellis/continue.md`.",
-  "migrations": [],
-  "notes": "Docs-only fix. Run `trellis update` to refresh the `/continue` command routing. No `--migrate` needed.\n\nInstall: `npm install -g @mindfoldhq/trellis`"
-}

@@ -1,9 +1,0 @@
-{
-  "version": "0.6.13",
-  "description": "Shell-ticket session bridge extends to six platforms; CLAUDE_ENV_FILE append is deduped",
-  "breaking": false,
-  "recommendMigrate": false,
-  "changelog": "**Bug Fixes:**\n- fix(hooks): `inject-shell-session-context.py` now ships to gemini, qoder, codebuddy, droid, trae and zcode. `task.py start` on those platforms resolved no session identity and left `.trellis/.runtime/sessions/` unwritten.\n- fix(hooks): `_persist_context_key_for_bash` appends to `$CLAUDE_ENV_FILE` only when the last `export TRELLIS_CONTEXT_ID=` line differs. It previously appended on every SessionStart.\n- fix(hooks): SessionStart carries the update hint inside `<first-reply-notice>`. `get_update_hint()` was reachable only through `get_context.py --mode text`.\n- fix(scripts): zcode resolves session identity from `CLAUDE_CODE_SESSION_ID`, then `CLAUDE_SESSION_ID`.\n- fix(templates): `.snow/SNOW.md`, `.github/copilot-instructions.md` and `.reasonix/skills/*/SKILL.md` render `python` under Windows rendering.\n- fix(skills): `trellis-meta` `references/local-architecture/bundled-skills.md` documents `collect<Platform>Templates()` and lists all 21 platform skill roots.",
-  "migrations": [],
-  "notes": ""
-}

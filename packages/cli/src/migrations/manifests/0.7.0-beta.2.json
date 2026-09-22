@@ -1,9 +1,0 @@
-{
-  "version": "0.7.0-beta.2",
-  "description": "Sync release: the 0.7 beta line picks up v0.6.11 through v0.6.13",
-  "breaking": false,
-  "recommendMigrate": false,
-  "changelog": "**Bug Fixes:**\n- Synced from main: every fix shipped in v0.6.11, v0.6.12 and v0.6.13. No beta-only behavior changed. See those changelogs for detail.",
-  "migrations": [],
-  "notes": ""
-}

@@ -1,4 +1,0 @@
-{"file": ".trellis/tasks/05-09-pi-workflow-state-injection/prd.md", "reason": "Locked decisions (input hook + before_agent_start + subagent promptSnippet, spawn Python script for workflow-state, preserve PRD/jsonl logic), AC, technical notes"}
-{"file": ".trellis/spec/cli/backend/platform-integration.md", "reason": "Per-platform integration map — Pi section, hook conventions, sub-agent dispatch protocol; new injection sites must follow these patterns"}
-{"file": ".trellis/spec/cli/backend/workflow-state-contract.md", "reason": "[workflow-state:STATUS] tag block contract; Pi must respect the same tag semantics other platforms do"}
-{"file": ".trellis/spec/cli/backend/quality-guidelines.md", "reason": "Surgical-changes — don't refactor adjacent Pi extension code"}

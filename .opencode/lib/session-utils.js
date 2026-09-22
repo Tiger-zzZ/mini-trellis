@@ -8,11 +8,11 @@ import { debugLog } from "./trellis-context.js"
 const PYTHON_CMD = platform() === "win32" ? "python" : "python3"
 
 const FIRST_REPLY_NOTICE = `<first-reply-notice>
-On the first visible assistant reply in this session, briefly acknowledge that Trellis SessionStart context loaded.
+On the first visible assistant reply in this session, briefly acknowledge that mini-trellis SessionStart context loaded.
 Choose the acknowledgment language in this order:
 1. Use the language of the user's current request (the user message that triggered this reply).
 2. If that request has no clear natural language, use an explicitly established project communication language.
-3. If neither provides a language, output the language-neutral fallback exactly: \`Trellis SessionStart ✓\`.
+3. If neither provides a language, output the language-neutral fallback exactly: \`mini-trellis SessionStart ✓\`.
 Continue directly with the user's request after the acknowledgment.
 The acknowledgment must not alter the language used for the remainder of the response.
 This notice is one-shot: do not repeat it after the first visible assistant reply in this session.
@@ -276,7 +276,7 @@ export function buildSessionContext(ctx, platformInput = null) {
   const parts = []
 
   parts.push(`<session-context>
-Trellis compact SessionStart context. Orient from journal, spec, and research. Do not create or drive Trellis tasks.
+mini-trellis SessionStart context. Orient from journal, spec, and research.
 </session-context>`)
   parts.push(FIRST_REPLY_NOTICE)
 
@@ -291,12 +291,11 @@ Trellis compact SessionStart context. Orient from journal, spec, and research. D
 
   parts.push("<guidelines>")
   parts.push(
-    "Memory: journal is git-durable session notes (`/trellis:remember` or " +
+    "Memory: journal is git-durable session notes (`/mini-trellis:remember` or " +
     "`python3 ./.trellis/scripts/add_session.py`). Cross-session dialogue is " +
-    "`trellis mem list|search|context|extract` (ignore `--phase`).\n" +
+    "`mini-trellis mem list|search|context|extract`.\n" +
     "Research lives in `.trellis/research/<topic>.md`; promote durable " +
-    "boundaries into `.trellis/spec/` as short markdown.\n" +
-    "Do not create, start, or archive Trellis tasks from this context.\n"
+    "boundaries into `.trellis/spec/` as short markdown.\n"
   )
 
   if (paths.length > 0) {
@@ -318,7 +317,7 @@ Trellis compact SessionStart context. Orient from journal, spec, and research. D
   parts.push("</guidelines>")
 
   parts.push(`<ready>
-Context loaded. Use journal, spec, research, and \`trellis mem\` on demand. Remember at session end or after compact.
+Context loaded. Use journal, spec, research, and \`mini-trellis mem\` on demand. Remember at session end or after compact.
 </ready>`)
 
   return parts.join("\n\n")

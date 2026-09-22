@@ -1,2 +1,0 @@
-{"file": ".trellis/spec/cli/backend/platform-integration.md", "reason": "Authoritative spec for Copilot integration — confirm what the spec says about Copilot class (class-2 pull-based?) and SessionStart hook treatment before changing the message"}
-{"file": ".trellis/tasks/05-11-soften-copilot-sessionstart-systemmessage-no-longer-claim-copilot-ignores/prd.md", "reason": "Decision: remove systemMessage entirely (not soften). Rationale and out-of-scope boundaries are in the PRD"}

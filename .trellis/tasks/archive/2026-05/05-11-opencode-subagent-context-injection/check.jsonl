@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/cli/backend/platform-integration.md", "reason": "Acceptance: confirm platform integration spec updates reflect new OpenCode injection contract (Active task: hint, single-session fallback, marker)"}
-{"file": ".trellis/spec/cli/unit-test/conventions.md", "reason": "Acceptance: confirm new tests follow test conventions (no hardcoded counts, no tautological assertions, etc.)"}
-{"file": ".trellis/spec/cli/unit-test/mock-strategies.md", "reason": "Acceptance: verify mocking approach for OpenCode plugin tests (filesystem stubs, no real plugin runtime)"}
-{"file": ".trellis/tasks/05-11-opencode-subagent-context-injection/research/sessionid-resolution-trace.md", "reason": "Acceptance: verify the fix eliminates the repro logs documented here (Bug ① 'Skipping - no current task' and Bug ② 'chat.message ... agent: trellis-* + 38KB injection')"}
-{"file": ".trellis/tasks/05-11-opencode-subagent-context-injection/prd.md", "reason": "Final acceptance criteria checklist — every box must verifiably pass"}

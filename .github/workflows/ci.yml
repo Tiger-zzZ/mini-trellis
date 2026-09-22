@@ -2,25 +2,23 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, mini-trellis]
     paths:
       - 'packages/cli/**'
       - 'packages/core/**'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'package.json'
-      - 'marketplace'
       - '**/*.py'
       - '.github/workflows/ci.yml'
   pull_request:
-    branches: [main]
+    branches: [main, mini-trellis]
     paths:
       - 'packages/cli/**'
       - 'packages/core/**'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'package.json'
-      - 'marketplace'
       - '**/*.py'
       - '.github/workflows/ci.yml'
 
@@ -60,13 +58,13 @@ jobs:
         run: pnpm typecheck
 
       - name: Typecheck Python
-        run: pnpm --filter @mindfoldhq/trellis lint:py
+        run: pnpm --filter mini-trellis lint:py
 
       - name: Lint (core + cli)
         run: pnpm lint
 
       # Build before test: integration tests spawn the real CLI via
-      # bin/trellis.js, which imports dist/ and needs build output to exist.
+      # bin/mini-trellis.js, which imports dist/ and needs build output to exist.
       - name: Build (core then cli)
         run: pnpm build
 
@@ -78,8 +76,7 @@ jobs:
           set -euo pipefail
           test -d packages/core/dist
           test -f packages/core/dist/index.js
-          test -f packages/core/dist/channel/index.js
-          test -f packages/core/dist/task/index.js
+          test -f packages/core/dist/mem/index.js
           test -d packages/cli/dist
           test -f packages/cli/dist/index.js
           echo "Build verification passed"

@@ -125,7 +125,9 @@ export function claudeListSessions(f: MemFilter): MemSessionInfo[] {
       // Interval overlap: cross-day sessions that started before --since but
       // were still active inside the window must survive.
       if (!inRangeOverlap(created, updated, f)) continue;
-      if (f.cwd && cwd && !sameProject(cwd, f.cwd)) continue;
+      // Under --cwd scoping a session with no recoverable cwd is dropped, same
+      // as every other adapter: `sameProject(undefined, target)` is false.
+      if (f.cwd && !sameProject(cwd, f.cwd)) continue;
 
       out.push({
         platform: "claude",

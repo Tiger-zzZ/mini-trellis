@@ -67,39 +67,16 @@ def _normalize_windows_shell_path(path_str: str) -> str:
     return path_str
 
 
-_FIRST_REPLY_NOTICE_HEAD = """<first-reply-notice>
-On the first visible assistant reply in this session, briefly acknowledge that Trellis SessionStart context loaded."""
-
-_FIRST_REPLY_NOTICE_TAIL = """Choose the acknowledgment language in this order:
+FIRST_REPLY_NOTICE = """<first-reply-notice>
+On the first visible assistant reply in this session, briefly acknowledge that mini-trellis SessionStart context loaded.
+Choose the acknowledgment language in this order:
 1. Use the language of the user's current request (the user message that triggered this reply).
 2. If that request has no clear natural language, use an explicitly established project communication language.
-3. If neither provides a language, output the language-neutral fallback exactly: `Trellis SessionStart ✓`.
+3. If neither provides a language, output the language-neutral fallback exactly: `mini-trellis SessionStart ✓`.
 Continue directly with the user's request after the acknowledgment.
 The acknowledgment must not alter the language used for the remainder of the response.
 This notice is one-shot: do not repeat it after the first visible assistant reply in this session.
 </first-reply-notice>"""
-
-FIRST_REPLY_NOTICE = f"{_FIRST_REPLY_NOTICE_HEAD}\n{_FIRST_REPLY_NOTICE_TAIL}"
-
-
-def _build_first_reply_notice(update_hint: str | None) -> str:
-    """First-reply notice, carrying the Trellis update reminder when there is one.
-
-    The reminder has to reach the *user*, not just the model's context — a line
-    buried in SessionStart context is exactly how the update step kept getting
-    skipped. This block is already the payload's one "say it out loud" channel,
-    so the hint rides along instead of growing a second mechanism.
-
-    With no hint the notice is byte-identical to the plain constant: no empty
-    block, no placeholder line.
-    """
-    if not update_hint:
-        return FIRST_REPLY_NOTICE
-    return (
-        f"{_FIRST_REPLY_NOTICE_HEAD}\n"
-        f"Also relay this Trellis maintenance notice on its own line in that same reply: {update_hint}\n"
-        f"{_FIRST_REPLY_NOTICE_TAIL}"
-    )
 
 
 # Force UTF-8 on stdin/stdout/stderr on Windows. Default codepage there is
@@ -124,30 +101,6 @@ if sys.platform.startswith("win"):
             except Exception:
                 pass  # Optional Windows stream setup; keep hook startup non-fatal.
 
-
-
-def _has_curated_jsonl_entry(jsonl_path: Path) -> bool:
-    """Return True iff jsonl has at least one row with a ``file`` field.
-
-    A newly created jsonl is empty, and older tasks may still carry a
-    ``{"_example": ...}`` placeholder row (no ``file`` key) — neither is
-    "ready". Readiness requires at least one curated entry. Matches the
-    contract used by hook-inject and pull-based sub-agent context loaders.
-    """
-    try:
-        for line in jsonl_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(row, dict) and row.get("file"):
-                return True
-    except (OSError, UnicodeDecodeError):
-        return False
-    return False
 
 
 def should_skip_injection() -> bool:
@@ -326,42 +279,6 @@ def _last_context_key_export(env_file: str) -> str | None:
     return last_export
 
 
-def _resolve_update_hint(trellis_dir: Path, context_key: str | None) -> str | None:
-    """Ask common.session_context whether a Trellis update is available.
-
-    Throttling lives there: the first SessionStart of a session writes a marker
-    under `.trellis/.runtime/`, and later ones (clear, compact) return without
-    spawning `trellis --version`. The resolved `context_key` is passed through so
-    the marker is scoped to the same session identity the rest of the hook uses,
-    rather than session_context's environment-only fallback.
-
-    Best-effort: a missing scripts dir, an import error, or anything raised while
-    probing versions leaves the rest of the payload untouched.
-    """
-    scripts_dir = trellis_dir / "scripts"
-    if str(scripts_dir) not in sys.path:
-        sys.path.insert(0, str(scripts_dir))
-    try:
-        from common.session_context import get_update_hint  # type: ignore[import-not-found]
-
-        return get_update_hint(trellis_dir.parent, context_key)
-    except Exception:
-        return None  # Optional reminder; keep session-start non-fatal.
-
-
-def _resolve_active_task(trellis_dir: Path, input_data: dict):
-    scripts_dir = trellis_dir / "scripts"
-    if str(scripts_dir) not in sys.path:
-        sys.path.insert(0, str(scripts_dir))
-    from common.active_task import resolve_active_task  # type: ignore[import-not-found]
-
-    return resolve_active_task(
-        trellis_dir.parent,
-        input_data,
-        platform=_detect_platform(input_data),
-    )
-
-
 def run_script(script_path: Path, context_key: str | None = None) -> str:
     try:
         if script_path.suffix == ".py":
@@ -390,128 +307,6 @@ def run_script(script_path: Path, context_key: str | None = None) -> str:
         return result.stdout if result.returncode == 0 else "No context available"
     except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError):
         return "No context available"
-
-
-def _normalize_task_ref(task_ref: str) -> str:
-    normalized = task_ref.strip()
-    if not normalized:
-        return ""
-
-    path_obj = Path(normalized)
-    if path_obj.is_absolute():
-        return str(path_obj)
-
-    normalized = normalized.replace("\\", "/")
-    while normalized.startswith("./"):
-        normalized = normalized[2:]
-
-    if normalized.startswith("tasks/"):
-        return f".trellis/{normalized}"
-
-    return normalized
-
-
-def _resolve_task_dir(trellis_dir: Path, task_ref: str) -> Path:
-    normalized = _normalize_task_ref(task_ref)
-    path_obj = Path(normalized)
-    if path_obj.is_absolute():
-        return path_obj
-    if normalized.startswith(".trellis/"):
-        return trellis_dir.parent / path_obj
-    return trellis_dir / "tasks" / path_obj
-
-
-def _get_task_status(trellis_dir: Path, input_data: dict) -> str:
-    """Return compact active-task status, artifact presence, and next action."""
-    active = _resolve_active_task(trellis_dir, input_data)
-
-    if not active.task_path:
-        return (
-            "Status: NO ACTIVE TASK\n"
-            "Next-Action: Classify the current turn before creating any Trellis task. "
-            "Simple conversation / small task asks only whether this turn should create a Trellis task. "
-            "Complex task asks whether task creation and planning are allowed."
-        )
-
-    task_ref = active.task_path
-    task_dir = _resolve_task_dir(trellis_dir, task_ref)
-    if active.stale or not task_dir.is_dir():
-        return (
-            f"Status: STALE POINTER\nTask: {task_ref}\n"
-            f"Next-Action: Run `python3 ./.trellis/scripts/task.py finish` to clear the stale pointer, "
-            "then ask the user what to work on next."
-        )
-
-    task_json_path = task_dir / "task.json"
-    task_data = {}
-    if task_json_path.is_file():
-        try:
-            task_data = json.loads(task_json_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, PermissionError):
-            pass  # Optional task metadata; fall back to generic status.
-
-    task_title = task_data.get("title", task_ref)
-    task_status = task_data.get("status", "unknown")
-    artifact_names = ("prd.md", "design.md", "implement.md", "implement.jsonl", "check.jsonl")
-    present = [name for name in artifact_names if (task_dir / name).is_file()]
-    if (task_dir / "research").is_dir():
-        present.append("research/")
-    present_line = ", ".join(present) if present else "(none)"
-
-    if task_status == "completed":
-        return (
-            f"Status: COMPLETED\nTask: {task_title}\n"
-            f"Present: {present_line}\n"
-            "Next-Action: Run `/trellis:finish-work`. If the working tree is dirty, return to Phase 3.4 first."
-        )
-
-    has_prd = (task_dir / "prd.md").is_file()
-    has_design = (task_dir / "design.md").is_file()
-    has_implement_plan = (task_dir / "implement.md").is_file()
-    implement_jsonl = task_dir / "implement.jsonl"
-    check_jsonl = task_dir / "check.jsonl"
-    jsonl_ready = (
-        (not implement_jsonl.is_file() or _has_curated_jsonl_entry(implement_jsonl))
-        and (not check_jsonl.is_file() or _has_curated_jsonl_entry(check_jsonl))
-    )
-
-    if task_status == "planning" and not has_prd:
-        return (
-            f"Status: PLANNING\nTask: {task_title}\n"
-            f"Present: {present_line}\n"
-            "Next-Action: Load `trellis-brainstorm` and write `prd.md`. Stay in planning."
-        )
-
-    if task_status == "planning":
-        missing_complex = [
-            name for name, exists in (
-                ("design.md", has_design),
-                ("implement.md", has_implement_plan),
-            )
-            if not exists
-        ]
-        next_bits: list[str] = []
-        if missing_complex:
-            next_bits.append(
-                "Lightweight task can request start review with PRD-only; "
-                f"complex task must add {', '.join(missing_complex)} before start"
-            )
-        else:
-            next_bits.append("Planning artifacts are present; ask for review before `task.py start`")
-        if not jsonl_ready:
-            next_bits.append("curate `implement.jsonl` and `check.jsonl` before sub-agent mode start")
-        return (
-            f"Status: PLANNING\nTask: {task_title}\n"
-            f"Present: {present_line}\n"
-            f"Next-Action: {'; '.join(next_bits)}. Do not enter implementation until the user confirms start."
-        )
-
-    return (
-        f"Status: {str(task_status).upper()}\nTask: {task_title}\n"
-        f"Present: {present_line}\n"
-        "Next-Action: Follow the matching per-turn workflow-state. "
-        "Implementation/check context order is jsonl entries -> `prd.md` -> `design.md if present` -> `implement.md if present`."
-    )
 
 
 def _load_trellis_config(trellis_dir: Path, input_data: dict) -> tuple:
@@ -694,52 +489,40 @@ def _collect_spec_index_paths(trellis_dir: Path, allowed_pkgs: set | None) -> li
     return paths
 
 
+def _collect_research_topics(trellis_dir: Path) -> list[str]:
+    research_dir = trellis_dir / "research"
+    if not research_dir.is_dir():
+        return []
+    topics: list[str] = []
+    try:
+        for path in sorted(research_dir.iterdir()):
+            if path.name.startswith(".") or path.name.lower() == "readme.md":
+                continue
+            if path.is_file() and path.suffix.lower() == ".md":
+                topics.append(f".trellis/research/{path.name}")
+    except OSError:
+        return []
+    return topics
+
+
 def _build_compact_current_state(
     trellis_dir: Path,
-    input_data: dict,
     spec_index_paths: list[str],
+    research_topics: list[str],
 ) -> str:
     repo_root = trellis_dir.parent
     lines: list[str] = []
 
     try:
-        from common.paths import get_active_journal_file, get_developer, get_tasks_dir, count_lines  # type: ignore[import-not-found]
-        from common.tasks import iter_active_tasks  # type: ignore[import-not-found]
+        from common.paths import get_active_journal_file, get_developer, count_lines  # type: ignore[import-not-found]
     except Exception:
         get_active_journal_file = None  # type: ignore[assignment]
         get_developer = None  # type: ignore[assignment]
-        get_tasks_dir = None  # type: ignore[assignment]
         count_lines = None  # type: ignore[assignment]
-        iter_active_tasks = None  # type: ignore[assignment]
 
     developer = get_developer(repo_root) if get_developer else None
     lines.append(f"Developer: {developer or '(not initialized)'}")
     lines.append(_format_git_state(repo_root))
-
-    active = _resolve_active_task(trellis_dir, input_data)
-    if active.task_path:
-        task_dir = _resolve_task_dir(trellis_dir, active.task_path)
-        status = "unknown"
-        task_json = task_dir / "task.json"
-        if task_json.is_file():
-            try:
-                data = json.loads(task_json.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    status = str(data.get("status") or "unknown")
-            except (json.JSONDecodeError, OSError):
-                pass  # Optional task metadata; fall back to generic status.
-        lines.append(f"Current task: {_repo_relative(repo_root, task_dir)}; status={status}.")
-    else:
-        lines.append("Current task: none.")
-
-    if get_tasks_dir and iter_active_tasks:
-        try:
-            task_count = sum(1 for _ in iter_active_tasks(get_tasks_dir(repo_root)))
-            lines.append(
-                f"Active tasks: {task_count} total. Use `python3 ./.trellis/scripts/task.py list --mine` only if needed."
-            )
-        except Exception:
-            pass  # Optional task summary; keep compact state available.
 
     if get_active_journal_file and count_lines:
         journal = get_active_journal_file(repo_root)
@@ -751,72 +534,12 @@ def _build_compact_current_state(
     if spec_index_paths:
         lines.append(f"Spec indexes: {len(spec_index_paths)} available.")
 
+    if research_topics:
+        lines.append(f"Research notes: {len(research_topics)} in .trellis/research/.")
+    else:
+        lines.append("Research notes: none yet. Write .trellis/research/<topic>.md.")
+
     return "\n".join(lines)
-
-
-def _extract_range(content: str, start_header: str, end_header: str) -> str:
-    """Extract lines starting at `## start_header` up to (but excluding) `## end_header`.
-
-    Both parameters are full header lines WITHOUT the `## ` prefix (e.g. "Phase Index").
-    Returns empty string if start header is not found.
-    End header missing → extracts to end of file.
-    """
-    lines = content.splitlines()
-    start: int | None = None
-    end: int = len(lines)
-    start_match = f"## {start_header}"
-    end_match = f"## {end_header}"
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if start is None and stripped == start_match:
-            start = i
-            continue
-        if start is not None and stripped == end_match:
-            end = i
-            break
-    if start is None:
-        return ""
-    return "\n".join(lines[start:end]).rstrip()
-
-
-_BREADCRUMB_TAG_RE = re.compile(
-    r"\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n.*?\n\s*\[/workflow-state:\1\]",
-    re.DOTALL,
-)
-
-
-def _strip_breadcrumb_tag_blocks(content: str) -> str:
-    """Remove `[workflow-state:STATUS]...[/workflow-state:STATUS]` blocks.
-
-    The tag blocks live inside `## Phase Index` (since v0.5.0-rc.0, when
-    they were colocated with their phase summaries) and are consumed by the
-    UserPromptSubmit hook (`inject-workflow-state.py`). The session-start
-    payload already covers the full step bodies, so re-inlining the
-    breadcrumbs here would just duplicate context.
-    """
-    stripped = _BREADCRUMB_TAG_RE.sub("", content)
-    stripped = re.sub(r"<!--.*?-->", "", stripped, flags=re.DOTALL)
-    stripped = re.sub(r"^\[(?!/?workflow-state:)/?[^\]\n]+\]\s*\n?", "", stripped, flags=re.MULTILINE)
-    return re.sub(r"\n{3,}", "\n\n", stripped).strip()
-
-
-def _build_workflow_overview(workflow_path: Path) -> str:
-    """Inject only the compact Phase Index summary for SessionStart."""
-    content = read_file(workflow_path)
-    if not content:
-        return "No workflow.md found"
-
-    out_lines = [
-        "# Development Workflow - Session Summary",
-        "Full guide: .trellis/workflow.md. Step detail: `python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>`.",
-        "",
-    ]
-
-    phases = _extract_range(content, "Phase Index", "Phase 1: Plan")
-    if phases:
-        out_lines.append(_strip_breadcrumb_tag_blocks(phases).rstrip())
-
-    return "\n".join(out_lines).rstrip()
 
 
 def main():
@@ -866,13 +589,15 @@ def main():
     output = StringIO()
 
     spec_index_paths = _collect_spec_index_paths(trellis_dir, allowed_pkgs)
+    research_topics = _collect_research_topics(trellis_dir)
+    source = hook_input.get("source") if isinstance(hook_input.get("source"), str) else ""
 
     output.write("""<session-context>
-Trellis compact SessionStart context. Use it to orient the session; load details on demand.
+mini-trellis SessionStart context. Orient from journal, spec, and research.
 </session-context>
 
 """)
-    output.write(_build_first_reply_notice(_resolve_update_hint(trellis_dir, context_key)))
+    output.write(FIRST_REPLY_NOTICE)
     output.write("\n\n")
 
     # Legacy migration warning
@@ -881,38 +606,40 @@ Trellis compact SessionStart context. Use it to orient the session; load details
         output.write(f"<migration-warning>\n{legacy_warning}\n</migration-warning>\n\n")
 
     output.write("<current-state>\n")
-    output.write(_build_compact_current_state(trellis_dir, hook_input, spec_index_paths))
+    output.write(_build_compact_current_state(trellis_dir, spec_index_paths, research_topics))
     output.write("\n</current-state>\n\n")
-
-    output.write("<trellis-workflow>\n")
-    output.write(_build_workflow_overview(trellis_dir / "workflow.md"))
-    output.write("\n</trellis-workflow>\n\n")
 
     output.write("<guidelines>\n")
     output.write(
-        "Task context order for implementation/check: jsonl entries -> `prd.md` -> "
-        "`design.md if present` -> `implement.md if present`. Missing optional artifacts "
-        "are skipped for lightweight tasks.\n\n"
+        "Memory: journal is git-durable session notes (`/mini-trellis:remember` or "
+        "`python3 ./.trellis/scripts/add_session.py`). Cross-session dialogue is "
+        "`mini-trellis mem list|search|context|extract`.\n"
+        "Research lives in `.trellis/research/<topic>.md`; promote durable "
+        "boundaries into `.trellis/spec/` as short markdown.\n\n"
     )
 
     if spec_index_paths:
-        output.write("## Available indexes (read on demand)\n")
+        output.write("## Spec indexes (read on demand)\n")
         for p in spec_index_paths:
             output.write(f"- {p}\n")
         output.write("\n")
 
-    output.write(
-        "Discover more via: "
-        "`python3 ./.trellis/scripts/get_context.py --mode packages`\n"
-    )
+    if research_topics:
+        output.write("## Research notes (read on demand)\n")
+        for p in research_topics:
+            output.write(f"- {p}\n")
+        output.write("\n")
+
+    if source == "compact":
+        output.write(
+            "This SessionStart was triggered by compact. If durable decisions "
+            "or research from the compacted window are not in journal yet, "
+            "run `/mini-trellis:remember` before continuing.\n"
+        )
     output.write("</guidelines>\n\n")
 
-    # Check task status and inject structured tag
-    task_status = _get_task_status(trellis_dir, hook_input)
-    output.write(f"<task-status>\n{task_status}\n</task-status>\n\n")
-
     output.write("""<ready>
-Context loaded. Follow <task-status>. Load workflow/spec/task details only when needed.
+Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. Remember at session end or after compact.
 </ready>""")
 
     context_text = output.getvalue()

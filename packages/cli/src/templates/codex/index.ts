@@ -1,23 +1,9 @@
 /**
- * Codex templates
- *
- * These are GENERIC templates for user projects.
- * Do NOT use Trellis project's own .agents/skills or .codex directories
- * (which may be customized).
- *
- * Workflow skills are NOT stored here. They come from templates/common/ and are
- * written to .agents/skills/ as trellis-*, which Codex reads alongside
- * .codex/skills/ (see configurators/codex.ts).
- *
- * Directory structure:
- *   codex/
- *   ├── agents/         # Project-scoped Codex custom agents (.toml)
- *   ├── hooks/          # Codex hook scripts → .codex/hooks/
- *   ├── hooks.json      # Codex hook wiring → .codex/hooks.json
- *   └── config.toml     # Project-scoped Codex config
+ * Codex templates — hooks.json + config.toml.
+ * SessionStart script comes from shared-hooks/.
  */
 
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,58 +14,9 @@ function readTemplate(relativePath: string): string {
   return readFileSync(join(__dirname, relativePath), "utf-8");
 }
 
-function listFiles(dir: string): string[] {
-  try {
-    return readdirSync(join(__dirname, dir)).sort();
-  } catch {
-    return [];
-  }
-}
-
-export interface AgentTemplate {
-  name: string;
-  content: string;
-}
-
 export interface ConfigTemplate {
   targetPath: string;
   content: string;
-}
-
-// Shared skills are now sourced from common/ templates (see templates/common/index.ts)
-
-export function getAllAgents(): AgentTemplate[] {
-  const agents: AgentTemplate[] = [];
-
-  for (const file of listFiles("agents")) {
-    if (!file.endsWith(".toml")) {
-      continue;
-    }
-
-    const name = file.replace(".toml", "");
-    const content = readTemplate(`agents/${file}`);
-    agents.push({ name, content });
-  }
-
-  return agents;
-}
-
-export interface HookTemplate {
-  name: string;
-  content: string;
-}
-
-export function getAllHooks(): HookTemplate[] {
-  const hooks: HookTemplate[] = [];
-
-  for (const file of listFiles("hooks")) {
-    if (!file.endsWith(".py")) {
-      continue;
-    }
-    hooks.push({ name: file, content: readTemplate(`hooks/${file}`) });
-  }
-
-  return hooks;
 }
 
 export function getHooksConfig(): string {

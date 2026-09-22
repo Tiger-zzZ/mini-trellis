@@ -1,7 +1,5 @@
-// Root barrel — re-exports the channel and task public APIs so callers
-// can `import { ... } from "@mindfoldhq/trellis-core"`. Sub-path
-// imports (`@mindfoldhq/trellis-core/channel`, `/task`) remain the
-// recommended form for tree-shake-friendly consumption.
+// mini-trellis-core exposes only the mem subpackage. Import it explicitly:
+//
+//   import { searchMemSessions } from "mini-trellis-core/mem";
 
-export * from "./channel/index.js";
-export * from "./task/index.js";
+export * from "./mem/index.js";

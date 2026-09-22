@@ -1,9 +1,0 @@
-{
-  "version": "0.6.14",
-  "description": "Fixes task tracking on CodeBuddy, ZCode and Trae; trellis mem returns compacted conversations",
-  "breaking": false,
-  "recommendMigrate": false,
-  "changelog": "**Bug Fixes:**\n- fix(hooks): on CodeBuddy, ZCode and Trae, `task.py start` reported success but every later turn still said there was no active task. Trellis read the session under the wrong name. On CodeBuddy the hooks also could not find the project, because the IDE reports `/` as the working directory.\n- fix(hooks): PreToolUse hooks were registered for tool names the IDE never sends. CodeBuddy now matches `execute_command` and `task`, Trae `RunCommand`, Qoder `run_in_terminal`.\n\n**Enhancements:**\n- feat(mem): `trellis mem` returns turns that compaction used to hide. A twice-compacted Codex session goes from 2 turns to 18. Content that cannot be recovered now says so instead of appearing complete.\n- feat(mem): `trellis mem --platform grok` reads Grok sessions from `~/.grok/sessions/`.",
-  "migrations": [],
-  "notes": "Run `trellis update`, then restart your IDE, to pick up the hook fixes."
-}

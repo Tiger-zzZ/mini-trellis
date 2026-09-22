@@ -48,14 +48,14 @@ export function isCwdHomedir(): boolean {
  * homedir guard trips.
  */
 export function homedirGuardMessage(
-  commandName: "init" | "uninstall" | "ablate" | "restore",
+  commandName: "init" | "migrate" | "uninstall" | "ablate" | "restore",
 ): string {
   return (
-    `✗ Refusing to run \`trellis ${commandName}\` in your home directory.\n\n` +
-    `Trellis manages platform config dirs like .claude/, .codex/, .opencode/, which\n` +
+    `✗ Refusing to run \`mini-trellis ${commandName}\` in your home directory.\n\n` +
+    `mini-trellis manages platform config dirs like .claude/, .codex/, .opencode/, which\n` +
     `in your home directory also contain runtime data from those CLIs (chat history,\n` +
     `session JSONLs, caches). Running here can wipe that data.\n\n` +
-    `Run trellis from your project directory instead. If you really want to run in\n` +
+    `Run mini-trellis from your project directory instead. If you really want to run in\n` +
     `$HOME, set TRELLIS_ALLOW_HOMEDIR=1.`
   );
 }

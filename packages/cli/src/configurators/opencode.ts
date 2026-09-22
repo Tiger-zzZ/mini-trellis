@@ -11,12 +11,6 @@ import {
   resolveSkills,
 } from "./shared.js";
 
-/**
- * Files under packages/cli/src/templates/opencode/ that are NOT user-facing
- * assets (build artifacts, runtime caches, etc.). The template dir has a
- * real package.json that declares the @opencode-ai/plugin dep — that one
- * IS user-facing and must be shipped.
- */
 const EXCLUDE_PATTERNS = [
   ".d.ts",
   ".d.ts.map",
@@ -28,21 +22,11 @@ const EXCLUDE_PATTERNS = [
 ];
 
 function shouldExclude(filename: string): boolean {
-  for (const pattern of EXCLUDE_PATTERNS) {
-    if (filename.endsWith(pattern) || filename === pattern) {
-      return true;
-    }
-  }
-  return false;
+  return EXCLUDE_PATTERNS.some(
+    (pattern) => filename.endsWith(pattern) || filename === pattern,
+  );
 }
 
-/**
- * Walk the opencode template directory and produce a `Map<relPath, content>`
- * rooted at `.opencode/`. Shared by both `configureOpenCode` (init-time write)
- * and `collectOpenCodeTemplates` (update-time hash tracking) so the two paths
- * always agree on the exact file set. `commands/` is handled separately (sourced
- * from common template context, not from this directory tree).
- */
 function walkOpenCodeTemplateDir(): Map<string, string> {
   const files = new Map<string, string>();
   const sourcePath = getOpenCodeTemplatePath();
@@ -55,14 +39,22 @@ function walkOpenCodeTemplateDir(): Map<string, string> {
       const relEntry = relDir ? path.join(relDir, entry) : entry;
       const stat = statSync(absEntry);
       if (stat.isDirectory()) {
-        // Skip commands/ — that's sourced from common/ templates, not the
-        // opencode/ dir. Including both paths would double-write.
-        if (relEntry === "commands") continue;
+        if (
+          relEntry === "commands" ||
+          relEntry === "agents" ||
+          relEntry === path.join("plugins", "inject-subagent-context.js")
+        ) {
+          continue;
+        }
         walk(relEntry);
       } else {
+        if (
+          relEntry.endsWith("inject-subagent-context.js") ||
+          relEntry.endsWith("inject-workflow-state.js")
+        ) {
+          continue;
+        }
         const content = readFileSync(absEntry, "utf-8");
-        // Map keys are logical paths used as cross-platform hash keys / lookup
-        // keys downstream. Always POSIX, regardless of host OS.
         files.set(
           toPosix(path.join(".opencode", relEntry)),
           replacePythonCommandLiterals(content),
@@ -75,14 +67,11 @@ function walkOpenCodeTemplateDir(): Map<string, string> {
   return files;
 }
 
-/**
- * The opencode file set — written at init and diffed by `trellis update`.
- */
 export function collectOpenCodeTemplates(): Map<string, string> {
   const files = walkOpenCodeTemplateDir();
   const ctx = AI_TOOLS.opencode.templateContext;
   for (const cmd of resolveCommands(ctx)) {
-    files.set(`.opencode/commands/trellis/${cmd.name}.md`, cmd.content);
+    files.set(`.opencode/commands/mini-trellis/${cmd.name}.md`, cmd.content);
   }
   for (const [filePath, content] of collectSkillTemplates(
     ".opencode/skills",

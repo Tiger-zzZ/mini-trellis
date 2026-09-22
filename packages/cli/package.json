@@ -1,13 +1,20 @@
 {
-  "name": "@mindfoldhq/trellis",
-  "version": "0.6.17",
-  "description": "AI capabilities grow like ivy — Trellis provides the structure to guide them along a disciplined path",
+  "name": "mini-trellis",
+  "version": "0.1.0",
+  "description": "Minimal memory layer for AI coding agents: spec, research, journal, and cross-session recall. Fork of Trellis 0.6.17.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tiger-zzZ/mini-trellis.git"
+  },
+  "homepage": "https://github.com/Tiger-zzZ/mini-trellis#readme",
+  "bugs": {
+    "url": "https://github.com/Tiger-zzZ/mini-trellis/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "trellis": "./bin/trellis.js",
-    "tl": "./bin/trellis.js"
+    "mini-trellis": "./bin/mini-trellis.js"
   },
   "publishConfig": {
     "access": "public"
@@ -28,38 +35,25 @@
     "typecheck": "tsc --noEmit",
     "lint:py": "basedpyright",
     "lint:all": "pnpm lint && pnpm lint:py",
-    "prepublishOnly": "pnpm test && pnpm run build && cp ../../README.md ../../LICENSE .",
-    "release": "node scripts/release.js patch",
-    "release:minor": "node scripts/release.js minor",
-    "release:major": "node scripts/release.js major",
-    "release:beta": "node scripts/release.js beta",
-    "release:rc": "node scripts/release.js rc",
-    "release:promote": "node scripts/release.js promote",
-    "manifest": "node scripts/create-manifest.js"
+    "prepublishOnly": "pnpm test && pnpm run build && cp ../../README.md ../../LICENSE ../../COPYRIGHT ."
   },
   "keywords": [
     "ai",
-    "workflow",
-    "cursor",
-    "claude",
-    "iflow",
-    "cli",
-    "developer-tools",
-    "agent",
     "memory",
-    "trellis"
+    "claude",
+    "codex",
+    "opencode",
+    "cli",
+    "mini-trellis"
   ],
   "author": "Mindfold LLC",
   "license": "AGPL-3.0-only",
   "dependencies": {
-    "@mindfoldhq/trellis-core": "workspace:*",
+    "mini-trellis-core": "workspace:*",
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
     "figlet": "^1.9.4",
-    "giget": "^3.1.1",
-    "inquirer": "^9.3.7",
-    "undici": "^6.21.0",
-    "zod": "^4.4.2"
+    "inquirer": "^9.3.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
@@ -81,10 +75,7 @@
     "dist",
     "bin",
     "README.md",
-    "LICENSE"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/mindfold-ai/trellis.git"
-  }
+    "LICENSE",
+    "COPYRIGHT"
+  ]
 }

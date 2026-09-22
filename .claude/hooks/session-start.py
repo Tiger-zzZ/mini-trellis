@@ -68,12 +68,12 @@ def _normalize_windows_shell_path(path_str: str) -> str:
 
 
 _FIRST_REPLY_NOTICE_HEAD = """<first-reply-notice>
-On the first visible assistant reply in this session, briefly acknowledge that Trellis SessionStart context loaded."""
+On the first visible assistant reply in this session, briefly acknowledge that mini-trellis SessionStart context loaded."""
 
 _FIRST_REPLY_NOTICE_TAIL = """Choose the acknowledgment language in this order:
 1. Use the language of the user's current request (the user message that triggered this reply).
 2. If that request has no clear natural language, use an explicitly established project communication language.
-3. If neither provides a language, output the language-neutral fallback exactly: `Trellis SessionStart ✓`.
+3. If neither provides a language, output the language-neutral fallback exactly: `mini-trellis SessionStart ✓`.
 Continue directly with the user's request after the acknowledgment.
 The acknowledgment must not alter the language used for the remainder of the response.
 This notice is one-shot: do not repeat it after the first visible assistant reply in this session.
@@ -97,7 +97,7 @@ def _build_first_reply_notice(update_hint: str | None) -> str:
         return FIRST_REPLY_NOTICE
     return (
         f"{_FIRST_REPLY_NOTICE_HEAD}\n"
-        f"Also relay this Trellis maintenance notice on its own line in that same reply: {update_hint}\n"
+        f"Also relay this mini-trellis maintenance notice on its own line in that same reply: {update_hint}\n"
         f"{_FIRST_REPLY_NOTICE_TAIL}"
     )
 
@@ -639,7 +639,7 @@ def main():
     source = hook_input.get("source") if isinstance(hook_input.get("source"), str) else ""
 
     output.write("""<session-context>
-Trellis compact SessionStart context. Orient from journal, spec, and research. Do not create or drive Trellis tasks.
+mini-trellis SessionStart context. Orient from journal, spec, and research.
 </session-context>
 
 """)
@@ -657,12 +657,11 @@ Trellis compact SessionStart context. Orient from journal, spec, and research. D
 
     output.write("<guidelines>\n")
     output.write(
-        "Memory: journal is git-durable session notes (`/trellis:remember` or "
+        "Memory: journal is git-durable session notes (`/mini-trellis:remember` or "
         "`python3 ./.trellis/scripts/add_session.py`). Cross-session dialogue is "
-        "`trellis mem list|search|context|extract` (ignore `--phase`).\n"
+        "`mini-trellis mem list|search|context|extract`.\n"
         "Research lives in `.trellis/research/<topic>.md`; promote durable "
-        "boundaries into `.trellis/spec/` as short markdown.\n"
-        "Do not create, start, or archive Trellis tasks from this context.\n\n"
+        "boundaries into `.trellis/spec/` as short markdown.\n\n"
     )
 
     if spec_index_paths:
@@ -681,12 +680,12 @@ Trellis compact SessionStart context. Orient from journal, spec, and research. D
         output.write(
             "This SessionStart was triggered by compact. If durable decisions "
             "or research from the compacted window are not in journal yet, "
-            "run `/trellis:remember` before continuing.\n"
+            "run `/mini-trellis:remember` before continuing.\n"
         )
     output.write("</guidelines>\n\n")
 
     output.write("""<ready>
-Context loaded. Use journal, spec, research, and `trellis mem` on demand. Remember at session end or after compact.
+Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. Remember at session end or after compact.
 </ready>""")
 
     context_text = output.getvalue()

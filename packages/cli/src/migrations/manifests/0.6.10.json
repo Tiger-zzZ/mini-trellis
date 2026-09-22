@@ -1,9 +1,0 @@
-{
-  "version": "0.6.10",
-  "description": "Python 3.9–3.11 task script compatibility, complete Codex hook context recovery, and correct fallback-session cleanup.",
-  "breaking": false,
-  "recommendMigrate": false,
-  "changelog": "**Bug Fixes:**\n- fix(scripts): restore Python 3.9–3.11 compatibility in `.trellis/scripts/common/task_context.py` by removing multiline nested f-strings (#476)\n- fix(codex): make `trellis-{implement,check,research}` recover saved `SubagentStart` output before trusting the injected marker (#465)\n- fix(scripts): make `task.py finish` clear the resolved fallback session while preserving ambiguous or unresolved sessions (#469)",
-  "migrations": [],
-  "notes": "Run `trellis update` to refresh task scripts and Codex sub-agent templates. No `--migrate` required."
-}

@@ -12,14 +12,7 @@ import type { TemplateContext } from "../types/ai-tools.js";
  * Defined here (not in index.ts) so configurators can reference it without
  * a circular import.
  */
-export interface PlatformConfigureOptions {
-  /**
-   * Claude Code only: install the opt-in Trellis statusLine
-   * (`trellis init --with-statusline`). Off by default — see
-   * `configureClaude` in `claude.ts`.
-   */
-  withStatusline?: boolean;
-}
+export type PlatformConfigureOptions = Record<string, never>;
 
 /**
  * Module-level resolved Python command, set by the init flow after probing.
@@ -237,22 +230,10 @@ export function resolvePlaceholdersNeutral(
 
 /** Skill description registry — maps template name to auto-trigger description. */
 const SKILL_DESCRIPTIONS: Record<string, string> = {
-  start:
-    "Initializes an AI development session by reading workflow guides, developer identity, git status, active tasks, and project guidelines from .trellis/. Classifies incoming tasks and routes to brainstorm, direct edit, or task workflow. Use when beginning a new coding session, resuming work, starting a new task, or re-establishing project context.",
-  continue:
-    "Resume work on the current task. Loads the workflow Phase Index, figures out which phase/step to pick up at, then pulls the step-level detail via get_context.py --mode phase. Use when coming back to an in-progress task and you need to know what to do next.",
-  "finish-work":
-    "Wrap up the current session: verify quality gate passed, remind user to commit, archive completed tasks, and record session progress to the developer journal. Use when done coding and ready to end the session.",
-  "before-dev":
-    "Discovers and injects project-specific coding guidelines from .trellis/spec/ before implementation begins. Reads spec indexes, pre-development checklists, and shared thinking guides for the target package. Use when starting a new coding task, before writing any code, switching to a different package, or needing to refresh project conventions and standards.",
-  brainstorm:
-    "Guides collaborative requirements discovery before implementation. Creates task directory, seeds PRD, asks high-value questions one at a time, researches technical choices, and converges on MVP scope. Use when requirements are unclear, there are multiple valid approaches, or the user describes a new feature or complex task.",
-  check:
-    "Comprehensive quality verification: spec compliance, lint, type-check, tests, cross-layer data flow, code reuse, and consistency checks. Use when code is written and needs quality verification, before committing changes, or to catch context drift during long sessions.",
-  "break-loop":
-    "Deep bug analysis to break the fix-forget-repeat cycle. Analyzes root cause category, why fixes failed, prevention mechanisms, and captures knowledge into specs. Use after fixing a bug to prevent the same class of bugs.",
+  remember:
+    "Record this session into the mini-trellis journal. Use when the user asks to remember, persist notes, end the session, or after compact. May also write .trellis/research/<topic>.md.",
   "update-spec":
-    "Captures executable contracts and coding conventions into .trellis/spec/ documents. Use when learning something valuable from debugging, implementing, or discussion that should be preserved for future sessions.",
+    "Captures durable contracts and conventions into .trellis/spec/ as short markdown. Use when a debugging, implementation, or discussion produced a boundary that should still hold next session.",
 };
 
 /**
@@ -264,7 +245,7 @@ export function wrapWithSkillFrontmatter(
   content: string,
 ): string {
   // Look up description by base name (without trellis- prefix)
-  const baseName = name.replace(/^trellis-/, "");
+  const baseName = name.replace(/^mini-trellis-/, "").replace(/^trellis-/, "");
   const description = SKILL_DESCRIPTIONS[baseName];
   if (!description) {
     throw new Error(
@@ -279,10 +260,7 @@ export function wrapWithSkillFrontmatter(
  * SKILL_DESCRIPTIONS, which is long prose aimed at the skill matcher.
  */
 const COMMAND_DESCRIPTIONS: Record<string, string> = {
-  start: "Initialize a Trellis development session.",
-  continue: "Resume work on the current task at the correct phase.",
-  "finish-work":
-    "Wrap up the current session: quality gate, commit reminder, archive, journal.",
+  remember: "Record this session into the mini-trellis journal.",
 };
 
 /** Wrap resolved command content with YAML frontmatter (name + description). */
@@ -290,7 +268,7 @@ export function wrapWithCommandFrontmatter(
   name: string,
   content: string,
 ): string {
-  const baseName = name.replace(/^trellis-/, "");
+  const baseName = name.replace(/^mini-trellis-/, "").replace(/^trellis-/, "");
   const description = COMMAND_DESCRIPTIONS[baseName];
   if (!description) {
     throw new Error(
@@ -304,42 +282,6 @@ export function wrapWithCommandFrontmatter(
   return `---\nname: ${name}\ndescription: ${JSON.stringify(
     description,
   )}\n---\n\n${content}`;
-}
-
-/**
- * Argument-hint values for commands that accept positional args.
- * Used by OMP platform's YAML frontmatter.
- */
-const COMMAND_ARGUMENT_HINTS: Record<string, string> = {
-  "finish-work": "[task-name]",
-};
-
-/**
- * Wrap resolved command content with OMP-style YAML frontmatter.
- * OMP uses `description` (required) + optional `argument-hint`.
- * The leading `# Title` heading from the source template is stripped
- * because OMP's frontmatter replaces its role.
- */
-export function wrapWithOmpFrontmatter(name: string, content: string): string {
-  const baseName = name.replace(/^trellis-/, "");
-  const description = COMMAND_DESCRIPTIONS[baseName];
-  if (!description) {
-    throw new Error(
-      `Missing command description for "${baseName}". Add it to COMMAND_DESCRIPTIONS in shared.ts.`,
-    );
-  }
-  // Strip leading H1 + blank line from template body
-  const body = content.replace(/^# [^\n]+\n\n/, "");
-  const hint = COMMAND_ARGUMENT_HINTS[baseName];
-  // JSON.stringify produces a double-quoted YAML scalar, safe even when the
-  // description contains a colon (see wrapWithCommandFrontmatter).
-  const quotedDescription = JSON.stringify(description);
-  const frontmatter = hint
-    ? `---\ndescription: ${quotedDescription}\nargument-hint: ${JSON.stringify(
-        hint,
-      )}\n---`
-    : `---\ndescription: ${quotedDescription}\n---`;
-  return `${frontmatter}\n\n${body}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -390,11 +332,8 @@ export interface ResolvedSkillFile {
  */
 function filterCommands(
   templates: CommonTemplate[],
-  ctx: TemplateContext,
+  _ctx: TemplateContext,
 ): CommonTemplate[] {
-  if (ctx.agentCapable && ctx.hasHooks) {
-    return templates.filter((t) => t.name !== "start");
-  }
   return templates;
 }
 
@@ -411,9 +350,9 @@ export function resolveAllAsSkills(ctx: TemplateContext): ResolvedTemplate[] {
     ...getSkillTemplates(),
   ];
   return templates.map((tmpl) => ({
-    name: `trellis-${tmpl.name}`,
+    name: `mini-trellis-${tmpl.name}`,
     content: wrapWithSkillFrontmatter(
-      `trellis-${tmpl.name}`,
+      `mini-trellis-${tmpl.name}`,
       resolvePlaceholders(tmpl.content, ctx),
     ),
   }));
@@ -438,9 +377,9 @@ export function resolveCommands(ctx: TemplateContext): ResolvedTemplate[] {
  */
 export function resolveSkills(ctx: TemplateContext): ResolvedTemplate[] {
   return getSkillTemplates().map((tmpl) => ({
-    name: `trellis-${tmpl.name}`,
+    name: `mini-trellis-${tmpl.name}`,
     content: wrapWithSkillFrontmatter(
-      `trellis-${tmpl.name}`,
+      `mini-trellis-${tmpl.name}`,
       resolvePlaceholders(tmpl.content, ctx),
     ),
   }));
@@ -455,9 +394,9 @@ export function resolveSkills(ctx: TemplateContext): ResolvedTemplate[] {
  */
 export function resolveSkillsNeutral(ctx: TemplateContext): ResolvedTemplate[] {
   return getSkillTemplates().map((tmpl) => ({
-    name: `trellis-${tmpl.name}`,
+    name: `mini-trellis-${tmpl.name}`,
     content: wrapWithSkillFrontmatter(
-      `trellis-${tmpl.name}`,
+      `mini-trellis-${tmpl.name}`,
       resolvePlaceholdersNeutral(tmpl.content, ctx),
     ),
   }));
@@ -478,9 +417,9 @@ export function resolveAllAsSkillsNeutral(
     ...getSkillTemplates(),
   ];
   return templates.map((tmpl) => ({
-    name: `trellis-${tmpl.name}`,
+    name: `mini-trellis-${tmpl.name}`,
     content: wrapWithSkillFrontmatter(
-      `trellis-${tmpl.name}`,
+      `mini-trellis-${tmpl.name}`,
       resolvePlaceholdersNeutral(tmpl.content, ctx),
     ),
   }));
@@ -577,243 +516,4 @@ export function collectSharedHooks(
     files.set(`${hooksPath}/${hook.name}`, hook.content);
   }
   return files;
-}
-
-/** Collect commands + skills for "both" platforms (a commands directory plus
- *  a skills root). */
-export function collectBothTemplates(
-  ctx: TemplateContext,
-  cmdPath: (name: string) => string,
-  skillRoot: string,
-  wrapCmd?: (filePath: string, content: string) => string,
-): Map<string, string> {
-  const files = new Map<string, string>();
-  for (const cmd of resolveCommands(ctx)) {
-    const filePath = cmdPath(cmd.name);
-    files.set(filePath, wrapCmd ? wrapCmd(filePath, cmd.content) : cmd.content);
-  }
-  for (const [filePath, content] of collectSkillTemplates(
-    skillRoot,
-    resolveSkills(ctx),
-    resolveBundledSkills(ctx),
-  )) {
-    files.set(filePath, content);
-  }
-  return files;
-}
-
-// ---------------------------------------------------------------------------
-// Pull-based sub-agent prelude (for class-2 platforms whose hook can't
-// inject sub-agent prompts: gemini, qoder, codex, copilot)
-//
-// Only implement & check need task-level context (task artifacts + jsonl specs).
-// research is orthogonal: it searches the spec tree and doesn't depend on an
-// active task. Hook-based platforms mirror this (their `get_research_context`
-// injects a spec-tree overview, not prd/jsonl). We leave research untouched.
-// ---------------------------------------------------------------------------
-
-export type SubAgentType = "implement" | "check";
-
-/** Build the standard "load Trellis context first" prelude block. */
-export function buildPullBasedPrelude(agentType: SubAgentType): string {
-  // JSONL filenames stay as implement.jsonl / check.jsonl — they are internal
-  // context buckets keyed by role (not by platform-visible agent name).
-  const jsonl = agentType === "check" ? "check.jsonl" : "implement.jsonl";
-
-  return replacePythonCommandLiterals(`## Required: Load Trellis Context First
-
-This platform does NOT auto-inject task context via hook. Before doing anything else, you MUST load context yourself.
-
-### Step 1: Find the active task path
-
-Try in order — stop at the first one that yields a task path:
-
-1. **Look at the dispatch prompt** you received from the main agent. If its first line is \`Active task: <path>\` (e.g. \`Active task: .trellis/tasks/04-17-foo\`), use that path. The main agent is required to include this line on class-2 platforms.
-2. **Run** \`python3 ./.trellis/scripts/task.py current --source\` and read the \`Current task:\` line.
-3. **If both fail** (no \`Active task:\` line in the prompt and \`task.py current\` returns no task), ask the user which task to work on; do NOT guess.
-
-### Step 2: Load task context from the resolved path
-
-1. Read \`<task-path>/${jsonl}\` — JSONL list of spec/research files relevant to this agent.
-2. For each entry in the JSONL, Read its \`file\` path — these are the specs and research notes you must follow.
-   **Skip rows without a \`"file"\` field** (e.g. \`{"_example": "..."}\` placeholder rows left over from an older \`task.py create\`).
-3. Read the task's \`prd.md\` (requirements), then \`design.md\` if present (technical design), then \`implement.md\` if present (execution plan).
-
-If \`${jsonl}\` has no curated entries (empty, only a placeholder row, or the file is missing), fall back to: read the task artifacts, list available specs with \`python3 ./.trellis/scripts/get_context.py --mode packages\`, and pick the specs that match the task domain yourself. Do NOT block on the missing jsonl — lightweight tasks may be PRD-only, while complex tasks may also include \`design.md\` and \`implement.md\`.
-
-If the resolved task path has no \`prd.md\`, ask the user what to work on; do NOT proceed without context.
-
----
-
-`);
-}
-
-/** Insert prelude into a markdown agent definition (after YAML frontmatter). */
-export function injectPullBasedPreludeMarkdown(
-  content: string,
-  agentType: SubAgentType,
-): string {
-  const prelude = buildPullBasedPrelude(agentType);
-  const sections = splitMarkdownFrontmatter(content);
-
-  if (!sections) {
-    return prelude + content;
-  }
-
-  const head = `---\n${sections.frontmatter}\n---`;
-  const tailTrimmed = sections.body.replace(/^(\r?\n)+/, "");
-  return `${head}\n\n${prelude}${tailTrimmed}`;
-}
-
-/** Insert prelude into a TOML agent (codex `developer_instructions`). */
-export function injectPullBasedPreludeToml(
-  content: string,
-  agentType: SubAgentType,
-): string {
-  const prelude = buildPullBasedPrelude(agentType);
-  // Match: developer_instructions = """  followed by newline
-  const re = /(developer_instructions\s*=\s*""")(\r?\n)/;
-  if (!re.test(content)) {
-    return content;
-  }
-  return content.replace(re, `$1$2${prelude}`);
-}
-
-/** Best-effort detect agent type from filename ("trellis-implement.md" → "implement").
- *  Returns null for research and unknown names — they skip the prelude.
- */
-export function detectSubAgentType(name: string): SubAgentType | null {
-  const base = name.replace(/\.(md|toml|prompt\.md)$/, "");
-  if (base === "trellis-implement" || base === "trellis-check") {
-    return base === "trellis-implement" ? "implement" : "check";
-  }
-  return null;
-}
-
-/** Shared transform: given a list of agents, prepend pull-based prelude to
- *  implement/check definitions. Used by both configurator (init-time write)
- *  and collectPlatformTemplates (update-time hash comparison) so the two
- *  code paths always agree on what's on disk.
- */
-export interface AgentContent {
-  name: string;
-  content: string;
-}
-
-interface MarkdownFrontmatterSections {
-  body: string;
-  frontmatter: string;
-}
-
-function splitMarkdownFrontmatter(
-  content: string,
-): MarkdownFrontmatterSections | null {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-  if (!match) {
-    return null;
-  }
-
-  return {
-    frontmatter: match[1],
-    body: content.slice(match[0].length),
-  };
-}
-
-export function applyPullBasedPreludeMarkdown(
-  agents: readonly AgentContent[],
-): AgentContent[] {
-  return agents.map((a) => {
-    const t = detectSubAgentType(a.name);
-    if (!t) return { ...a };
-    return {
-      ...a,
-      content: injectPullBasedPreludeMarkdown(a.content, t),
-    };
-  });
-}
-
-function mapLegacyToolToCopilot(tool: string): string[] {
-  switch (tool) {
-    case "Read":
-      return ["read"];
-    case "Write":
-    case "Edit":
-      return ["edit"];
-    case "Glob":
-    case "Grep":
-      return ["search"];
-    case "Bash":
-      return ["execute"];
-    // Generic MCP wildcard — used by trellis-research to opt into "any MCP
-    // tool the user has configured" without locking the source template to a
-    // specific provider. Claude Code parses wildcards as glob-match-at-runtime
-    // (no silent agent-registration skip if nothing matches), so this is the
-    // safe default; explicit `mcp__exa__*` names would silent-skip the agent
-    // when the Exa MCP server is absent (#302).
-    case "mcp__*":
-      return ["web", "exa/*", "chrome-devtools/*"];
-    case "mcp__exa__web_search_exa":
-    case "mcp__exa__get_code_context_exa":
-      return ["web", "exa/*"];
-    case "mcp__chrome-devtools__*":
-      return ["chrome-devtools/*"];
-    case "Skill":
-      return [];
-    default:
-      return [];
-  }
-}
-
-function normalizeCopilotMarkdownAgentFrontmatter(content: string): string {
-  const sections = splitMarkdownFrontmatter(content);
-  if (!sections) {
-    return content;
-  }
-
-  const frontmatter = sections.frontmatter.split(/\r?\n/);
-  const body = sections.body;
-  const normalized: string[] = [];
-
-  for (const line of frontmatter) {
-    if (!line.startsWith("tools:")) {
-      normalized.push(line);
-      continue;
-    }
-
-    const legacyTools = line
-      .slice("tools:".length)
-      .split(",")
-      .map((token) => token.trim())
-      .filter((token) => token.length > 0);
-    const tools = [...new Set(legacyTools.flatMap(mapLegacyToolToCopilot))];
-
-    normalized.push("tools:");
-    for (const tool of tools) {
-      normalized.push(`  - ${tool}`);
-    }
-  }
-
-  return `---\n${normalized.join("\n")}\n---\n${body}`;
-}
-
-export function normalizeCopilotMarkdownAgents(
-  agents: readonly AgentContent[],
-): AgentContent[] {
-  return agents.map((agent) => ({
-    ...agent,
-    content: normalizeCopilotMarkdownAgentFrontmatter(agent.content),
-  }));
-}
-
-export function applyPullBasedPreludeToml(
-  agents: readonly AgentContent[],
-): AgentContent[] {
-  return agents.map((a) => {
-    const t = detectSubAgentType(a.name);
-    if (!t) return { ...a };
-    return {
-      ...a,
-      content: injectPullBasedPreludeToml(a.content, t),
-    };
-  });
 }
