@@ -1,12 +1,12 @@
 # mini-trellis
 
-A memory layer for AI coding agents. A trimmed fork of [Trellis](https://github.com/mindfold-ai/Trellis) 0.6.17.
+A memory layer for AI coding agents, cut from [Trellis](https://github.com/mindfold-ai/Trellis) 0.6.17. The task-management half is gone: task.py, PRD gates, the four-phase workflow, sub-agents. Specs, research notes, session journals, and cross-session conversation search stay as they are.
 
 ## Why this fork exists
 
-Trellis gave me four things I rely on every day: spec, research notes, session journals, and a way to search past AI conversations. It also shipped a full four-phase task workflow: task.py, PRD gates, sub-agent review. Over time I noticed I was routing around the workflow and only ever using the memory parts.
+I use Trellis every day. Over time I noticed that the memory half is what I actually rely on; the task-management half, I kept routing around.
 
-So this fork cuts the workflow and keeps the memory. The "mini" is the point.
+Current models don't need a script telling them when to plan or when to review; they do that on their own. What they can't do is remember what was decided last week, or dig up the conversation that already solved the same bug. So mini-trellis cuts the task management out and leaves the memory half untouched.
 
 Credit where due: the heavy lifting is all Trellis. Standing on the shoulders of giants, my main contribution was deleting code.
 
@@ -33,7 +33,7 @@ Upgrade the CLI with `mini-trellis upgrade`. There is no `update` command that r
 
 ## Coming from Trellis?
 
-If Trellis is already running in one of your projects, my honest advice is: leave it there. Point mini-trellis at a new project instead. The two share `.trellis/`, and their instruction surfaces don't merge cleanly — Trellis's skills, commands, and agents stay discoverable right next to mini-trellis's.
+If Trellis is already running in one of your projects, my advice is: leave it there. Point mini-trellis at a new project instead. The two share `.trellis/`, and their instruction surfaces don't merge cleanly — Trellis's skills, commands, and agents stay discoverable right next to mini-trellis's.
 
 If you do want to convert one, `mini-trellis migrate` handles it:
 

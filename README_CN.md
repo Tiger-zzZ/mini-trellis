@@ -1,14 +1,14 @@
 # mini-trellis
 
-AI 编码助手的记忆层。[Trellis](https://github.com/mindfold-ai/Trellis) 0.6.17 的精简 fork。
+AI 编码助手的记忆层，从 [Trellis](https://github.com/mindfold-ai/Trellis) 0.6.17 剪出来的。任务状态管理整套拿掉：task.py、PRD 门、四阶段流程、子代理。spec 沉淀、research 调研、session journal、跨 session 对话检索原样保留。
 
 ## 为什么有这个项目
 
-Trellis 给了我四样真正离不开的东西：spec 沉淀、research 笔记、session journal、跨 session 的对话检索。但它同时也是一整套四阶段任务流：task.py、PRD 门、子代理验收。用了一阵，我发现自己一直在绕开任务流，每天用的只有记忆层。
+Trellis 有很棒的对话沉淀能力，但是任务和状态管理过于冗长。
 
-这个 fork 做的事很单纯：把任务流拆掉，留下记忆层。取名 mini，少就是目的。
+现在的模型不需要脚本告诉它什么时候该规划、什么时候该验收，这些它自己就会。它做不到的是记住上周定了什么，或者找回那段解过同一个 bug 的对话。所以 mini-trellis 把任务状态管理整个拆掉，记忆这一半原样留下。
 
-谢谢 Trellis 的作者们。站在巨人的肩膀上，我做的主要是删代码。
+再次感谢 Trellis 的作者们。
 
 ## 留下的四件事
 
