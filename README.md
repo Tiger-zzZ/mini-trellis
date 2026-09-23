@@ -1,14 +1,48 @@
 # mini-trellis
 
-A memory layer for AI coding agents, cut from [Trellis](https://github.com/mindfold-ai/Trellis) 0.6.17. The task-management half is gone: task.py, PRD gates, the four-phase workflow, sub-agents. Specs, research notes, session journals, and cross-session conversation search stay as they are.
+**A memory layer for AI coding agents.** A trimmed fork of [Trellis](https://github.com/mindfold-ai/Trellis) 0.6.17 that keeps spec, research, journal and cross-session recall, and drops everything else.
+
+English | [简体中文](./README_CN.md)
+
+<p>
+<a href="https://www.npmjs.com/package/mini-trellis"><img src="https://img.shields.io/npm/v/mini-trellis.svg?style=flat-square&color=2563eb" alt="npm version" /></a>
+<a href="https://www.npmjs.com/package/mini-trellis"><img src="https://img.shields.io/npm/dm/mini-trellis?style=flat-square&color=cb3837&label=downloads" alt="npm downloads" /></a>
+<a href="https://github.com/Tiger-zzZ/mini-trellis/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-16a34a.svg?style=flat-square" alt="license" /></a>
+<a href="https://github.com/Tiger-zzZ/mini-trellis/stargazers"><img src="https://img.shields.io/github/stars/Tiger-zzZ/mini-trellis?style=flat-square&color=f59e0b" alt="GitHub stars" /></a>
+<a href="https://github.com/Tiger-zzZ/mini-trellis/issues"><img src="https://img.shields.io/github/issues/Tiger-zzZ/mini-trellis?style=flat-square" alt="GitHub issues" /></a>
+<a href="https://github.com/Tiger-zzZ/mini-trellis/pulls"><img src="https://img.shields.io/github/issues-pr/Tiger-zzZ/mini-trellis?style=flat-square" alt="GitHub pull requests" /></a>
+</p>
 
 ## Why this fork exists
 
-I use Trellis every day. Over time I noticed that the memory half is what I actually rely on; the task-management half, I kept routing around.
+Trellis gave me four things I rely on every day: spec, research notes, session journals, and a way to search past AI conversations. It also shipped a full four-phase task workflow: `task.py`, PRD gates, sub-agent review, a per-turn breadcrumb telling the model which phase it is in. Over time I noticed I was routing around the workflow and only ever using the memory parts.
 
-Current models don't need a script telling them when to plan or when to review; they do that on their own. What they can't do is remember what was decided last week, or dig up the conversation that already solved the same bug. So mini-trellis cuts the task management out and leaves the memory half untouched.
+Models have moved on too. A GPT 6 / Fable 5 class agent does not need a script telling it when to plan and when to verify. What it still cannot do is remember what we decided last week, or find the conversation where we already solved this bug. That gap is what this fork keeps.
+
+So mini-trellis cuts the workflow and keeps the memory. The "mini" is the point.
 
 Credit where due: the heavy lifting is all Trellis. Standing on the shoulders of giants, my main contribution was deleting code.
+
+## Trellis vs mini-trellis
+
+Trellis is an engineering framework: it decides how a task moves from PRD to implementation to review, and it drives that with hooks on every turn, sub-agents, and a task state machine. mini-trellis is only the memory underneath that framework. It never creates a task, never tells the model what phase it is in, and never dispatches a sub-agent. It injects a short orientation at session start, lets the model read spec and research on demand, and gives it two verbs: `remember` to write the journal, and `mem` to search past dialogue. Everything Trellis does *around* memory is left to the model and to you.
+
+| | Trellis 0.6.17 | mini-trellis 0.1.0 |
+|---|---|---|
+| Purpose | Engineering framework: spec + task workflow + memory | Memory layer only |
+| Hosts | 22 AI coding tools | Claude Code, Codex, OpenCode, Pi |
+| Hooks | SessionStart + per-turn breadcrumb + PreToolUse sub-agent injection | SessionStart only |
+| Task system | `task.py`, `tasks/`, PRD / jsonl gates, `workflow.md`, archive | None |
+| Sub-agents | `trellis-research` / `implement` / `check` | None |
+| Skills & commands shipped | ~10 skills, 3 commands, 3 agents | `remember`, `session-insight`, `update-spec` |
+| CLI | init, update, workflow, channel, ablate, restore, mem, upgrade, uninstall, platforms | init, migrate, mem, upgrade, uninstall, platforms |
+| Spec | 7-section templates per layer, generated at init | One short seed; you write short markdown |
+| Research | Lives inside a task directory | First-class `.trellis/research/` inbox with a cold `archive/` |
+| Journal trigger | Task archive, then `finish-work` | `remember`, plus a reminder after compact |
+| Code shipped | ~110k lines across `packages/` | ~31k lines |
+| License | AGPL-3.0 | AGPL-3.0 (unchanged) |
+
+If you want an opinionated workflow with guard rails, use Trellis. If you want your agent to remember and stay out of the way, use this.
 
 ## What's kept
 
@@ -18,6 +52,12 @@ Credit where due: the heavy lifting is all Trellis. Standing on the shoulders of
 | `.trellis/research/<topic>.md` | Research inbox; `git mv` stale notes into `research/archive/` |
 | `.trellis/workspace/<you>/journal-*.md` | Session notes, auto-committed by remember |
 | `mini-trellis mem search <kw>` | Past chat from Claude / Codex / OpenCode / Pi |
+
+## How a session goes
+
+1. **SessionStart** injects a few lines: your journal path, the spec index paths, the hot research topics. Paths only, never bodies. Nothing about tasks or phases.
+2. **During the session** the model reads spec or research on demand, and reaches for `mini-trellis mem` when a question sounds like "didn't we already discuss this".
+3. **At the end, or after a compact,** `remember` appends a session entry to your journal and commits it. If the session produced reusable research, it lands in `.trellis/research/<topic>.md`; a boundary that should still hold next week goes into spec via `mini-trellis-update-spec`.
 
 ## Install
 
@@ -29,11 +69,20 @@ mini-trellis init -u your-name --claude
 
 Python ≥ 3.9 is required for the journal scripts and SessionStart hooks. Codex SessionStart needs `[features].hooks = true` in `~/.codex/config.toml`, then a one-time `/hooks` approval.
 
-Upgrade the CLI with `mini-trellis upgrade`. There is no `update` command that rewrites project files.
+| Command | What it does |
+|---|---|
+| `mini-trellis init` | Write the memory skeleton and the host surfaces for the flags you pass |
+| `mini-trellis mem list\|search\|context\|extract\|projects` | Search local session logs of the four hosts; nothing is uploaded |
+| `mini-trellis migrate` | Convert a Trellis project (see below) |
+| `mini-trellis upgrade` | Upgrade the global CLI via npm |
+| `mini-trellis uninstall` | Remove the host files and `.trellis/` from a project |
+| `mini-trellis platforms` | Show which hosts are configured here |
+
+There is no `update` command that rewrites project files.
 
 ## Coming from Trellis?
 
-If Trellis is already running in one of your projects, my advice is: leave it there. Point mini-trellis at a new project instead. The two share `.trellis/`, and their instruction surfaces don't merge cleanly — Trellis's skills, commands, and agents stay discoverable right next to mini-trellis's.
+If Trellis is already running in one of your projects, my honest advice is: leave it there. Point mini-trellis at a new project instead. The two share `.trellis/`, and their instruction surfaces don't merge cleanly — Trellis's skills, commands, and agents stay discoverable right next to mini-trellis's.
 
 If you do want to convert one, `mini-trellis migrate` handles it:
 
@@ -61,6 +110,14 @@ It rewrites the four host surfaces with mini-trellis's versions, deletes the Tre
 
 Promote a lasting boundary into spec with the `mini-trellis-update-spec` skill.
 
+## Feedback
+
+This was cut in a hurry. Please try it, complain freely in [issues](https://github.com/Tiger-zzZ/mini-trellis/issues), and send pull requests; see [CONTRIBUTING](./CONTRIBUTING.md) for the local setup. Thanks to the Trellis team, and to everyone on the forum who pushed for a smaller Trellis.
+
 ## License
 
 AGPL-3.0. Original copyright Mindfold LLC; this fork's modification notice is in `COPYRIGHT`.
+
+## Community Support
+
+[Linuxdo](https://linux.do/)
