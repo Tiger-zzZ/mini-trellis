@@ -16,12 +16,21 @@ vi.mock("inquirer", () => ({
   default: { prompt: vi.fn() },
 }));
 
+import inquirer from "inquirer";
+
 import { init } from "../../src/commands/init.js";
 import { migrate, collectTrellisResidue } from "../../src/commands/migrate.js";
 import { setWriteMode } from "../../src/utils/file-writer.js";
 import { resetResolvedPythonCommand } from "../../src/configurators/shared.js";
 
 const noop = (): void => undefined;
+
+/** `migrate()` refuses to prompt without a TTY, and the test runner has none. */
+function interactiveTty(): void {
+  vi.spyOn(process, "stdin", "get").mockReturnValue({
+    isTTY: true,
+  } as unknown as typeof process.stdin);
+}
 
 /**
  * Roots a real `trellis init` leaves behind, minus anything mini-trellis
@@ -85,6 +94,11 @@ describe("migrate", () => {
       fs.mkdtempSync(path.join(os.tmpdir(), "mini-trellis-migrate-")),
     );
     vi.spyOn(process, "cwd").mockReturnValue(tmpDir);
+    // The failure paths call process.exit; throw instead so the assertions run
+    // rather than the worker dying.
+    vi.spyOn(process, "exit").mockImplementation((code) => {
+      throw new Error(`exit ${code}`);
+    });
     vi.spyOn(console, "log").mockImplementation(noop);
     vi.spyOn(console, "warn").mockImplementation(noop);
     vi.spyOn(console, "error").mockImplementation(noop);
@@ -102,7 +116,32 @@ describe("migrate", () => {
     // User content that must survive the migration.
     plant(tmpDir, ".trellis/spec/guides/index.md", "# Thinking Guides\n");
     plant(tmpDir, ".trellis/workspace/tester/journal-1.md", "my notes\n");
+    // One active and one archived Trellis task: memory-layer content plus the
+    // workflow files that leave the topic.
     plant(tmpDir, ".trellis/tasks/01-old/task.json", "{}\n");
+    plant(tmpDir, ".trellis/tasks/01-old/prd.md", "# PRD\n");
+    plant(tmpDir, ".trellis/tasks/01-old/design.md", "# Design\n");
+    plant(tmpDir, ".trellis/tasks/01-old/research/other.md", "# Other\n");
+    plant(
+      tmpDir,
+      ".trellis/tasks/01-old/research/note.md",
+      "see `.trellis/tasks/01-old/research/other.md`, `.trellis/tasks/01-old/prd.md`\n",
+    );
+    plant(tmpDir, ".trellis/tasks/archive/2026-09/02-old/task.json", "{}\n");
+    plant(tmpDir, ".trellis/tasks/archive/2026-09/02-old/research/cold.md", "# Cold\n");
+    plant(
+      tmpDir,
+      ".trellis/.runtime/sessions/s.json",
+      `${JSON.stringify(
+        {
+          platform: "claude",
+          current_task: ".trellis/tasks/01-old",
+          current_run: null,
+        },
+        null,
+        2,
+      )}\n`,
+    );
   });
 
   afterEach(() => {
@@ -137,6 +176,8 @@ describe("migrate", () => {
       expect(collectTrellisResidue(tmpDir)).toEqual(before);
       expect(exists(tmpDir, ".trellis/.version")).toBe(true);
       expect(exists(tmpDir, ".claude/commands/trellis")).toBe(true);
+      expect(exists(tmpDir, ".trellis/tasks/01-old/task.json")).toBe(true);
+      expect(exists(tmpDir, ".trellis/research/01-old")).toBe(false);
     });
   });
 
@@ -159,7 +200,6 @@ describe("migrate", () => {
         "utf-8",
       ),
     ).toBe("my notes\n");
-    expect(exists(tmpDir, ".trellis/tasks/01-old/task.json")).toBe(true);
 
     // The hook and its dependencies are mini-trellis's now.
     expect(exists(tmpDir, ".claude/hooks/session-start.py")).toBe(true);
@@ -167,6 +207,104 @@ describe("migrate", () => {
     expect(
       fs.readFileSync(path.join(tmpDir, ".trellis/config.yaml"), "utf-8"),
     ).toContain('session_commit_message: "[mini-trellis] journal"');
+  });
+
+  it("converges task directories into research topics", async () => {
+    await migrate({ yes: true });
+
+    expect(exists(tmpDir, ".trellis/tasks")).toBe(false);
+
+    // Active and archived tasks keep their names, date prefixes included.
+    expect(exists(tmpDir, ".trellis/research/01-old/research/other.md")).toBe(
+      true,
+    );
+    expect(exists(tmpDir, ".trellis/research/01-old/design.md")).toBe(true);
+    expect(
+      exists(tmpDir, ".trellis/research/archive/2026-09/02-old/research/cold.md"),
+    ).toBe(true);
+
+    // Workflow files leave the topic; `--yes` archives them rather than
+    // deleting, so nothing the user might want back is gone.
+    expect(exists(tmpDir, ".trellis/research/01-old/legacy/task.json")).toBe(
+      true,
+    );
+    expect(exists(tmpDir, ".trellis/research/01-old/legacy/prd.md")).toBe(true);
+    expect(exists(tmpDir, ".trellis/research/01-old/task.json")).toBe(false);
+    expect(exists(tmpDir, ".trellis/research/01-old/prd.md")).toBe(false);
+    expect(
+      exists(tmpDir, ".trellis/research/archive/2026-09/02-old/legacy/task.json"),
+    ).toBe(true);
+  });
+
+  it("repoints repo-relative task mentions, and only those", async () => {
+    await migrate({ yes: true });
+
+    const note = fs.readFileSync(
+      path.join(tmpDir, ".trellis/research/01-old/research/note.md"),
+      "utf-8",
+    );
+    // Content that stays inside the topic moves with it.
+    expect(note).toContain(".trellis/research/01-old/research/other.md");
+    expect(note).not.toContain(".trellis/tasks/01-old/research/other.md");
+    // `prd.md` now sits under legacy/, so the pointer is left dangling rather
+    // than turned into a second wrong path.
+    expect(note).toContain(".trellis/tasks/01-old/prd.md");
+  });
+
+  it("drops the active-task pointer with the tasks tree", async () => {
+    await migrate({ yes: true });
+
+    const session = JSON.parse(
+      fs.readFileSync(
+        path.join(tmpDir, ".trellis/.runtime/sessions/s.json"),
+        "utf-8",
+      ),
+    ) as { current_task: unknown; platform: string };
+    expect(session.current_task).toBeNull();
+    expect(session.platform).toBe("claude");
+  });
+
+  it("deletes the workflow files when the user asks for it", async () => {
+    vi.mocked(inquirer.prompt)
+      .mockResolvedValueOnce({ proceed: true })
+      .mockResolvedValueOnce({ disposition: "delete" });
+    interactiveTty();
+
+    await migrate();
+
+    expect(exists(tmpDir, ".trellis/tasks")).toBe(false);
+    expect(exists(tmpDir, ".trellis/research/01-old/legacy")).toBe(false);
+    expect(exists(tmpDir, ".trellis/research/01-old/task.json")).toBe(false);
+    expect(exists(tmpDir, ".trellis/research/01-old/design.md")).toBe(true);
+  });
+
+  it("stops instead of merging into a topic the user already has", async () => {
+    plant(tmpDir, ".trellis/research/01-old/mine.md", "my own note\n");
+
+    await expect(migrate({ yes: true })).rejects.toThrow("exit 1");
+
+    expect(exists(tmpDir, ".trellis/tasks/01-old/task.json")).toBe(true);
+    expect(exists(tmpDir, ".trellis/research/01-old/mine.md")).toBe(true);
+    // Nothing else ran either: the Trellis surface is still in place.
+    expect(exists(tmpDir, ".trellis/workflow.md")).toBe(true);
+  });
+
+  it("converges leftover tasks on a project with no Trellis surface", async () => {
+    // What a project migrated by an older release looks like: the instruction
+    // files are gone, the task directories are not. Nothing but the tasks tree
+    // triggers the run, which is what the gate has to accept.
+    removeAll(tmpDir);
+    expect(collectTrellisResidue(tmpDir)).toEqual([]);
+
+    await migrate({ yes: true });
+
+    expect(exists(tmpDir, ".trellis/tasks")).toBe(false);
+    expect(exists(tmpDir, ".trellis/research/01-old/legacy/task.json")).toBe(
+      true,
+    );
+    // The rest of the pass still ran: seeds and the refreshed scripts are here.
+    expect(exists(tmpDir, ".trellis/research/README.md")).toBe(true);
+    expect(exists(tmpDir, ".trellis/scripts/common/active_task.py")).toBe(true);
   });
 
   it("leaves the OpenCode SessionStart plugin loadable", async () => {
@@ -217,6 +355,10 @@ describe("migrate", () => {
 
   it("does nothing when the project has no Trellis install", async () => {
     removeAll(tmpDir);
+    fs.rmSync(path.join(tmpDir, ".trellis/tasks"), {
+      recursive: true,
+      force: true,
+    });
     expect(collectTrellisResidue(tmpDir)).toEqual([]);
     // A mini-trellis project has `.trellis/.version` too, so its presence
     // alone must not count as something to migrate.

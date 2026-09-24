@@ -27,7 +27,7 @@ Trellis 给了我四样真正离不开的东西：spec 沉淀、research 笔记�
 
 Trellis 是一套工程框架：它规定一个任务如何从 PRD 走到实现再到验收，并用每轮 hook、子代理和任务状态机推着模型走完这条路。mini-trellis 只是这套框架底下的记忆。它不建任务、不告诉模型现在在哪个阶段、不派发子代理。它在 session 开始时注入几行定位信息，让模型按需去读 spec 和 research，然后只给两个动词：`remember` 写 journal，`mem` 搜历史对话。Trellis 围绕记忆做的那些事，都交还给模型和你自己。
 
-| | Trellis 0.6.17 | mini-trellis 0.1.0 |
+| | Trellis 0.6.17 | mini-trellis 0.1.1 |
 |---|---|---|
 | 定位 | 工程框架：spec + 任务流 + 记忆 | 只做记忆层 |
 | 宿主 | 22 个 AI 编码工具 | Claude Code、Codex、OpenCode、Pi |
@@ -93,13 +93,22 @@ mini-trellis migrate             # 会先问，默认 no
 
 它会把四个宿主的 hook、settings、skill、命令换成 mini-trellis 的版本，删掉 Trellis 独有的指令面（skill、命令、agent、每轮注入的插件、`workflow.md`、`task.py`），把 `AGENTS.md` 里的 Trellis 块换成 mini-trellis 的，并移除 `.trellis/.version`，让 Trellis CLI 不再提示把项目更新回四阶段流程。
 
+它还会把 `.trellis/tasks/` 收敛进记忆层——`task.py` 没了之后，这棵树已经没人读了：
+
+- 每个任务目录变成一个 research topic：`.trellis/tasks/<name>/` → `.trellis/research/<name>/`，归档任务进 `.trellis/research/archive/YYYY-MM/<name>/`。日期前缀和目录名都保留，笔记之间原有的相对链接因此零失效。
+- 每个 topic 的 `research/` 子树和 `design.md` 原地不动。任务根上的其余一切——`task.json`、`prd.md`、`implement*`、`check.jsonl`、`drafts/`，以及任何 migrate 不认识的文件——都离开 topic。开始前问你一次：归档到 `.trellis/research/<topic>/legacy/`，还是直接删除。默认归档，`--yes` 也走归档。
+- 留在原地的笔记里，repo-relative 的 `.trellis/tasks/…` 提及会被改指到新位置；指向离场文件或其他仓库的提及保持原样并计数告警。
+- `.trellis/.runtime/sessions/*.json` 里的 `current_task` 指针置 null；`tasks/` 搬空后才删除。
+
+如果 `.trellis/research/` 下已经有同名 topic，migrate 会在动手前停下并列出冲突，绝不合并进你自己写的笔记。
+
 **不做备份。** 删除不可逆，先 commit 或拷走你想留的东西。
 
 ### 迁移之后
 
-- `.trellis/spec/`、`research/`、`workspace/`、`tasks/` 原样保留。你的 spec 内容还在，包括 Trellis 写下的 `backend/`、`frontend/` 文档——它们仍会出现在 SessionStart 的 spec 列表里。
+- `.trellis/spec/`、`research/`、`workspace/` 原样保留。你的 spec 内容还在，包括 Trellis 写下的 `backend/`、`frontend/` 文档——它们仍会出现在 SessionStart 的 spec 列表里。
 - `.trellis/config.yaml` 和 `.trellis/scripts/` 会被 mini-trellis 的版本覆盖，本地改过的要重新加回去。
-- 老任务目录留在磁盘上，但 `task.py` 没了之后不再有人读它们。想清就手动清。
+- `.trellis/tasks/` 不再存在：任务目录现在是 `.trellis/research/` 下的 topic，和其他笔记一样由 SessionStart 列出。
 - `.trellis/.version` 被移除，mini-trellis 自己不会再写这个文件，Trellis CLI 在这个项目里不会再有更新提示。
 
 ## 记一笔

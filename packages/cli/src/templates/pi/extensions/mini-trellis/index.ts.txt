@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 
@@ -33,17 +33,18 @@ function collectResearchTopics(root: string): string[] {
   const researchDir = join(root, ".trellis", "research");
   if (!exists(researchDir)) return [];
   try {
-    return readdirSync(researchDir)
-      .filter((name) => {
-        if (name.startsWith(".") || name.toLowerCase() === "readme.md") return false;
-        try {
-          return statSync(join(researchDir, name)).isFile() && name.toLowerCase().endsWith(".md");
-        } catch {
-          return false;
-        }
+    return readdirSync(researchDir, { withFileTypes: true })
+      .filter((entry) => {
+        if (entry.name.startsWith(".") || entry.name.toLowerCase() === "readme.md") return false;
+        if (entry.name === "archive") return false;
+        // A topic is a note, or a directory: `mini-trellis migrate` folds each
+        // Trellis task into one so its evidence sits next to its notes.
+        if (entry.isDirectory()) return true;
+        return entry.isFile() && entry.name.toLowerCase().endsWith(".md");
       })
-      .sort()
-      .map((name) => `.trellis/research/${name}`);
+      .map((entry) => ({ name: entry.name, dir: entry.isDirectory() }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((topic) => `.trellis/research/${topic.name}${topic.dir ? "/" : ""}`);
   } catch {
     return [];
   }
@@ -118,7 +119,7 @@ function buildStartupContext(root: string): string {
   lines.push("</current-state>", "", "<guidelines>");
   lines.push(
     "Memory: journal is git-durable session notes (`/mini-trellis-remember` or `python3 ./.trellis/scripts/add_session.py`). Cross-session dialogue is `mini-trellis mem list|search|context|extract`.",
-    "Research lives in `.trellis/research/<topic>.md`; promote durable boundaries into `.trellis/spec/` as short markdown.",
+    "Research lives in `.trellis/research/<topic>.md`, or in `.trellis/research/<topic>/` when a topic brings evidence files with it; promote durable boundaries into `.trellis/spec/` as short markdown.",
   );
   if (spec.length) {
     lines.push("", "## Spec indexes (read on demand)");

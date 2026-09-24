@@ -498,8 +498,14 @@ def _collect_research_topics(trellis_dir: Path) -> list[str]:
         for path in sorted(research_dir.iterdir()):
             if path.name.startswith(".") or path.name.lower() == "readme.md":
                 continue
+            if path.name == "archive":
+                continue
+            # A topic is a note, or a directory: `mini-trellis migrate` folds
+            # each Trellis task into one so its evidence sits next to its notes.
             if path.is_file() and path.suffix.lower() == ".md":
                 topics.append(f".trellis/research/{path.name}")
+            elif path.is_dir():
+                topics.append(f".trellis/research/{path.name}/")
     except OSError:
         return []
     return topics
@@ -614,8 +620,9 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
         "Memory: journal is git-durable session notes (`/mini-trellis:remember` or "
         "`python3 ./.trellis/scripts/add_session.py`). Cross-session dialogue is "
         "`mini-trellis mem list|search|context|extract`.\n"
-        "Research lives in `.trellis/research/<topic>.md`; promote durable "
-        "boundaries into `.trellis/spec/` as short markdown.\n\n"
+        "Research lives in `.trellis/research/<topic>.md`, or in "
+        "`.trellis/research/<topic>/` when a topic brings evidence files with it; "
+        "promote durable boundaries into `.trellis/spec/` as short markdown.\n\n"
     )
 
     if spec_index_paths:

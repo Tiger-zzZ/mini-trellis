@@ -54,10 +54,29 @@ function stampMemorySkeleton(tmp: string): void {
     path.join(research, "archive", "cold-topic.md"),
     "# Cold\n",
   );
+  // What `mini-trellis migrate` leaves behind: a task directory that became a
+  // topic, evidence files and all.
+  fs.mkdirSync(path.join(research, CONVERGED_TOPIC, "research"), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(research, CONVERGED_TOPIC, "research", "note.md"),
+    "# Note\n",
+  );
+  fs.writeFileSync(
+    path.join(research, CONVERGED_TOPIC, "research", "raw.csv"),
+    "a,b\n",
+  );
 }
+
+/** A migrated task directory: one topic, not one note per file inside it. */
+const CONVERGED_TOPIC = "09-11-pipeline-outage-meter-flow-impact";
 
 function assertMemoryPayload(text: string): void {
   expect(text).toContain(".trellis/research/hot-topic.md");
+  expect(text).toContain(`.trellis/research/${CONVERGED_TOPIC}/`);
+  // The topic is listed once, not once per file inside it.
+  expect(text).not.toContain(`${CONVERGED_TOPIC}/research/note.md`);
   expect(text).toContain(".trellis/spec/guides/index.md");
   expect(text).not.toContain("archive/cold-topic.md");
   expect(text).not.toContain("workflow.md");

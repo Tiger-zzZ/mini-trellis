@@ -52,10 +52,16 @@ program
 program
   .command("migrate")
   .description(
-    "Switch a project set up by Trellis over to mini-trellis (deletes Trellis skills, commands, and agents)",
+    "Switch a project set up by Trellis over to mini-trellis (removes the Trellis instruction surface and converges .trellis/tasks/ into research topics)",
   )
-  .option("-y, --yes", "Skip confirmation prompt")
-  .option("--dry-run", "List what would be removed without changing anything")
+  .option(
+    "-y, --yes",
+    "Skip both prompts; task files are archived to <topic>/legacy/",
+  )
+  .option(
+    "--dry-run",
+    "List what would change, including the task convergence, without changing anything",
+  )
   .action(async (options: Record<string, unknown>) => {
     try {
       await migrate({

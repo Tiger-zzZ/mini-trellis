@@ -9,10 +9,12 @@
  * mini-trellis's versions, deletes the Trellis-only instruction files,
  * replaces the Trellis block in AGENTS.md, and drops `.trellis/.version` so
  * the Trellis CLI stops offering to "update" the project back to the
- * four-phase workflow.
+ * four-phase workflow. It then converges `.trellis/tasks/` into the memory
+ * layer — see migrate-tasks.ts — because with `task.py` gone nothing reads
+ * that tree any more.
  *
- * Memory data is never touched: `.trellis/spec/`, `research/`, `workspace/`,
- * and `tasks/` survive as-is. `.trellis/scripts/` IS overwritten, because the
+ * Memory data is never touched: `.trellis/spec/`, `research/`, and
+ * `workspace/` survive as-is. `.trellis/scripts/` IS overwritten, because the
  * SessionStart hook and `add_session.py` are read from there.
  */
 
@@ -43,6 +45,14 @@ import {
   TRELLIS_BLOCK_START,
 } from "../utils/managed-paths.js";
 import { AI_TOOLS, type AITool } from "../types/ai-tools.js";
+import {
+  RESEARCH_REL,
+  buildTasksConvergePlan,
+  convergeTasks,
+  renderTasksConvergePlan,
+  type TasksConvergePlan,
+  type TasksDisposition,
+} from "./migrate-tasks.js";
 
 export interface MigrateOptions {
   yes?: boolean;
@@ -60,8 +70,6 @@ export interface MigratePlan {
   dropsVersion: boolean;
   /** AGENTS.md carries a Trellis-managed block that will be replaced. */
   rewritesAgents: boolean;
-  /** `.trellis/tasks/` holds content the user should review. */
-  tasksHasContent: boolean;
 }
 
 /**
@@ -101,9 +109,8 @@ const REWRITES = [`${DIR_NAMES.WORKFLOW}/config.yaml`, `${PATHS.SCRIPTS}/`];
 /** Residue that survives the migration on purpose; printed after the run. */
 const PRESERVED = [
   `${PATHS.SPEC}/`,
-  `${DIR_NAMES.WORKFLOW}/research/`,
+  `${RESEARCH_REL}/`,
   `${PATHS.WORKSPACE}/`,
-  `${PATHS.TASKS}/`,
   `${PATHS.SCRIPTS}/common/`,
 ];
 
@@ -144,14 +151,6 @@ function platformsToReconfigure(cwd: string, deletions: string[]): AITool[] {
   return [...ids].sort();
 }
 
-function dirHasContent(abs: string): boolean {
-  try {
-    return fs.readdirSync(abs).length > 0;
-  } catch {
-    return false;
-  }
-}
-
 export function buildMigratePlan(cwd: string): MigratePlan {
   const deletions = collectTrellisResidue(cwd);
   return {
@@ -160,7 +159,6 @@ export function buildMigratePlan(cwd: string): MigratePlan {
     rewrites: REWRITES,
     dropsVersion: fs.existsSync(path.join(cwd, DIR_NAMES.WORKFLOW, ".version")),
     rewritesAgents: agentsHasManagedBlock(cwd),
-    tasksHasContent: dirHasContent(path.join(cwd, PATHS.TASKS)),
   };
 }
 
@@ -193,22 +191,32 @@ function rewriteAgentsMd(cwd: string): void {
   fs.writeFileSync(abs, `${block}\n${rest}`);
 }
 
-function renderPlan(cwd: string, plan: MigratePlan): void {
+function renderPlan(
+  cwd: string,
+  plan: MigratePlan,
+  converge: TasksConvergePlan,
+): void {
   console.log(chalk.bold("\nmini-trellis migrate plan\n"));
 
-  console.log(chalk.red.bold(`Will be deleted (${plan.deletions.length}):`));
-  for (const p of plan.deletions) {
-    console.log(`  ${chalk.red("-")} ${p}`);
-  }
-  if (plan.dropsVersion) {
+  if (plan.deletions.length > 0 || plan.dropsVersion) {
     console.log(
-      `  ${chalk.red("-")} ${DIR_NAMES.WORKFLOW}/.version  ${chalk.gray(
-        "(stops the Trellis CLI offering to update this project back)",
-      )}`,
+      chalk.red.bold(
+        `Will be deleted (${plan.deletions.length + (plan.dropsVersion ? 1 : 0)}):`,
+      ),
     );
+    for (const p of plan.deletions) {
+      console.log(`  ${chalk.red("-")} ${p}`);
+    }
+    if (plan.dropsVersion) {
+      console.log(
+        `  ${chalk.red("-")} ${DIR_NAMES.WORKFLOW}/.version  ${chalk.gray(
+          "(stops the Trellis CLI offering to update this project back)",
+        )}`,
+      );
+    }
+    console.log();
   }
 
-  console.log();
   console.log(chalk.yellow.bold("Will be overwritten:"));
   for (const p of plan.rewrites) {
     console.log(
@@ -240,28 +248,52 @@ function renderPlan(cwd: string, plan: MigratePlan): void {
     }
   }
 
-  if (plan.tasksHasContent) {
-    console.log();
-    console.log(
-      chalk.yellow(
-        `Note: ${PATHS.TASKS}/ still holds Trellis task directories. ` +
-          "They are not touched, but with task.py gone nothing reads them " +
-          "any more. Review and remove them by hand if you no longer need them.",
-      ),
-    );
-  }
+  renderTasksConvergePlan(converge);
 }
 
-async function promptContinue(): Promise<boolean> {
-  const { proceed } = await inquirer.prompt<{ proceed: boolean }>([
+/** The tasks tree is the only thing left to act on in a re-run project. */
+function promptContinue(converge: TasksConvergePlan): Promise<boolean> {
+  const message =
+    converge.tasks.length > 0
+      ? "Delete this Trellis instruction surface and converge its tasks?"
+      : "Delete this Trellis instruction surface?";
+  return inquirer
+    .prompt<{ proceed: boolean }>([
+      {
+        type: "confirm",
+        name: "proceed",
+        message,
+        default: false,
+      },
+    ])
+    .then((answer) => answer.proceed);
+}
+
+/**
+ * Asked once per run, and only when there is something to decide. Deleting is
+ * irreversible — the tasks tree is not necessarily under version control — so
+ * archive is the default everywhere, `--yes` included.
+ */
+async function promptTasksDisposition(): Promise<TasksDisposition> {
+  const { disposition } = await inquirer.prompt<{
+    disposition: TasksDisposition;
+  }>([
     {
-      type: "confirm",
-      name: "proceed",
-      message: "Delete this Trellis instruction surface?",
-      default: false,
+      type: "list",
+      name: "disposition",
+      message:
+        "What should happen to the Trellis workflow files leaving each topic?",
+      default: "archive",
+      choices: [
+        {
+          name: `Archive to ${RESEARCH_REL}/<topic>/legacy/   (reversible)`,
+          value: "archive",
+        },
+        { name: "Delete permanently   (not reversible)", value: "delete" },
+      ],
     },
   ]);
-  return proceed;
+  return disposition;
 }
 
 /** Write the files a fresh mini-trellis project would have. */
@@ -309,18 +341,33 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
 
   const cwd = process.cwd();
   const plan = buildMigratePlan(cwd);
+  const converge = buildTasksConvergePlan(cwd);
 
-  // `.trellis/.version` alone is not evidence of Trellis: mini-trellis's own
-  // init writes it too, so only treat the project as migratable when real
-  // Trellis paths are present.
-  if (plan.deletions.length === 0) {
+  // A converged project has no Trellis residue left, so the tasks tree on its
+  // own still means there is something to do. `.trellis/.version` alone is not
+  // evidence of Trellis: mini-trellis's own init writes one too.
+  if (plan.deletions.length === 0 && converge.tasks.length === 0) {
     console.log(
       chalk.gray("No Trellis installation detected — nothing to migrate."),
     );
     return;
   }
 
-  renderPlan(cwd, plan);
+  // Renaming nothing is the only safe answer to a collision: merging a task
+  // directory into a note the user already wrote would silently mix them.
+  if (converge.conflicts.length > 0) {
+    console.error(
+      chalk.red(
+        `Cannot converge: ${converge.conflicts.length} topic(s) already ` +
+          "exist. Move or rename your note(s) first — migrate never merges:",
+      ),
+    );
+    for (const dest of converge.conflicts)
+      console.error(`  ${chalk.red("!")} ${dest}`);
+    process.exit(1);
+  }
+
+  renderPlan(cwd, plan, converge);
   console.log(
     chalk.red.bold(
       "\n⚠ Deletion is permanent: migrate makes no backup. " +
@@ -334,6 +381,7 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
     return;
   }
 
+  let disposition: TasksDisposition = "archive";
   if (!options.yes) {
     if (!process.stdin.isTTY) {
       console.error(
@@ -344,11 +392,12 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
       );
       process.exit(1);
     }
-    const ok = await promptContinue();
+    const ok = await promptContinue(converge);
     if (!ok) {
       console.log(chalk.yellow("Migration cancelled. No files modified."));
       return;
     }
+    if (converge.tasks.length > 0) disposition = await promptTasksDisposition();
   }
 
   // Delete first so the install pass never writes a file this plan removes.
@@ -359,6 +408,8 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
     setWriteMode("force");
     await configurePlatform(id, cwd);
   }
+
+  const report = convergeTasks(cwd, converge, disposition);
 
   console.log();
   console.log(
@@ -371,10 +422,48 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
         } surface(s) rewritten.`,
     ),
   );
+  if (report.moved > 0) {
+    const handled =
+      disposition === "delete"
+        ? `${report.deleted} item(s) deleted`
+        : `${report.archived} item(s) moved into ${RESEARCH_REL}/<topic>/legacy/`;
+    console.log(
+      chalk.green(
+        `Converged ${report.moved} task director${
+          report.moved === 1 ? "y" : "ies"
+        } into ${RESEARCH_REL}/: ${handled} (${
+          report.bytes / 1024 < 1024
+            ? `${Math.round(report.bytes / 1024)} KB`
+            : `${(report.bytes / 1024 / 1024).toFixed(1)} MB`
+        }), ${report.mentions.repoint} reference(s) repointed, ` +
+          `${report.pointers} session pointer(s) cleared.`,
+      ),
+    );
+    if (report.mentions.keep > 0) {
+      console.log(
+        chalk.gray(
+          `  ${report.mentions.keep} reference(s) left alone — they point at the ` +
+            "workflow files that left each topic, or at another repository.",
+        ),
+      );
+    }
+    if (report.residue.length > 0) {
+      console.log(
+        chalk.yellow(
+          `  ${PATHS.TASKS}/ was not empty after the move and is kept as-is: ` +
+            `${report.residue.slice(0, 5).join(", ")}${
+              report.residue.length > 5
+                ? ` and ${report.residue.length - 5} more`
+                : ""
+            }.`,
+        ),
+      );
+    }
+  }
   console.log(
     chalk.gray(
-      `Kept: ${PRESERVED.join(", ")}. Review ${PATHS.SPEC}/ and ${PATHS.TASKS}/ ` +
-        "for anything the four-phase workflow left behind.",
+      `Kept: ${PRESERVED.join(", ")}. Review ${PATHS.SPEC}/ for anything the ` +
+        "four-phase workflow left behind.",
     ),
   );
 }

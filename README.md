@@ -27,7 +27,7 @@ Credit where due: the heavy lifting is all Trellis. Standing on the shoulders of
 
 Trellis is an engineering framework: it decides how a task moves from PRD to implementation to review, and it drives that with hooks on every turn, sub-agents, and a task state machine. mini-trellis is only the memory underneath that framework. It never creates a task, never tells the model what phase it is in, and never dispatches a sub-agent. It injects a short orientation at session start, lets the model read spec and research on demand, and gives it two verbs: `remember` to write the journal, and `mem` to search past dialogue. Everything Trellis does *around* memory is left to the model and to you.
 
-| | Trellis 0.6.17 | mini-trellis 0.1.0 |
+| | Trellis 0.6.17 | mini-trellis 0.1.1 |
 |---|---|---|
 | Purpose | Engineering framework: spec + task workflow + memory | Memory layer only |
 | Hosts | 22 AI coding tools | Claude Code, Codex, OpenCode, Pi |
@@ -93,13 +93,22 @@ mini-trellis migrate             # asks first, defaults to no
 
 It rewrites the four host surfaces with mini-trellis's versions, deletes the Trellis-only instruction files (skills, commands, agents, per-turn injectors, `workflow.md`, `task.py`), replaces the Trellis block in `AGENTS.md`, and drops `.trellis/.version` so the Trellis CLI stops offering to update the project back to the four-phase workflow.
 
+It also converges `.trellis/tasks/` into the memory layer, because with `task.py` gone nothing reads that tree any more:
+
+- Each task directory becomes one research topic: `.trellis/tasks/<name>/` → `.trellis/research/<name>/`, and archived ones go to `.trellis/research/archive/YYYY-MM/<name>/`. Date prefixes and directory names are kept, so the relative links the notes carry between each other keep resolving.
+- Each topic keeps its `research/` subtree and `design.md` exactly where they are. Everything else at the task root — `task.json`, `prd.md`, `implement*`, `check.jsonl`, `drafts/`, and any file migrate does not recognise — leaves the topic. You choose once, up front: archive it to `.trellis/research/<topic>/legacy/`, or delete it. Archive is the default, `--yes` included.
+- Repo-relative `.trellis/tasks/…` mentions inside the notes that stay are repointed at their new locations. Pointers at the workflow files that leave, and at other repositories, are left alone and counted.
+- The `current_task` pointer in `.trellis/.runtime/sessions/*.json` is cleared, and `.trellis/tasks/` is removed once it is empty.
+
+If a topic directory of the same name already exists under `.trellis/research/`, migrate stops before touching anything and lists the collisions. It never merges into a note you wrote.
+
 **There is no backup.** Deleting is permanent, so commit or copy anything you might want back first.
 
 ### What you get afterwards
 
-- `.trellis/spec/`, `research/`, `workspace/`, and `tasks/` are left alone. Your spec content survives, including any `backend/`/`frontend/` docs Trellis wrote — those still show up in the SessionStart spec list.
+- `.trellis/spec/`, `research/`, and `workspace/` are left alone. Your spec content survives, including any `backend/`/`frontend/` docs Trellis wrote — those still show up in the SessionStart spec list.
 - `.trellis/config.yaml` and `.trellis/scripts/` get overwritten with mini-trellis's versions. Re-apply any local edits.
-- Old task directories stay on disk, but with `task.py` gone nothing reads them. Delete them by hand when you're ready.
+- `.trellis/tasks/` is gone: the task directories are topics under `.trellis/research/` now, listed by SessionStart like any other note.
 - `.trellis/.version` is removed and mini-trellis never writes one, so the Trellis CLI stays quiet in that project.
 
 ## Record a session

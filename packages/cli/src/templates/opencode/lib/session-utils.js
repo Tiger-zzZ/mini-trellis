@@ -126,17 +126,18 @@ function collectResearchTopics(directory) {
   const researchDir = join(directory, ".trellis", "research")
   if (!existsSync(researchDir)) return []
   try {
-    return readdirSync(researchDir)
-      .filter(name => {
-        if (name.startsWith(".") || name.toLowerCase() === "readme.md") return false
-        try {
-          return statSync(join(researchDir, name)).isFile() && name.toLowerCase().endsWith(".md")
-        } catch {
-          return false
-        }
+    return readdirSync(researchDir, { withFileTypes: true })
+      .filter(entry => {
+        if (entry.name.startsWith(".") || entry.name.toLowerCase() === "readme.md") return false
+        if (entry.name === "archive") return false
+        // A topic is a note, or a directory: `mini-trellis migrate` folds each
+        // Trellis task into one so its evidence sits next to its notes.
+        if (entry.isDirectory()) return true
+        return entry.isFile() && entry.name.toLowerCase().endsWith(".md")
       })
-      .sort()
-      .map(name => `.trellis/research/${name}`)
+      .map(entry => ({ name: entry.name, dir: entry.isDirectory() }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(topic => `.trellis/research/${topic.name}${topic.dir ? "/" : ""}`)
   } catch {
     return []
   }
@@ -294,8 +295,9 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
     "Memory: journal is git-durable session notes (`/mini-trellis:remember` or " +
     "`python3 ./.trellis/scripts/add_session.py`). Cross-session dialogue is " +
     "`mini-trellis mem list|search|context|extract`.\n" +
-    "Research lives in `.trellis/research/<topic>.md`; promote durable " +
-    "boundaries into `.trellis/spec/` as short markdown.\n"
+    "Research lives in `.trellis/research/<topic>.md`, or in " +
+    "`.trellis/research/<topic>/` when a topic brings evidence files with it; " +
+    "promote durable boundaries into `.trellis/spec/` as short markdown.\n"
   )
 
   if (paths.length > 0) {
