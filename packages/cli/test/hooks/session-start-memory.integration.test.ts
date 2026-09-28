@@ -9,14 +9,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { ModuleKind, transpileModule } from "typescript";
 
 import { buildSessionContext } from "../../src/templates/opencode/lib/session-utils.js";
 
-const CLI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const TEMPLATE_SCRIPTS = path.join(
-  CLI_ROOT,
-  "src/templates/trellis/scripts",
+const CLI_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
 );
+const TEMPLATE_SCRIPTS = path.join(CLI_ROOT, "src/templates/trellis/scripts");
 const SHARED_HOOK = path.join(
   CLI_ROOT,
   "src/templates/shared-hooks/session-start.py",
@@ -50,10 +51,7 @@ function stampMemorySkeleton(tmp: string): void {
   fs.mkdirSync(path.join(research, "archive"), { recursive: true });
   fs.writeFileSync(path.join(research, "README.md"), "# Research\n");
   fs.writeFileSync(path.join(research, "hot-topic.md"), "# Hot\n");
-  fs.writeFileSync(
-    path.join(research, "archive", "cold-topic.md"),
-    "# Cold\n",
-  );
+  fs.writeFileSync(path.join(research, "archive", "cold-topic.md"), "# Cold\n");
   // What `mini-trellis migrate` leaves behind: a task directory that became a
   // topic, evidence files and all.
   fs.mkdirSync(path.join(research, CONVERGED_TOPIC, "research"), {
@@ -132,4 +130,48 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
     const text = buildSessionContext({ directory: tmpDir });
     assertMemoryPayload(text);
   });
+
+  it.each(["\n", "\r\n"])(
+    "Pi reads the initialized developer record with %j line endings",
+    (eol) => {
+      fs.writeFileSync(
+        path.join(tmpDir, ".trellis/.developer"),
+        `name=tester${eol}initialized_at=2026-09-28${eol}`,
+      );
+      const workspace = path.join(tmpDir, ".trellis/workspace/tester");
+      fs.mkdirSync(workspace, { recursive: true });
+      fs.writeFileSync(
+        path.join(workspace, "journal-1.md"),
+        "# Older journal\n",
+      );
+      fs.writeFileSync(
+        path.join(workspace, "journal-2.md"),
+        "# Current journal\n",
+      );
+      const source = fs.readFileSync(
+        path.join(
+          CLI_ROOT,
+          "src/templates/pi/extensions/mini-trellis/index.ts.txt",
+        ),
+        "utf-8",
+      );
+      const code = transpileModule(source, {
+        compilerOptions: { module: ModuleKind.ESNext },
+      }).outputText;
+      const text = execFileSync(process.execPath, ["--input-type=module"], {
+        cwd: tmpDir,
+        encoding: "utf-8",
+        env: { ...process.env, TRELLIS_SUBAGENT_CHILD: "0" },
+        input: `
+        const { default: extension } = await import(${JSON.stringify(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`)});
+        const handlers = {};
+        extension({ on(name, handler) { handlers[name] = handler; } });
+        process.stdout.write(handlers.before_agent_start({ systemPrompt: "existing" }).systemPrompt);
+      `,
+      });
+      assertMemoryPayload(text);
+      expect(text).toContain("Journal: .trellis/workspace/tester/journal-2.md");
+      expect(text).not.toContain("initialized_at=");
+    },
+  );
 });

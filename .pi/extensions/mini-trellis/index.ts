@@ -72,7 +72,11 @@ function readDeveloper(root: string): string | null {
   try {
     const p = join(root, ".trellis", ".developer");
     if (!exists(p)) return null;
-    const name = readFileSync(p, "utf-8").trim();
+    const name = readFileSync(p, "utf-8")
+      .split(/\r?\n/)
+      .find((line) => line.startsWith("name="))
+      ?.slice("name=".length)
+      .trim();
     return name || null;
   } catch {
     return null;
