@@ -20,6 +20,7 @@ import inquirer from "inquirer";
 
 import { init } from "../../src/commands/init.js";
 import { migrate, collectTrellisResidue } from "../../src/commands/migrate.js";
+import { buildTasksConvergePlan } from "../../src/commands/migrate-tasks.js";
 import { setWriteMode } from "../../src/utils/file-writer.js";
 import { resetResolvedPythonCommand } from "../../src/configurators/shared.js";
 
@@ -86,6 +87,28 @@ function exists(root: string, rel: string): boolean {
   return fs.existsSync(path.join(root, rel));
 }
 
+function snapshot(root: string): Record<string, string> {
+  const files: Record<string, string> = {};
+  const visit = (rel: string): void => {
+    for (const entry of fs.readdirSync(path.join(root, rel), {
+      withFileTypes: true,
+    })) {
+      const child = path.join(rel, entry.name);
+      const abs = path.join(root, child);
+      if (entry.isDirectory()) {
+        files[child] = "directory";
+        visit(child);
+      } else if (entry.isSymbolicLink()) {
+        files[child] = `link:${fs.readlinkSync(abs)}`;
+      } else {
+        files[child] = fs.readFileSync(abs).toString("base64");
+      }
+    }
+  };
+  visit("");
+  return files;
+}
+
 describe("migrate", () => {
   let tmpDir: string;
 
@@ -128,7 +151,11 @@ describe("migrate", () => {
       "see `.trellis/tasks/01-old/research/other.md`, `.trellis/tasks/01-old/prd.md`\n",
     );
     plant(tmpDir, ".trellis/tasks/archive/2026-09/02-old/task.json", "{}\n");
-    plant(tmpDir, ".trellis/tasks/archive/2026-09/02-old/research/cold.md", "# Cold\n");
+    plant(
+      tmpDir,
+      ".trellis/tasks/archive/2026-09/02-old/research/cold.md",
+      "# Cold\n",
+    );
     plant(
       tmpDir,
       ".trellis/.runtime/sessions/s.json",
@@ -220,7 +247,10 @@ describe("migrate", () => {
     );
     expect(exists(tmpDir, ".trellis/research/01-old/design.md")).toBe(true);
     expect(
-      exists(tmpDir, ".trellis/research/archive/2026-09/02-old/research/cold.md"),
+      exists(
+        tmpDir,
+        ".trellis/research/archive/2026-09/02-old/research/cold.md",
+      ),
     ).toBe(true);
 
     // Workflow files leave the topic; `--yes` archives them rather than
@@ -232,7 +262,10 @@ describe("migrate", () => {
     expect(exists(tmpDir, ".trellis/research/01-old/task.json")).toBe(false);
     expect(exists(tmpDir, ".trellis/research/01-old/prd.md")).toBe(false);
     expect(
-      exists(tmpDir, ".trellis/research/archive/2026-09/02-old/legacy/task.json"),
+      exists(
+        tmpDir,
+        ".trellis/research/archive/2026-09/02-old/legacy/task.json",
+      ),
     ).toBe(true);
   });
 
@@ -307,6 +340,182 @@ describe("migrate", () => {
     expect(exists(tmpDir, ".trellis/scripts/common/active_task.py")).toBe(true);
   });
 
+  it.each(["file", "directory"])(
+    "rejects an existing legacy %s before changing any files",
+    async (kind) => {
+      plant(
+        tmpDir,
+        kind === "file"
+          ? ".trellis/tasks/01-old/legacy"
+          : ".trellis/tasks/01-old/legacy/notes.md",
+        "keep me\n",
+      );
+      const before = snapshot(tmpDir);
+      await expect(migrate({ dryRun: true })).rejects.toThrow("exit 1");
+      await expect(migrate({ yes: true })).rejects.toThrow("exit 1");
+      expect(snapshot(tmpDir)).toEqual(before);
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining("legacy"),
+      );
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "preserves dangling and directory symlinks left under tasks",
+    async () => {
+      plant(tmpDir, "evidence/data.csv", "original\n");
+      const directoryLink = path.join(tmpDir, ".trellis/tasks/evidence-link");
+      const danglingLink = path.join(tmpDir, ".trellis/tasks/missing-link");
+      fs.symlinkSync(path.join(tmpDir, "evidence"), directoryLink);
+      fs.symlinkSync(path.join(tmpDir, "missing"), danglingLink);
+      const before = snapshot(tmpDir);
+      await migrate({ dryRun: true });
+      expect(snapshot(tmpDir)).toEqual(before);
+      await migrate({ yes: true });
+      expect(fs.lstatSync(directoryLink).isSymbolicLink()).toBe(true);
+      expect(fs.lstatSync(danglingLink).isSymbolicLink()).toBe(true);
+      expect(
+        fs.readFileSync(path.join(tmpDir, "evidence/data.csv"), "utf-8"),
+      ).toBe("original\n");
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining("kept as-is"),
+      );
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "does not follow task symlinks while counting or rewriting notes",
+    async () => {
+      const original = ".trellis/tasks/01-old/research/other.md\n";
+      plant(tmpDir, "external.md", original);
+      fs.rmSync(path.join(tmpDir, ".trellis/tasks/01-old/design.md"));
+      fs.symlinkSync(
+        path.join(tmpDir, "external.md"),
+        path.join(tmpDir, ".trellis/tasks/01-old/design.md"),
+      );
+      fs.symlinkSync(".", path.join(tmpDir, ".trellis/tasks/01-old/cycle"));
+      await migrate({ yes: true });
+      expect(fs.readFileSync(path.join(tmpDir, "external.md"), "utf-8")).toBe(
+        original,
+      );
+      expect(
+        fs
+          .lstatSync(path.join(tmpDir, ".trellis/research/01-old/design.md"))
+          .isSymbolicLink(),
+      ).toBe(true);
+      expect(
+        fs
+          .lstatSync(path.join(tmpDir, ".trellis/research/01-old/legacy/cycle"))
+          .isSymbolicLink(),
+      ).toBe(true);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "treats a dangling topic destination as a conflict",
+    async () => {
+      fs.symlinkSync(
+        path.join(tmpDir, "missing"),
+        path.join(tmpDir, ".trellis/research/01-old"),
+      );
+      const before = snapshot(tmpDir);
+      await expect(migrate({ yes: true })).rejects.toThrow("exit 1");
+      expect(snapshot(tmpDir)).toEqual(before);
+    },
+  );
+
+  it
+    .skipIf(process.platform === "win32")
+    .each([
+      ".trellis/tasks",
+      ".trellis/tasks/archive",
+      ".trellis/research/archive/2026-09",
+    ])(
+    "rejects a symlink at migration directory %s before mutation",
+    async (rel) => {
+      const link = path.join(tmpDir, rel);
+      const target = path.join(tmpDir, "external-directory");
+      fs.mkdirSync(path.dirname(link), { recursive: true });
+      if (fs.existsSync(link)) fs.renameSync(link, target);
+      else fs.mkdirSync(target);
+      fs.symlinkSync(target, link);
+      const before = snapshot(tmpDir);
+      await expect(migrate({ yes: true })).rejects.toThrow(
+        "Cannot converge through a symlink",
+      );
+      expect(snapshot(tmpDir)).toEqual(before);
+    },
+  );
+
+  it("fails before mutation when a task directory cannot be read", async () => {
+    const before = snapshot(tmpDir);
+    const read = fs.readdirSync;
+    const spy = vi.spyOn(fs, "readdirSync").mockImplementation(((
+      abs: fs.PathLike,
+      options: unknown,
+    ) => {
+      if (String(abs) === path.join(tmpDir, ".trellis/tasks/01-old")) {
+        throw Object.assign(new Error("unreadable task"), { code: "EACCES" });
+      }
+      return Reflect.apply(read, fs, [abs, options]);
+    }) as typeof fs.readdirSync);
+    await expect(migrate({ yes: true })).rejects.toThrow("unreadable task");
+    spy.mockRestore();
+    expect(snapshot(tmpDir)).toEqual(before);
+  });
+
+  it("repoints exact task paths before using only unambiguous archived-name fallbacks", async () => {
+    plant(
+      tmpDir,
+      ".trellis/tasks/archive/2026-08/01-old/research/other.md",
+      "archived\n",
+    );
+    plant(
+      tmpDir,
+      ".trellis/tasks/archive/2026-08/02-old/research/cold.md",
+      "older archive\n",
+    );
+    plant(
+      tmpDir,
+      ".trellis/tasks/archive/2026-09/03-only/research/cold.md",
+      "unique archive\n",
+    );
+    plant(
+      tmpDir,
+      ".trellis/tasks/01-old/research/refs.md",
+      [
+        ".trellis/tasks/01-old/research/other.md",
+        ".trellis/tasks/archive/2026-08/01-old/research/other.md",
+        ".trellis/tasks/archive/2026-09/02-old/research/cold.md",
+        ".trellis/tasks/archive/2026-08/02-old/research/cold.md",
+        ".trellis/tasks/02-old/research/cold.md",
+        ".trellis/tasks/03-only/research/cold.md",
+      ].join("\n"),
+    );
+    const plan = buildTasksConvergePlan(tmpDir);
+    await migrate({ yes: true });
+    expect(
+      fs.readFileSync(
+        path.join(tmpDir, ".trellis/research/01-old/research/refs.md"),
+        "utf-8",
+      ),
+    ).toBe(
+      [
+        ".trellis/research/01-old/research/other.md",
+        ".trellis/research/archive/2026-08/01-old/research/other.md",
+        ".trellis/research/archive/2026-09/02-old/research/cold.md",
+        ".trellis/research/archive/2026-08/02-old/research/cold.md",
+        ".trellis/tasks/02-old/research/cold.md",
+        ".trellis/research/archive/2026-09/03-only/research/cold.md",
+      ].join("\n"),
+    );
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `${plan.mentions.repoint} reference(s) repointed`,
+      ),
+    );
+  });
+
   it("leaves the OpenCode SessionStart plugin loadable", async () => {
     await migrate({ yes: true });
 
@@ -347,7 +556,9 @@ describe("migrate", () => {
     const agents = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
     expect(agents).toMatch(/^<!-- TRELLIS:START -->\n# mini-trellis/);
     expect(agents).toContain("Run the linter before every commit.");
-    expect(agents).not.toMatch(/workflow\.md|\.trellis\/tasks|finish-work|\/trellis:continue/);
+    expect(agents).not.toMatch(
+      /workflow\.md|\.trellis\/tasks|finish-work|\/trellis:continue/,
+    );
     expect(agents).not.toMatch(/\{\{/);
     // Exactly one managed block.
     expect(agents.match(/<!-- TRELLIS:START -->/g)).toHaveLength(1);

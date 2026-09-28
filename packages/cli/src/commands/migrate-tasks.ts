@@ -61,7 +61,7 @@ export interface ConvergeTask {
 
 export interface TasksConvergePlan {
   tasks: ConvergeTask[];
-  /** Topic directories already taken by a user note. Converging would merge. */
+  /** Existing topic destinations or task-root legacy entries that block a move. */
   conflicts: string[];
   /** Bytes leaving the topic directories: what the archive/delete choice weighs. */
   evictionBytes: number;
@@ -84,32 +84,29 @@ export interface ConvergeReport {
 function readdirSafe(abs: string): fs.Dirent[] {
   try {
     return fs.readdirSync(abs, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-}
-
-function isDir(abs: string): boolean {
-  try {
-    return fs.statSync(abs).isDirectory();
-  } catch {
-    return false;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
   }
 }
 
 function treeSize(abs: string): number {
-  if (!isDir(abs)) {
-    try {
-      return fs.statSync(abs).size;
-    } catch {
-      return 0;
-    }
-  }
+  const stat = fs.lstatSync(abs);
+  if (!stat.isDirectory()) return stat.size;
   let total = 0;
   for (const entry of readdirSafe(abs)) {
     total += treeSize(path.join(abs, entry.name));
   }
   return total;
+}
+
+function checkMigrationDirectory(abs: string): void {
+  const stat = fs.lstatSync(abs, { throwIfNoEntry: false });
+  if (stat && !stat.isDirectory()) {
+    throw new Error(
+      `Cannot converge through a symlink or non-directory: ${abs}`,
+    );
+  }
 }
 
 /** Every file under `abs`, as paths relative to `abs`. */
@@ -119,7 +116,7 @@ function filesUnder(abs: string): string[] {
     const child = path.join(abs, entry.name);
     if (entry.isDirectory()) {
       found.push(...filesUnder(child).map((p) => `${entry.name}/${p}`));
-    } else if (entry.isFile()) {
+    } else {
       found.push(entry.name);
     }
   }
@@ -142,9 +139,13 @@ function markdownUnder(abs: string): string[] {
 
 /** Notes a topic keeps in place: its `research/` subtree plus `design.md`. */
 function keptNotes(topicAbs: string): string[] {
-  const notes = markdownUnder(path.join(topicAbs, RESEARCH_DIR));
-  const design = path.join(topicAbs, "design.md");
-  if (fs.existsSync(design)) notes.push(design);
+  const entries = readdirSafe(topicAbs);
+  const notes = entries.some((e) => e.name === RESEARCH_DIR && e.isDirectory())
+    ? markdownUnder(path.join(topicAbs, RESEARCH_DIR))
+    : [];
+  if (entries.some((e) => e.name === "design.md" && e.isFile())) {
+    notes.push(path.join(topicAbs, "design.md"));
+  }
   return notes;
 }
 
@@ -171,25 +172,49 @@ function staysInTopic(rest: string): boolean {
 }
 
 /** Split a mention into the task name it names and whatever follows. */
-function parseMention(ref: string): { name: string; rest: string } | null {
+function parseMention(
+  ref: string,
+): { key: string; name: string; rest: string } | null {
   const parts = ref.split("/");
   if (parts[0] === DIR_NAMES.ARCHIVE && parts.length > 2) {
-    return { name: parts[2], rest: parts.slice(3).join("/") };
+    return {
+      key: parts.slice(0, 3).join("/"),
+      name: parts[2],
+      rest: parts.slice(3).join("/"),
+    };
   }
-  if (parts[0]) return { name: parts[0], rest: parts.slice(1).join("/") };
+  if (parts[0])
+    return { key: parts[0], name: parts[0], rest: parts.slice(1).join("/") };
   return null;
+}
+
+function topicLookup(tasks: ConvergeTask[]): {
+  exact: Map<string, string>;
+  unique: Map<string, string | null>;
+} {
+  const exact = new Map<string, string>();
+  const unique = new Map<string, string | null>();
+  for (const task of tasks) {
+    exact.set(task.group ? `${task.group}/${task.name}` : task.name, task.dest);
+    unique.set(task.name, unique.has(task.name) ? null : task.dest);
+  }
+  return { exact, unique };
 }
 
 function repointMentions(
   text: string,
-  topics: Map<string, string>,
+  topics: ReturnType<typeof topicLookup>,
   counts: { repoint: number; keep: number },
 ): string {
   return text.replace(TASK_MENTION, (match, rawRef: string) => {
     const ref = rawRef.replace(/[.,;:]+$/, "");
     const trailing = rawRef.slice(ref.length);
     const parsed = ref ? parseMention(ref) : null;
-    const dest = parsed ? topics.get(parsed.name) : undefined;
+    // Old notes may still use a pre-archive path. Only repair that stale path
+    // when the task name is unique; an exact source path always takes priority.
+    const dest = parsed
+      ? (topics.exact.get(parsed.key) ?? topics.unique.get(parsed.name))
+      : undefined;
     if (!parsed || !dest || !staysInTopic(parsed.rest)) {
       counts.keep += 1;
       return match;
@@ -220,6 +245,10 @@ function describeTask(group: string, name: string, abs: string): ConvergeTask {
 
 export function buildTasksConvergePlan(cwd: string): TasksConvergePlan {
   const tasksRoot = path.join(cwd, PATHS.TASKS);
+  const archiveRoot = path.join(tasksRoot, DIR_NAMES.ARCHIVE);
+  checkMigrationDirectory(tasksRoot);
+  checkMigrationDirectory(archiveRoot);
+  checkMigrationDirectory(path.join(cwd, RESEARCH_REL));
   const tasks: ConvergeTask[] = [];
 
   const collect = (group: string, dir: string): void => {
@@ -232,7 +261,6 @@ export function buildTasksConvergePlan(cwd: string): TasksConvergePlan {
   };
 
   collect("", tasksRoot);
-  const archiveRoot = path.join(tasksRoot, DIR_NAMES.ARCHIVE);
   for (const month of readdirSafe(archiveRoot)) {
     if (month.name.startsWith(".") || !month.isDirectory()) continue;
     collect(
@@ -244,14 +272,25 @@ export function buildTasksConvergePlan(cwd: string): TasksConvergePlan {
     topicRel(a.group, a.name).localeCompare(topicRel(b.group, b.name)),
   );
 
-  const topics = new Map(tasks.map((t) => [t.name, t.dest]));
+  const topics = topicLookup(tasks);
   const mentions = { repoint: 0, keep: 0 };
   const conflicts: string[] = [];
   let evictionBytes = 0;
 
   for (const task of tasks) {
+    if (task.group) {
+      checkMigrationDirectory(path.join(cwd, RESEARCH_REL, DIR_NAMES.ARCHIVE));
+      checkMigrationDirectory(path.join(cwd, RESEARCH_REL, task.group));
+    }
     evictionBytes += task.evictions.reduce((sum, e) => sum + e.bytes, 0);
-    if (fs.existsSync(path.join(cwd, task.dest))) conflicts.push(task.dest);
+    if (fs.lstatSync(path.join(cwd, task.dest), { throwIfNoEntry: false })) {
+      conflicts.push(task.dest);
+    }
+    if (task.evictions.some((entry) => entry.name === LEGACY_DIR)) {
+      conflicts.push(
+        path.posix.join(PATHS.TASKS, task.group, task.name, LEGACY_DIR),
+      );
+    }
     for (const note of keptNotes(path.join(tasksRoot, task.group, task.name))) {
       repointMentions(fs.readFileSync(note, "utf-8"), topics, mentions);
     }
@@ -341,7 +380,7 @@ export function renderTasksConvergePlan(plan: TasksConvergePlan): void {
     chalk.gray(
       `  Repointing ${plan.mentions.repoint} \`.trellis/tasks/\` mention(s) in the notes ` +
         `that stay; ${plan.mentions.keep} left alone (they point at files that leave ` +
-        "the topic, or at another repository).",
+        "the topic, cannot be resolved uniquely, or are otherwise unsupported).",
     ),
   );
 }
@@ -380,7 +419,7 @@ export function convergeTasks(
     }
   }
 
-  const topics = new Map(plan.tasks.map((t) => [t.name, t.dest]));
+  const topics = topicLookup(plan.tasks);
   const mentions = { repoint: 0, keep: 0 };
   for (const task of plan.tasks) {
     for (const note of keptNotes(

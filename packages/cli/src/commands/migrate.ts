@@ -345,7 +345,7 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
 
   // A converged project has no Trellis residue left, so the tasks tree on its
   // own still means there is something to do. `.trellis/.version` alone is not
-  // evidence of Trellis: mini-trellis's own init writes one too.
+  // enough to distinguish an old mini-trellis install from Trellis.
   if (plan.deletions.length === 0 && converge.tasks.length === 0) {
     console.log(
       chalk.gray("No Trellis installation detected — nothing to migrate."),
@@ -358,8 +358,9 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
   if (converge.conflicts.length > 0) {
     console.error(
       chalk.red(
-        `Cannot converge: ${converge.conflicts.length} topic(s) already ` +
-          "exist. Move or rename your note(s) first — migrate never merges:",
+        `Cannot converge: ${converge.conflicts.length} path conflict(s). ` +
+          "Move or rename existing topic destinations or task-root legacy entries " +
+          "first — migrate never merges:",
       ),
     );
     for (const dest of converge.conflicts)
@@ -443,7 +444,8 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
       console.log(
         chalk.gray(
           `  ${report.mentions.keep} reference(s) left alone — they point at the ` +
-            "workflow files that left each topic, or at another repository.",
+            "workflow files that left each topic, cannot be resolved uniquely, " +
+            "or are otherwise unsupported.",
         ),
       );
     }

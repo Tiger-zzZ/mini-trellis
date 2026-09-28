@@ -57,7 +57,7 @@ Trellis 是一套工程框架：它规定一个任务如何从 PRD 走到实现�
 
 1. **SessionStart** 注入几行：你的 journal 路径、spec index 路径、热的 research 主题。只有路径，不注入正文，也没有任何任务或阶段信息。
 2. **session 中**，模型按需读 spec 或 research；碰到「这个是不是之前讨论过」这类问题时，去调 `mini-trellis mem`。
-3. **结束时或 compact 之后**，`remember` 往 journal 追加一条并提交。这次 session 产出了可复用的调研，就写进 `.trellis/research/<topic>.md`；下周仍然成立的边界，用 `mini-trellis-update-spec` 沉淀进 spec。
+3. **结束时或 compact 之后**，让模型执行 `remember` 往 journal 追加一条，是否自动提交遵循 `session_auto_commit` 配置。可复用的调研写进 `.trellis/research/<topic>.md`，长期边界用 `mini-trellis-update-spec` 沉淀进 spec。Hook 只提供上下文和提醒，关闭会话不会自动保存笔记。
 
 ## 安装
 
@@ -80,6 +80,17 @@ journal 脚本和 SessionStart hook 需要 Python ≥ 3.9。Codex 的 SessionSta
 
 没有会改写项目文件的 `update`。
 
+### 升级已有 mini-trellis 项目
+
+`mini-trellis upgrade` 只升级全局 CLI。要刷新 0.1.0 项目已经安装的脚本和宿主模板：
+
+1. 先提交或备份 `.trellis/`、`AGENTS.md` 和已配置的宿主目录，包括被 gitignore 忽略的文件。
+2. 在交互终端运行**不带参数**的 `mini-trellis init`，选择 **Full re-initialize**，再选择原来使用的宿主。
+3. 对需要刷新的 scripts、hooks 和 mini-trellis 命令/技能选择 **Overwrite**；保留自定义 config、workspace 索引、spec guides 和宿主 settings，将必要的模板变化手动合入自定义文件。不要选择 **Overwrite all** 或直接用 `--force`，它们也会重置这些文件。
+4. 检查 diff 和开发者身份，重新开启宿主会话加载新上下文。
+
+`--skip-existing` 不会刷新已有模板。`migrate` 用于 Trellis 项目或残留的 `.trellis/tasks/`，不是通用模板更新命令。
+
 ## 已经在用 Trellis？
 
 如果某个项目已经在跑 Trellis，我的建议是别动它。把 mini-trellis 用到新项目上去。两者的数据目录都是 `.trellis/`，指令面也清不干净——Trellis 的 skill、命令、agent 会和 mini-trellis 的一起被发现。
@@ -95,12 +106,12 @@ mini-trellis migrate             # 会先问，默认 no
 
 它还会把 `.trellis/tasks/` 收敛进记忆层——`task.py` 没了之后，这棵树已经没人读了：
 
-- 每个任务目录变成一个 research topic：`.trellis/tasks/<name>/` → `.trellis/research/<name>/`，归档任务进 `.trellis/research/archive/YYYY-MM/<name>/`。日期前缀和目录名都保留，笔记之间原有的相对链接因此零失效。
+- 每个任务目录变成一个 research topic：`.trellis/tasks/<name>/` → `.trellis/research/<name>/`，归档任务进 `.trellis/research/archive/YYYY-MM/<name>/`。日期前缀和目录名都保留，保留的任务内容内部相对链接不变。指向退场文件的链接（如 `../prd.md`）不会修复。
 - 每个 topic 的 `research/` 子树和 `design.md` 原地不动。任务根上的其余一切——`task.json`、`prd.md`、`implement*`、`check.jsonl`、`drafts/`，以及任何 migrate 不认识的文件——都离开 topic。开始前问你一次：归档到 `.trellis/research/<topic>/legacy/`，还是直接删除。默认归档，`--yes` 也走归档。
-- 留在原地的笔记里，repo-relative 的 `.trellis/tasks/…` 提及会被改指到新位置；指向离场文件或其他仓库的提及保持原样并计数告警。
+- 留在原地的笔记里，repo-relative 的 `.trellis/tasks/…` 提及按完整来源路径改指到新位置；归档前的旧路径只在任务名唯一时修复。有歧义或不支持的引用保持原样并计数告警，其他仓库的引用不改写。
 - `.trellis/.runtime/sessions/*.json` 里的 `current_task` 指针置 null；`tasks/` 搬空后才删除。
 
-如果 `.trellis/research/` 下已经有同名 topic，migrate 会在动手前停下并列出冲突，绝不合并进你自己写的笔记。
+如果 `.trellis/research/` 下已有目标路径，或任务根已有 `legacy` 条目，migrate 会在动手前停下并列出冲突，先移动或改名后再重试。迁移目录必须是真实目录，不能是符号链接；`tasks/` 中未处理的条目（包括失效符号链接）会保留并告警，不会随目录删除。改写笔记时不会跟随符号链接。
 
 **不做备份。** 删除不可逆，先 commit 或拷走你想留的东西。
 
@@ -108,7 +119,7 @@ mini-trellis migrate             # 会先问，默认 no
 
 - `.trellis/spec/`、`research/`、`workspace/` 原样保留。你的 spec 内容还在，包括 Trellis 写下的 `backend/`、`frontend/` 文档——它们仍会出现在 SessionStart 的 spec 列表里。
 - `.trellis/config.yaml` 和 `.trellis/scripts/` 会被 mini-trellis 的版本覆盖，本地改过的要重新加回去。
-- `.trellis/tasks/` 不再存在：任务目录现在是 `.trellis/research/` 下的 topic，和其他笔记一样由 SessionStart 列出。
+- 迁移后的任务目录是 `.trellis/research/` 下的 topic，热 topic 由 SessionStart 列出；只有没有未处理条目时才删除 `.trellis/tasks/`。
 - `.trellis/.version` 被移除，mini-trellis 自己不会再写这个文件，Trellis CLI 在这个项目里不会再有更新提示。
 
 ## 记一笔

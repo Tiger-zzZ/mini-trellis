@@ -16,6 +16,8 @@ vi.mock("inquirer", () => ({
   default: { prompt: vi.fn() },
 }));
 
+import inquirer from "inquirer";
+
 import { init } from "../../src/commands/init.js";
 import { setWriteMode } from "../../src/utils/file-writer.js";
 import { resetResolvedPythonCommand } from "../../src/configurators/shared.js";
@@ -109,9 +111,9 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
       exists(tmpDir, ".claude/skills/mini-trellis-update-spec/SKILL.md"),
     ).toBe(true);
 
-    expect(exists(tmpDir, ".agents/skills/mini-trellis-remember/SKILL.md")).toBe(
-      true,
-    );
+    expect(
+      exists(tmpDir, ".agents/skills/mini-trellis-remember/SKILL.md"),
+    ).toBe(true);
     expect(exists(tmpDir, ".codex/hooks.json")).toBe(true);
     expect(exists(tmpDir, ".codex/hooks/session-start.py")).toBe(true);
 
@@ -127,7 +129,9 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
       path.join(tmpDir, ".trellis/config.yaml"),
       "utf-8",
     );
-    expect(config).toContain('session_commit_message: "[mini-trellis] journal"');
+    expect(config).toContain(
+      'session_commit_message: "[mini-trellis] journal"',
+    );
 
     const agents = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
     expect(agents).toMatch(/mini-trellis/);
@@ -167,5 +171,63 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
       );
     });
     expect(forbidden).toEqual([]);
+  });
+
+  it("refreshes selected templates through full re-initialize while keeping custom memory files", async () => {
+    const refreshed = [
+      ".trellis/scripts/get_context.py",
+      ".claude/hooks/session-start.py",
+      ".codex/hooks/session-start.py",
+      ".opencode/lib/session-utils.js",
+      ".pi/extensions/mini-trellis/index.ts",
+    ];
+    const originals = refreshed.map((rel) =>
+      fs.readFileSync(path.join(tmpDir, rel), "utf-8"),
+    );
+    for (const rel of refreshed)
+      fs.writeFileSync(path.join(tmpDir, rel), "old template\n");
+    const preserved = [
+      ".trellis/config.yaml",
+      ".trellis/workspace/index.md",
+      ".trellis/spec/guides/index.md",
+      ".trellis/spec/guides/mini-memory.md",
+    ];
+    for (const rel of preserved)
+      fs.writeFileSync(path.join(tmpDir, rel), "custom content\n");
+    const journalPath = path.join(
+      tmpDir,
+      ".trellis/workspace/tester/journal-1.md",
+    );
+    const journal = fs.readFileSync(journalPath, "utf-8");
+    vi.spyOn(process, "stdin", "get").mockReturnValue({
+      isTTY: true,
+    } as unknown as typeof process.stdin);
+    vi.mocked(inquirer.prompt).mockImplementation((async (
+      questions: { name: string; message: string }[],
+    ) => {
+      const question = questions[0];
+      if (question.name === "tools")
+        return { tools: ["claude", "codex", "opencode", "pi"] };
+      if (question.message.startsWith("mini-trellis is already initialized"))
+        return { action: "full" };
+      return {
+        action: refreshed.some((rel) => question.message.includes(rel))
+          ? "overwrite"
+          : "skip",
+      };
+    }) as typeof inquirer.prompt);
+
+    await init({});
+
+    refreshed.forEach((rel, index) =>
+      expect(fs.readFileSync(path.join(tmpDir, rel), "utf-8")).toBe(
+        originals[index],
+      ),
+    );
+    for (const rel of preserved)
+      expect(fs.readFileSync(path.join(tmpDir, rel), "utf-8")).toBe(
+        "custom content\n",
+      );
+    expect(fs.readFileSync(journalPath, "utf-8")).toBe(journal);
   });
 });

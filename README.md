@@ -57,7 +57,7 @@ If you want an opinionated workflow with guard rails, use Trellis. If you want y
 
 1. **SessionStart** injects a few lines: your journal path, the spec index paths, the hot research topics. Paths only, never bodies. Nothing about tasks or phases.
 2. **During the session** the model reads spec or research on demand, and reaches for `mini-trellis mem` when a question sounds like "didn't we already discuss this".
-3. **At the end, or after a compact,** `remember` appends a session entry to your journal and commits it. If the session produced reusable research, it lands in `.trellis/research/<topic>.md`; a boundary that should still hold next week goes into spec via `mini-trellis-update-spec`.
+3. **At the end, or after a compact,** ask the agent to run `remember` to append a journal entry (auto-commit follows `session_auto_commit`). Reusable research can go into `.trellis/research/<topic>.md`; lasting boundaries go into spec via `mini-trellis-update-spec`. The hook supplies context and reminders; closing a session does not automatically save notes.
 
 ## Install
 
@@ -80,6 +80,17 @@ Python ≥ 3.9 is required for the journal scripts and SessionStart hooks. Codex
 
 There is no `update` command that rewrites project files.
 
+### Upgrading an existing mini-trellis project
+
+`mini-trellis upgrade` updates the global CLI only. To refresh a 0.1.0 project's installed scripts and host templates:
+
+1. Commit or back up `.trellis/`, `AGENTS.md`, and the configured host directories, including ignored files.
+2. Run `mini-trellis init` in an interactive terminal **without flags**, choose **Full re-initialize**, then select your existing hosts.
+3. Choose **Overwrite** for the scripts, hooks, and mini-trellis commands/skills you want to refresh. Keep your custom config, workspace index, spec guides, and host settings; merge any necessary template changes into customized files. Avoid **Overwrite all** and `--force`, which also reset those files.
+4. Review the diff and developer identity, then open a new host session to load the refreshed context.
+
+`--skip-existing` does not refresh existing templates. Use `migrate` for Trellis projects or leftover `.trellis/tasks/`; it is not a general template updater.
+
 ## Coming from Trellis?
 
 If Trellis is already running in one of your projects, my honest advice is: leave it there. Point mini-trellis at a new project instead. The two share `.trellis/`, and their instruction surfaces don't merge cleanly — Trellis's skills, commands, and agents stay discoverable right next to mini-trellis's.
@@ -95,12 +106,12 @@ It rewrites the four host surfaces with mini-trellis's versions, deletes the Tre
 
 It also converges `.trellis/tasks/` into the memory layer, because with `task.py` gone nothing reads that tree any more:
 
-- Each task directory becomes one research topic: `.trellis/tasks/<name>/` → `.trellis/research/<name>/`, and archived ones go to `.trellis/research/archive/YYYY-MM/<name>/`. Date prefixes and directory names are kept, so the relative links the notes carry between each other keep resolving.
+- Each task directory becomes one research topic: `.trellis/tasks/<name>/` → `.trellis/research/<name>/`, and archived ones go to `.trellis/research/archive/YYYY-MM/<name>/`. Date prefixes and directory names are kept, preserving relative links within the retained task content. Links to departing files such as `../prd.md` are not repaired.
 - Each topic keeps its `research/` subtree and `design.md` exactly where they are. Everything else at the task root — `task.json`, `prd.md`, `implement*`, `check.jsonl`, `drafts/`, and any file migrate does not recognise — leaves the topic. You choose once, up front: archive it to `.trellis/research/<topic>/legacy/`, or delete it. Archive is the default, `--yes` included.
-- Repo-relative `.trellis/tasks/…` mentions inside the notes that stay are repointed at their new locations. Pointers at the workflow files that leave, and at other repositories, are left alone and counted.
+- Repo-relative `.trellis/tasks/…` mentions inside the notes that stay are repointed by their full source paths. Stale pre-archive paths are repaired only when the task name is unique. Ambiguous or unsupported references are left unchanged and counted; references to other repositories are not rewritten.
 - The `current_task` pointer in `.trellis/.runtime/sessions/*.json` is cleared, and `.trellis/tasks/` is removed once it is empty.
 
-If a topic directory of the same name already exists under `.trellis/research/`, migrate stops before touching anything and lists the collisions. It never merges into a note you wrote.
+If a topic destination already exists under `.trellis/research/`, or a task root already contains `legacy`, migrate stops before touching anything and lists the collisions. Move or rename those entries before retrying. Migration directories must be real directories, not symlinks. Unprocessed entries, including dangling symlinks, keep `tasks/` from being removed and are reported. Note symlinks are never followed for rewriting.
 
 **There is no backup.** Deleting is permanent, so commit or copy anything you might want back first.
 
@@ -108,7 +119,7 @@ If a topic directory of the same name already exists under `.trellis/research/`,
 
 - `.trellis/spec/`, `research/`, and `workspace/` are left alone. Your spec content survives, including any `backend/`/`frontend/` docs Trellis wrote — those still show up in the SessionStart spec list.
 - `.trellis/config.yaml` and `.trellis/scripts/` get overwritten with mini-trellis's versions. Re-apply any local edits.
-- `.trellis/tasks/` is gone: the task directories are topics under `.trellis/research/` now, listed by SessionStart like any other note.
+- Migrated task directories are topics under `.trellis/research/` now; hot topics are listed by SessionStart. `.trellis/tasks/` is removed only if no unprocessed entries remain.
 - `.trellis/.version` is removed and mini-trellis never writes one, so the Trellis CLI stays quiet in that project.
 
 ## Record a session
