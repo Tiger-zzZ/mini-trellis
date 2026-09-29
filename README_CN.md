@@ -13,11 +13,20 @@
 <a href="https://github.com/Tiger-zzZ/mini-trellis/pulls"><img src="https://img.shields.io/github/issues-pr/Tiger-zzZ/mini-trellis?style=flat-square" alt="GitHub pull requests" /></a>
 </p>
 
+## 快速开始
+
+```bash
+npm install -g mini-trellis
+mini-trellis init -u your-name --claude   # 还可叠加：--codex --opencode --pi
+```
+
+装好之后：在 agent 里 `/mini-trellis:remember` 记一笔 session，`mini-trellis mem search "关键词"` 搜历史对话。
+
 ## 为什么有这个项目
 
 Trellis 给了我四样真正离不开的东西：spec 沉淀、research 笔记、session journal、跨 session 的对话检索。但它同时也是一整套四阶段任务流：`task.py`、PRD 门、子代理验收，还有每一轮都在提醒模型「你现在在第几阶段」的面包屑。用了一阵，我发现自己一直在绕开任务流，每天用的只有记忆层。
 
-模型也在变。GPT 6 / Fable 5 这一代的 agent 不需要一份脚本告诉它什么时候该规划、什么时候该验收。它仍然做不到的是记住上周我们定了什么，以及找回那段已经解过这个 bug 的对话。这个 fork 留下的就是这个缺口。
+模型也在变。现在的 agent 自己已经会规划、会验收，不需要一份脚本在旁边提醒它走到哪一步了。它仍然做不到的是记住上周我们定了什么，以及找回那段已经解过这个 bug 的对话。这个 fork 留下的就是这个缺口。
 
 所以 mini-trellis 把任务流拆掉，留下记忆层。取名 mini，少就是目的。
 
@@ -48,16 +57,22 @@ Trellis 是一套工程框架：它规定一个任务如何从 PRD 走到实现�
 
 | 路径 | 作用 |
 |------|------|
-| `.trellis/spec/` | 长期约定，短 markdown，先读 `index.md` |
-| `.trellis/research/<topic>.md` | 调研 inbox；过期的手动 `git mv` 进 `research/archive/` |
-| `.trellis/workspace/<你>/journal-*.md` | session 笔记，remember 自动 commit |
-| `mini-trellis mem search <kw>` | 检索 Claude / Codex / OpenCode / Pi 的历史对话 |
+| `.trellis/spec/` | 长期约定，短 markdown，先读 `index.md`；下周仍然成立的才放这里 |
+| `.trellis/research/<topic>.md` | 调研 inbox：过程和证据都留下，以后可能复用；过期的手动 `git mv` 进 `research/archive/` |
+| `.trellis/workspace/<你>/journal-*.md` | session 笔记：做了什么、决定了什么、下一步是什么；remember 追加，可配置自动 commit |
+| `mini-trellis mem search <kw>` | 前三样是写给未来的，这一个是查过去的：检索 Claude / Codex / OpenCode / Pi 的历史对话 |
 
 ## 一个 session 是怎么走的
 
 1. **SessionStart** 注入几行：你的 journal 路径、spec index 路径、热的 research 主题。只有路径，不注入正文，也没有任何任务或阶段信息。
 2. **session 中**，模型按需读 spec 或 research；碰到「这个是不是之前讨论过」这类问题时，去调 `mini-trellis mem`。
 3. **结束时或 compact 之后**，让模型执行 `remember` 往 journal 追加一条，是否自动提交遵循 `session_auto_commit` 配置。可复用的调研写进 `.trellis/research/<topic>.md`，长期边界用 `mini-trellis-update-spec` 沉淀进 spec。Hook 只提供上下文和提醒，关闭会话不会自动保存笔记。
+
+## 什么自动，什么不自动
+
+自动的只有三件：SessionStart 的定位注入、research 主题列表、`mem` 对本地历史对话的检索。
+
+写 journal、沉淀 spec、留 research 笔记都要主动做——有 hook 不代表它会替你记东西，记忆里有什么，取决于你让 agent 记了什么。
 
 ## 安装
 
@@ -79,6 +94,8 @@ journal 脚本和 SessionStart hook 需要 Python ≥ 3.9。Codex 的 SessionSta
 | `mini-trellis platforms` | 查看当前项目配置了哪些宿主 |
 
 没有会改写项目文件的 `update`。
+
+当前版本 0.1.1。不同宿主版本的 hook 行为可能有差异，欢迎反馈。
 
 ### 升级已有 mini-trellis 项目
 

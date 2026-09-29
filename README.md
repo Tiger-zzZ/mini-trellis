@@ -13,11 +13,20 @@ English | [简体中文](./README_CN.md)
 <a href="https://github.com/Tiger-zzZ/mini-trellis/pulls"><img src="https://img.shields.io/github/issues-pr/Tiger-zzZ/mini-trellis?style=flat-square" alt="GitHub pull requests" /></a>
 </p>
 
+## Quick start
+
+```bash
+npm install -g mini-trellis
+mini-trellis init -u your-name --claude   # add as needed: --codex --opencode --pi
+```
+
+Then `/mini-trellis:remember` records a session from inside the agent, and `mini-trellis mem search "keywords"` searches past conversations.
+
 ## Why this fork exists
 
 Trellis gave me four things I rely on every day: spec, research notes, session journals, and a way to search past AI conversations. It also shipped a full four-phase task workflow: `task.py`, PRD gates, sub-agent review, a per-turn breadcrumb telling the model which phase it is in. Over time I noticed I was routing around the workflow and only ever using the memory parts.
 
-Models have moved on too. A GPT 6 / Fable 5 class agent does not need a script telling it when to plan and when to verify. What it still cannot do is remember what we decided last week, or find the conversation where we already solved this bug. That gap is what this fork keeps.
+Models have moved on too. A current agent plans and verifies on its own; it does not need a script reminding it which step it is on. What it still cannot do is remember what we decided last week, or find the conversation where we already solved this bug. That gap is what this fork keeps.
 
 So mini-trellis cuts the workflow and keeps the memory. The "mini" is the point.
 
@@ -48,16 +57,22 @@ If you want an opinionated workflow with guard rails, use Trellis. If you want y
 
 | Path | What it is |
 |------|------------|
-| `.trellis/spec/` | Durable contracts, short markdown; read `index.md` first |
-| `.trellis/research/<topic>.md` | Research inbox; `git mv` stale notes into `research/archive/` |
-| `.trellis/workspace/<you>/journal-*.md` | Session notes, auto-committed by remember |
-| `mini-trellis mem search <kw>` | Past chat from Claude / Codex / OpenCode / Pi |
+| `.trellis/spec/` | Durable contracts, short markdown; read `index.md` first. Only what should still hold next week belongs here |
+| `.trellis/research/<topic>.md` | Research inbox: process and evidence worth reusing later; `git mv` stale notes into `research/archive/` |
+| `.trellis/workspace/<you>/journal-*.md` | Session notes: what you did, what you decided, what's next; appended by remember, auto-commit configurable |
+| `mini-trellis mem search <kw>` | The first three are written for the future; this one reads the past — chat history from Claude / Codex / OpenCode / Pi |
 
 ## How a session goes
 
 1. **SessionStart** injects a few lines: your journal path, the spec index paths, the hot research topics. Paths only, never bodies. Nothing about tasks or phases.
 2. **During the session** the model reads spec or research on demand, and reaches for `mini-trellis mem` when a question sounds like "didn't we already discuss this".
 3. **At the end, or after a compact,** ask the agent to run `remember` to append a journal entry (auto-commit follows `session_auto_commit`). Reusable research can go into `.trellis/research/<topic>.md`; lasting boundaries go into spec via `mini-trellis-update-spec`. The hook supplies context and reminders; closing a session does not automatically save notes.
+
+## What's automatic and what isn't
+
+Automatic, three things: the SessionStart orientation, the research topic listing, and `mem` searching your local chat history.
+
+Writing the journal, promoting into spec, and keeping research notes are all deliberate acts — having hooks does not mean it remembers for you. Memory holds what you asked the agent to put there.
 
 ## Install
 
@@ -79,6 +94,8 @@ Python ≥ 3.9 is required for the journal scripts and SessionStart hooks. Codex
 | `mini-trellis platforms` | Show which hosts are configured here |
 
 There is no `update` command that rewrites project files.
+
+Current release is 0.1.1. Hook behavior can vary across host versions; reports welcome.
 
 ### Upgrading an existing mini-trellis project
 
