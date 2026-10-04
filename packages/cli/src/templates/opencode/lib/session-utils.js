@@ -7,15 +7,10 @@ import { debugLog } from "./trellis-context.js"
 
 const PYTHON_CMD = platform() === "win32" ? "python" : "python3"
 
+const MAX_CONTEXT_CHARS = 4000
+
 const FIRST_REPLY_NOTICE = `<first-reply-notice>
-On the first visible assistant reply in this session, briefly acknowledge that mini-trellis SessionStart context loaded.
-Choose the acknowledgment language in this order:
-1. Use the language of the user's current request (the user message that triggered this reply).
-2. If that request has no clear natural language, use an explicitly established project communication language.
-3. If neither provides a language, output the language-neutral fallback exactly: \`mini-trellis SessionStart ✓\`.
-Continue directly with the user's request after the acknowledgment.
-The acknowledgment must not alter the language used for the remainder of the response.
-This notice is one-shot: do not repeat it after the first visible assistant reply in this session.
+On the first visible assistant reply, briefly acknowledge that mini-trellis SessionStart context loaded, then continue with the user's request. Use the user's language; otherwise say \`mini-trellis SessionStart ✓\`. This is one-shot and must not be repeated.
 </first-reply-notice>`
 
 function loadTrellisConfig(directory, contextKey = null) {
@@ -298,6 +293,7 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
     "Research lives in `.trellis/research/<topic>.md`, or in " +
     "`.trellis/research/<topic>/` when a topic brings evidence files with it; " +
     "promote durable boundaries into `.trellis/spec/` as short markdown.\n"
+    + "Record confirmed decisions, useful research findings, and session/compact endings. Do not record every turn or create a git commit unless the user asks.\n"
   )
 
   if (paths.length > 0) {
@@ -322,7 +318,11 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
 Context loaded. Use journal, spec, research, and \`mini-trellis mem\` on demand. Remember at session end or after compact.
 </ready>`)
 
-  return parts.join("\n\n")
+  const context = parts.join("\n\n")
+  if (context.length <= MAX_CONTEXT_CHARS) return context
+  const tail = context.slice(-300)
+  return context.slice(0, MAX_CONTEXT_CHARS - tail.length - 80) +
+    "\n[mini-trellis context truncated; read files on demand]\n" + tail
 }
 
 function getTrellisMetadata(metadata) {

@@ -51,6 +51,15 @@ export default async ({ directory }) => {
           return
         }
 
+        if (messages?.some(message =>
+          message?.parts?.some(part =>
+            part?.synthetic === true &&
+            typeof part.text === "string" &&
+            part.text.includes("<session-context>")))) {
+          debugLog("session", "Skipping - SessionStart context already injected")
+          return
+        }
+
         let context = buildSessionContext(ctx, platformInput)
         if (transcriptHasAssistantMessage(messages)) {
           context = stripFirstReplyNotice(context)

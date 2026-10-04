@@ -5,6 +5,7 @@ import { migrate } from "../commands/migrate.js";
 import { upgrade } from "../commands/upgrade.js";
 import { uninstall } from "../commands/uninstall.js";
 import { runMem } from "../commands/mem.js";
+import { runDoctor } from "../commands/doctor.js";
 import { PACKAGE_NAME, VERSION } from "../constants/version.js";
 import { getConfiguredPlatforms } from "../configurators/index.js";
 import { AI_TOOLS } from "../types/ai-tools.js";
@@ -155,6 +156,15 @@ program
       }
       process.exit(1);
     }
+  });
+
+program
+  .command("doctor")
+  .description("Check mini-trellis files, managed instructions, and host hooks")
+  .option("--json", "Output machine-readable JSON")
+  .action((options: Record<string, unknown>) => {
+    const report = runDoctor({ json: options.json as boolean });
+    if (!report.ok) process.exitCode = 1;
   });
 
 program

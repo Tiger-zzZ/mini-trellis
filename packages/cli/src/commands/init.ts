@@ -21,11 +21,8 @@ import {
 import { AI_TOOLS, type CliFlag } from "../types/ai-tools.js";
 import { DIR_NAMES, FILE_NAMES, PATHS } from "../constants/paths.js";
 import { agentsMdContent } from "../templates/markdown/index.js";
-import {
-  setWriteMode,
-  writeFile,
-  type WriteMode,
-} from "../utils/file-writer.js";
+import { setWriteMode, type WriteMode } from "../utils/file-writer.js";
+import { mergeManagedBlockFile } from "../utils/managed-merge.js";
 import {
   isCwdHomedir,
   homedirGuardMessage,
@@ -241,10 +238,14 @@ function askInput(prompt: string): Promise<string> {
 
 async function createRootFiles(cwd: string): Promise<void> {
   const agentsPath = path.join(cwd, FILE_NAMES.AGENTS);
-  const agentsWritten = await writeFile(agentsPath, agentsMdContent);
-  if (agentsWritten) {
-    console.log(chalk.blue("📄 Created AGENTS.md"));
-  }
+  const changed = mergeManagedBlockFile(
+    agentsPath,
+    agentsMdContent,
+    "<!-- TRELLIS:START -->",
+    "<!-- TRELLIS:END -->",
+  );
+  if (changed)
+    console.log(chalk.blue("📄 Updated mini-trellis block in AGENTS.md"));
 }
 
 function initDeveloper(cwd: string, pythonCmd: string, name: string): void {
@@ -353,7 +354,13 @@ async function handleReinit(
     for (const tool of platformsToAdd) {
       const platformId = resolveCliFlag(tool as CliFlag);
       if (!platformId) continue;
-      if (configuredPlatforms.has(platformId)) {
+      // An explicit platform flag means "refresh this host". The
+      // configurator merges managed JSON and leaves user files intact, so it
+      // is safe to repair an existing installation without a full re-init.
+      if (
+        configuredPlatforms.has(platformId) &&
+        !explicitTools.includes(tool as CliFlag)
+      ) {
         console.log(
           chalk.gray(
             `  ○ ${AI_TOOLS[platformId].name} already configured, skipping`,
@@ -379,6 +386,9 @@ async function handleReinit(
     console.log(chalk.green(`✓ Developer "${devName}" initialized`));
   }
 
+  // Keep the shared instruction block in sync on an incremental init too.
+  // mergeManagedBlockFile preserves everything outside the markers.
+  await createRootFiles(cwd);
   return true;
 }
 

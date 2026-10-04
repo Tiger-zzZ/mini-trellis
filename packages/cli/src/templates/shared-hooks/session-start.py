@@ -67,15 +67,10 @@ def _normalize_windows_shell_path(path_str: str) -> str:
     return path_str
 
 
+MAX_CONTEXT_CHARS = 4000
+
 FIRST_REPLY_NOTICE = """<first-reply-notice>
-On the first visible assistant reply in this session, briefly acknowledge that mini-trellis SessionStart context loaded.
-Choose the acknowledgment language in this order:
-1. Use the language of the user's current request (the user message that triggered this reply).
-2. If that request has no clear natural language, use an explicitly established project communication language.
-3. If neither provides a language, output the language-neutral fallback exactly: `mini-trellis SessionStart ✓`.
-Continue directly with the user's request after the acknowledgment.
-The acknowledgment must not alter the language used for the remainder of the response.
-This notice is one-shot: do not repeat it after the first visible assistant reply in this session.
+On the first visible assistant reply, briefly acknowledge that mini-trellis SessionStart context loaded, then continue with the user's request. Use the user's language; otherwise say `mini-trellis SessionStart ✓`. This is one-shot and must not be repeated.
 </first-reply-notice>"""
 
 
@@ -623,6 +618,9 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
         "Research lives in `.trellis/research/<topic>.md`, or in "
         "`.trellis/research/<topic>/` when a topic brings evidence files with it; "
         "promote durable boundaries into `.trellis/spec/` as short markdown.\n\n"
+        "Record when a decision is confirmed, a research finding is worth keeping, "
+        "or the session/compact is ending. Do not record every turn, and do not "
+        "create a git commit unless the user explicitly asks.\n\n"
     )
 
     if spec_index_paths:
@@ -650,6 +648,13 @@ Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. R
 </ready>""")
 
     context_text = output.getvalue()
+    if len(context_text) > MAX_CONTEXT_CHARS:
+        tail = context_text[-300:]
+        context_text = (
+            context_text[: MAX_CONTEXT_CHARS - len(tail) - 80]
+            + "\n[mini-trellis context truncated; read files on demand]\n"
+            + tail
+        )
 
     # Kiro (CLI trellis agent agentSpawn) adds a hook's stdout directly to the
     # conversation context — no JSON envelope. Emit the bare overview text.

@@ -230,4 +230,26 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
       );
     expect(fs.readFileSync(journalPath, "utf-8")).toBe(journal);
   });
+
+  it("merges existing instructions and host JSON without dropping user settings", async () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "AGENTS.md"),
+      "# Project rules\n\n<!-- TRELLIS:START -->\nold managed block\n<!-- TRELLIS:END -->\n",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, ".claude/settings.json"),
+      JSON.stringify({ permissions: { allow: ["Read"] } }, null, 2) + "\n",
+    );
+
+    await init({ yes: true, claude: true, user: "tester" });
+
+    const agents = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
+    expect(agents).toContain("# Project rules");
+    expect(agents).toContain("/mini-trellis:remember");
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(tmpDir, ".claude/settings.json"), "utf-8"),
+    ) as { permissions: { allow: string[] }; hooks?: unknown };
+    expect(settings.permissions.allow).toEqual(["Read"]);
+    expect(settings.hooks).toBeDefined();
+  });
 });

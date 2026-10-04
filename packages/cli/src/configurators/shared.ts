@@ -290,6 +290,7 @@ export function wrapWithCommandFrontmatter(
 
 import path from "node:path";
 import { ensureDir, writeFile } from "../utils/file-writer.js";
+import { mergeJsonFile } from "../utils/managed-merge.js";
 import {
   type CommonTemplate,
   getBundledSkillTemplates,
@@ -495,9 +496,21 @@ export async function writeTemplateMap(
   cwd: string,
   files: Map<string, string>,
 ): Promise<void> {
+  const mergeJsonPaths = new Set([
+    ".claude/settings.json",
+    ".codex/hooks.json",
+    ".pi/settings.json",
+  ]);
   for (const [relPath, content] of renderTemplateMap(files)) {
     const absPath = path.join(cwd, ...relPath.split("/"));
     ensureDir(path.dirname(absPath));
+    if (mergeJsonPaths.has(relPath)) {
+      const result = mergeJsonFile(absPath, content);
+      if (result === "invalid") {
+        console.warn(`  ⚠ Skipped ${relPath}: existing file is not valid JSON`);
+      }
+      continue;
+    }
     await writeFile(absPath, content);
   }
 }

@@ -103,6 +103,7 @@ function activeJournal(root: string): string | null {
 }
 
 function buildStartupContext(root: string): string {
+  const MAX_CONTEXT_CHARS = 4000;
   const spec = collectSpecIndexPaths(root);
   const research = collectResearchTopics(root);
   const journal = activeJournal(root);
@@ -124,6 +125,7 @@ function buildStartupContext(root: string): string {
   lines.push(
     "Memory: journal is git-durable session notes (`/mini-trellis-remember` or `python3 ./.trellis/scripts/add_session.py`). Cross-session dialogue is `mini-trellis mem list|search|context|extract`.",
     "Research lives in `.trellis/research/<topic>.md`, or in `.trellis/research/<topic>/` when a topic brings evidence files with it; promote durable boundaries into `.trellis/spec/` as short markdown.",
+    "Record confirmed decisions, useful research findings, and session/compact endings. Do not record every turn or create a git commit unless the user asks.",
   );
   if (spec.length) {
     lines.push("", "## Spec indexes (read on demand)");
@@ -140,7 +142,14 @@ function buildStartupContext(root: string): string {
     "Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. Remember at session end or after compact.",
     "</ready>",
   );
-  return lines.join("\n");
+  const context = lines.join("\n");
+  if (context.length <= MAX_CONTEXT_CHARS) return context;
+  const tail = context.slice(-300);
+  return (
+    context.slice(0, MAX_CONTEXT_CHARS - tail.length - 80) +
+    "\n[mini-trellis context truncated; read files on demand]\n" +
+    tail
+  );
 }
 
 export default function trellisExtension(pi: {
