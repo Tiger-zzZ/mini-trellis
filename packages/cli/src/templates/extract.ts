@@ -95,6 +95,33 @@ export function readScript(relativePath: string): string {
   return readTrellisFile(`scripts/${relativePath}`);
 }
 
+/** Collect the workflow scripts used by `.trellis/` for narrow refreshes. */
+export function collectTrellisScriptTemplates(): Map<string, string> {
+  const files = new Map<string, string>();
+  const source = path.join(getTrellisTemplatePath(), "scripts");
+
+  function walk(directory: string): void {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        walk(absolute);
+        continue;
+      }
+      const relative = path
+        .relative(source, absolute)
+        .split(path.sep)
+        .join("/");
+      files.set(
+        `.trellis/scripts/${relative}`,
+        replacePythonCommandLiterals(fs.readFileSync(absolute, "utf8")),
+      );
+    }
+  }
+
+  walk(source);
+  return files;
+}
+
 export function readMarkdown(relativePath: string): string {
   return readTrellisFile(relativePath);
 }

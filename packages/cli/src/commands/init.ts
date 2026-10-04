@@ -11,6 +11,7 @@ import {
   getInitToolChoices,
   resolveCliFlag,
   configurePlatform,
+  collectPlatformTemplates,
   getConfiguredPlatforms,
   getPlatformsWithPythonHooks,
 } from "../configurators/index.js";
@@ -21,8 +22,10 @@ import {
 import { AI_TOOLS, type CliFlag } from "../types/ai-tools.js";
 import { DIR_NAMES, FILE_NAMES, PATHS } from "../constants/paths.js";
 import { agentsMdContent } from "../templates/markdown/index.js";
+import { collectTrellisScriptTemplates } from "../templates/extract.js";
 import { setWriteMode, type WriteMode } from "../utils/file-writer.js";
 import { mergeManagedBlockFile } from "../utils/managed-merge.js";
+import { updateManifestForTemplates } from "../utils/managed-manifest.js";
 import {
   isCwdHomedir,
   homedirGuardMessage,
@@ -265,6 +268,20 @@ function initDeveloper(cwd: string, pythonCmd: string, name: string): void {
   }
 }
 
+function updateManagedManifest(cwd: string, tools: string[]): void {
+  const managedTemplates = collectTrellisScriptTemplates();
+  for (const tool of tools) {
+    const platformId = resolveCliFlag(tool);
+    if (!platformId) continue;
+    const templates = collectPlatformTemplates(platformId);
+    if (!templates) continue;
+    for (const [relative, content] of templates) {
+      managedTemplates.set(relative, content);
+    }
+  }
+  updateManifestForTemplates(cwd, managedTemplates);
+}
+
 async function handleReinit(
   cwd: string,
   options: InitOptions,
@@ -388,6 +405,7 @@ async function handleReinit(
 
   // Keep the shared instruction block in sync on an incremental init too.
   // mergeManagedBlockFile preserves everything outside the markers.
+  updateManagedManifest(cwd, platformsToAdd);
   await createRootFiles(cwd);
   return true;
 }
@@ -543,6 +561,8 @@ export async function init(options: InitOptions): Promise<void> {
       await configurePlatform(platformId, cwd);
     }
   }
+
+  updateManagedManifest(cwd, tools);
 
   const pythonPlatforms = getPlatformsWithPythonHooks();
   const hasSelectedPythonPlatform = pythonPlatforms.some((id) =>

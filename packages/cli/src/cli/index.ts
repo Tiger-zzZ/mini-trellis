@@ -6,6 +6,7 @@ import { upgrade } from "../commands/upgrade.js";
 import { uninstall } from "../commands/uninstall.js";
 import { runMem } from "../commands/mem.js";
 import { runDoctor } from "../commands/doctor.js";
+import { runRefresh } from "../commands/refresh.js";
 import { PACKAGE_NAME, VERSION } from "../constants/version.js";
 import { getConfiguredPlatforms } from "../configurators/index.js";
 import { AI_TOOLS } from "../types/ai-tools.js";
@@ -164,6 +165,27 @@ program
   .option("--json", "Output machine-readable JSON")
   .action((options: Record<string, unknown>) => {
     const report = runDoctor({ json: options.json as boolean });
+    if (!report.ok) process.exitCode = 1;
+  });
+
+program
+  .command("refresh")
+  .description("Preview or safely refresh installed mini-trellis assets")
+  .option("--claude", "Refresh Claude Code assets")
+  .option("--codex", "Refresh Codex assets")
+  .option("--opencode", "Refresh OpenCode assets")
+  .option("--pi", "Refresh Pi Agent assets")
+  .option("--dry-run", "Preview changes without writing files")
+  .option("--json", "Output machine-readable JSON")
+  .action((options: Record<string, unknown>) => {
+    const report = runRefresh({
+      claude: options.claude as boolean,
+      codex: options.codex as boolean,
+      opencode: options.opencode as boolean,
+      pi: options.pi as boolean,
+      dryRun: options.dryRun as boolean,
+      json: options.json as boolean,
+    });
     if (!report.ok) process.exitCode = 1;
   });
 

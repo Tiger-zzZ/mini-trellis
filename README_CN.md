@@ -90,23 +90,25 @@ journal 脚本和 SessionStart hook 需要 Python ≥ 3.9。Codex 的 SessionSta
 | `mini-trellis mem list\|search\|context\|extract\|projects` | 检索四个宿主的本地会话日志，不上传任何内容 |
 | `mini-trellis migrate` | 转换一个 Trellis 项目（见下文） |
 | `mini-trellis upgrade` | 通过 npm 升级全局 CLI |
+| `mini-trellis refresh --dry-run` | 预览已安装脚本和宿主资产的安全刷新 |
+| `mini-trellis doctor` | 检查安装、配置和宿主触发入口 |
 | `mini-trellis uninstall` | 从项目里移除宿主文件和 `.trellis/` |
 | `mini-trellis platforms` | 查看当前项目配置了哪些宿主 |
 
-没有会改写项目文件的 `update`。
+`refresh` 只处理 mini-trellis 认领且未被本地修改的资产；冲突会保留并报告。`refresh --dry-run` 不写文件。
 
-当前版本 0.1.1。不同宿主版本的 hook 行为可能有差异，欢迎反馈。
+当前版本 0.2.0。不同宿主版本的 hook 交付能力可能有差异，可用 `mini-trellis doctor` 检查并在真实会话中验证。
 
 ### 升级已有 mini-trellis 项目
 
-`mini-trellis upgrade` 只升级全局 CLI。要刷新 0.1.0 项目已经安装的脚本和宿主模板：
+`mini-trellis upgrade` 只升级全局 CLI。要刷新已有项目已经安装的脚本和宿主模板：
 
 1. 先提交或备份 `.trellis/`、`AGENTS.md` 和已配置的宿主目录，包括被 gitignore 忽略的文件。
-2. 在交互终端运行**不带参数**的 `mini-trellis init`，选择 **Full re-initialize**，再选择原来使用的宿主。
-3. 对需要刷新的 scripts、hooks 和 mini-trellis 命令/技能选择 **Overwrite**；保留自定义 config、workspace 索引、spec guides 和宿主 settings，将必要的模板变化手动合入自定义文件。不要选择 **Overwrite all** 或直接用 `--force`，它们也会重置这些文件。
-4. 检查 diff 和开发者身份，重新开启宿主会话加载新上下文。
+2. 先运行 `mini-trellis refresh --dry-run` 查看清单和冲突。
+3. 确认后运行 `mini-trellis refresh`；它只更新受管理且未被本地修改的文件，保留自定义 config、workspace、spec、research 和 journal。
+4. 运行 `mini-trellis doctor`，再重新开启宿主会话验证上下文交付。
 
-`--skip-existing` 不会刷新已有模板。`migrate` 用于 Trellis 项目或残留的 `.trellis/tasks/`，不是通用模板更新命令。
+`migrate` 用于 Trellis 项目或残留的 `.trellis/tasks/`，不是通用模板更新命令。
 
 ## 已经在用 Trellis？
 

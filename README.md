@@ -90,23 +90,25 @@ Python ≥ 3.9 is required for the journal scripts and SessionStart hooks. Codex
 | `mini-trellis mem list\|search\|context\|extract\|projects` | Search local session logs of the four hosts; nothing is uploaded |
 | `mini-trellis migrate` | Convert a Trellis project (see below) |
 | `mini-trellis upgrade` | Upgrade the global CLI via npm |
+| `mini-trellis refresh --dry-run` | Preview a safe refresh of installed scripts and host assets |
+| `mini-trellis doctor` | Check installation, configuration, and host trigger points |
 | `mini-trellis uninstall` | Remove the host files and `.trellis/` from a project |
 | `mini-trellis platforms` | Show which hosts are configured here |
 
-There is no `update` command that rewrites project files.
+`refresh` only updates mini-trellis assets that are claimed and unchanged locally; conflicts are kept and reported. `refresh --dry-run` never writes files.
 
-Current release is 0.1.1. Hook behavior can vary across host versions; reports welcome.
+Current release is 0.2.0. Host delivery can vary by host version; use `mini-trellis doctor` and verify one real session.
 
 ### Upgrading an existing mini-trellis project
 
-`mini-trellis upgrade` updates the global CLI only. To refresh a 0.1.0 project's installed scripts and host templates:
+`mini-trellis upgrade` updates the global CLI only. To refresh an existing project's installed scripts and host templates:
 
 1. Commit or back up `.trellis/`, `AGENTS.md`, and the configured host directories, including ignored files.
-2. Run `mini-trellis init` in an interactive terminal **without flags**, choose **Full re-initialize**, then select your existing hosts.
-3. Choose **Overwrite** for the scripts, hooks, and mini-trellis commands/skills you want to refresh. Keep your custom config, workspace index, spec guides, and host settings; merge any necessary template changes into customized files. Avoid **Overwrite all** and `--force`, which also reset those files.
-4. Review the diff and developer identity, then open a new host session to load the refreshed context.
+2. Run `mini-trellis refresh --dry-run` to review the planned files and conflicts.
+3. Run `mini-trellis refresh` after review; it only updates claimed, unchanged assets and keeps custom config, workspace, spec, research, and journal files.
+4. Run `mini-trellis doctor`, then open a new host session to verify context delivery.
 
-`--skip-existing` does not refresh existing templates. Use `migrate` for Trellis projects or leftover `.trellis/tasks/`; it is not a general template updater.
+Use `migrate` for Trellis projects or leftover `.trellis/tasks/`; it is not a general template updater.
 
 ## Coming from Trellis?
 

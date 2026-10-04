@@ -4,7 +4,7 @@ import chalk from "chalk";
 import { AI_TOOLS, type AITool } from "../types/ai-tools.js";
 import { getConfiguredPlatforms } from "../configurators/index.js";
 
-export type DoctorLevel = "ok" | "warn" | "error";
+export type DoctorLevel = "ok" | "warn" | "error" | "unknown";
 
 export interface DoctorCheck {
   level: DoctorLevel;
@@ -23,6 +23,13 @@ const PLATFORM_CHECKS: Record<AITool, string[]> = {
   codex: [".codex/hooks/session-start.py", ".codex/hooks.json"],
   opencode: [".opencode/plugins/session-start.js"],
   pi: [".pi/extensions/mini-trellis/index.ts", ".pi/settings.json"],
+};
+
+const TRIGGER_MARKERS: Record<AITool, [string, string]> = {
+  "claude-code": [".claude/hooks/session-start.py", "additional_context"],
+  codex: [".codex/hooks/session-start.py", "additional_context"],
+  opencode: [".opencode/plugins/session-start.js", "messages.transform"],
+  pi: [".pi/extensions/mini-trellis/index.ts", "before_agent_start"],
 };
 
 export function buildDoctorReport(cwd: string): DoctorReport {
@@ -67,6 +74,35 @@ export function buildDoctorReport(cwd: string): DoctorReport {
         ? `${AI_TOOLS[platform].name} hook and config are present`
         : `${AI_TOOLS[platform].name} is partially configured (${present.length}/${files.length} files)`,
     });
+    if (complete) {
+      const [triggerPath, marker] = TRIGGER_MARKERS[platform];
+      let triggerLevel: DoctorLevel = "unknown";
+      let triggerDetail = "host delivery is unknown until a real session runs";
+      try {
+        const content = fs.readFileSync(path.join(cwd, triggerPath), "utf8");
+        if (content.includes(marker)) {
+          triggerLevel = "ok";
+          triggerDetail = `trigger asset contains ${marker}`;
+        } else {
+          triggerLevel = "warn";
+          triggerDetail = `trigger asset does not contain ${marker}`;
+        }
+      } catch {
+        triggerLevel = "warn";
+        triggerDetail = "trigger asset could not be read";
+      }
+      checks.push({
+        level: triggerLevel,
+        name: `${platform}-trigger`,
+        detail: triggerDetail,
+      });
+      checks.push({
+        level: "unknown",
+        name: `${platform}-runtime`,
+        detail:
+          "run one real host session to confirm the hook reaches the model",
+      });
+    }
   }
 
   if (platforms.length === 0) {
