@@ -36,7 +36,7 @@ Credit where due: the heavy lifting is all Trellis. Standing on the shoulders of
 
 Trellis is an engineering framework: it decides how a task moves from PRD to implementation to review, and it drives that with hooks on every turn, sub-agents, and a task state machine. mini-trellis is only the memory underneath that framework. It never creates a task, never tells the model what phase it is in, and never dispatches a sub-agent. It injects a short orientation at session start, lets the model read spec and research on demand, and gives it two verbs: `remember` to write the journal, and `mem` to search past dialogue. Everything Trellis does *around* memory is left to the model and to you.
 
-| | Trellis 0.6.17 | mini-trellis 0.1.1 |
+| | Trellis 0.6.17 | mini-trellis 0.2.0 |
 |---|---|---|
 | Purpose | Engineering framework: spec + task workflow + memory | Memory layer only |
 | Hosts | 22 AI coding tools | Claude Code, Codex, OpenCode, Pi |

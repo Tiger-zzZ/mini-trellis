@@ -2,7 +2,7 @@
 
 ## v0.1.1 — 2026-10-04
 
-`v0.1.1` is the maintenance baseline before the v0.2 development line.
+`v0.1.1` is the maintenance baseline immediately before the v0.2 line.
 
 - Keeps the product focused on spec, research, journal, and cross-session memory.
 - Supports Claude Code, Codex, OpenCode, and Pi Agent memory hooks.

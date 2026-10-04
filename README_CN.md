@@ -36,7 +36,7 @@ Trellis 给了我四样真正离不开的东西：spec 沉淀、research 笔记�
 
 Trellis 是一套工程框架：它规定一个任务如何从 PRD 走到实现再到验收，并用每轮 hook、子代理和任务状态机推着模型走完这条路。mini-trellis 只是这套框架底下的记忆。它不建任务、不告诉模型现在在哪个阶段、不派发子代理。它在 session 开始时注入几行定位信息，让模型按需去读 spec 和 research，然后只给两个动词：`remember` 写 journal，`mem` 搜历史对话。Trellis 围绕记忆做的那些事，都交还给模型和你自己。
 
-| | Trellis 0.6.17 | mini-trellis 0.1.1 |
+| | Trellis 0.6.17 | mini-trellis 0.2.0 |
 |---|---|---|
 | 定位 | 工程框架：spec + 任务流 + 记忆 | 只做记忆层 |
 | 宿主 | 22 个 AI 编码工具 | Claude Code、Codex、OpenCode、Pi |
