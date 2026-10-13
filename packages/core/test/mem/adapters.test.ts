@@ -62,7 +62,7 @@ vi.mock("node:fs", async () => {
   };
 });
 
-const { claudeListSessions, claudeExtractDialogue, claudeSearch } =
+const { claudeListSessions, claudeExtractDialogue, claudeSearch, collectClaudeTurnsAndEvents } =
   await import("../../src/mem/adapters/claude.js");
 const { claudeProjectDirFromCwd } =
   await import("../../src/mem/internal/paths.js");
@@ -373,6 +373,42 @@ describe("claudeListSessions / claudeExtractDialogue", () => {
     expect(turns).toHaveLength(2);
     expect(turns[0]).toEqual({ role: "user", text: "real question here" });
     expect(turns[1]).toEqual({ role: "assistant", text: "real answer" });
+  });
+
+  it("keeps a user's text-block rejection without treating tool results as speech", () => {
+    writeJsonl(sessionFile, [
+      {
+        type: "assistant",
+        cwd: projectCwd,
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "Enable sampling." }],
+        },
+      },
+      {
+        type: "user",
+        message: {
+          role: "user",
+          content: [
+            { type: "tool_result", content: "untrusted tool output" },
+            {
+              type: "text",
+              text: "No. Keep sampling off.<system-reminder>injected</system-reminder>",
+            },
+          ],
+        },
+      },
+    ]);
+    const session = claudeListSessions(mkFilter()).find(
+      (x) => x.id === sessionId,
+    );
+    if (!session) throw new Error("missing fixture");
+    const expected = [
+      { role: "assistant", text: "Enable sampling." },
+      { role: "user", text: "No. Keep sampling off." },
+    ];
+    expect(claudeExtractDialogue(session)).toEqual(expected);
+    expect(collectClaudeTurnsAndEvents(session).turns).toEqual(expected);
   });
 
   it("extractDialogue keeps pre-compact turns and marks the boundary", () => {

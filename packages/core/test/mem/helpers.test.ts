@@ -8,6 +8,7 @@
 
 import { describe, it, expect } from "vitest";
 
+import { selectContextTurns } from "../../src/mem/context.js";
 import { isBootstrapTurn, stripInjectionTags } from "../../src/mem/dialogue.js";
 import { inRange, inRangeOverlap, sameProject } from "../../src/mem/filter.js";
 import {
@@ -296,6 +297,27 @@ describe("chunkAround", () => {
     expect(r.end - r.start).toBeLessThanOrEqual(100);
     expect(hitIdx).toBeGreaterThanOrEqual(r.start);
     expect(hitIdx).toBeLessThan(r.end);
+  });
+});
+
+// =============================================================================
+// selectContextTurns — long turns are cut around the hit, not the head
+// =============================================================================
+
+describe("selectContextTurns", () => {
+  it("keeps a hit that sits past the head of a long turn", () => {
+    const pad = "ordinary detail. ".repeat(400);
+    const text = `intro\n\n${pad}the decisive landing velocity budget is 200ms.`;
+    const selected = selectContextTurns(
+      [{ role: "assistant", text }],
+      "velocity budget",
+      1,
+      0,
+      600,
+    );
+    const hit = selected.turns.find((t) => t.isHit);
+    expect(hit?.text).toContain("velocity budget");
+    expect(hit?.text.length).toBeLessThan(text.length);
   });
 });
 

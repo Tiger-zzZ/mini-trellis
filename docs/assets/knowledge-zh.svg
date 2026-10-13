@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="740" viewBox="0 0 1200 740" role="img" aria-labelledby="title desc">
+<style>
+svg{--bg:#f8faf9;--panel:#eef4f1;--card:#fff;--ink:#172f29;--muted:#64766f;--line:#d9e4de;--accent:#28785e;--tag:#e4f0e8;--connector:#8ca89a}
+@media(prefers-color-scheme:dark){svg{--bg:#101b18;--panel:#172820;--card:#1b3027;--ink:#e3eee8;--muted:#a4b9ae;--line:#30483c;--accent:#91cbae;--tag:#294536;--connector:#739782}}
+text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;fill:var(--ink)}
+.small{font-size:14px;fill:var(--muted)}.label{font-size:14px;letter-spacing:1.6px;fill:var(--muted);font-weight:600}
+.heading{font-size:19px;font-weight:600}.body{font-size:16px;fill:var(--muted)}.code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;fill:var(--accent)}
+.line{fill:none;stroke:var(--connector);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+</style>
+<defs><marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0L6 3.5L0 7" fill="none" stroke="var(--connector)" stroke-width="1.3"/></marker></defs>
+<rect width="1200" height="740" rx="20" fill="var(--bg)"/>
+<rect x="1" y="1" width="1198" height="738" rx="20" fill="none" stroke="var(--line)"/>
+
+<title id="title">项目知识，跨越每一次会话</title><desc id="desc">知识以 Markdown 保存在项目中；由 Agent 记录、查阅与更新。 新的验证与决定，更新已有知识</desc>
+<text x="42" y="61" font-size="30" font-weight="600">项目知识，跨越每一次会话</text>
+<text x="42" y="94" class="body">留下结论与依据，在下一次开发中继续使用。</text>
+<path d="M42 122H1158" stroke="var(--line)"/>
+<text x="42" y="157" class="label">工作中的发现</text>
+<text x="410" y="157" class="label">项目记忆</text>
+<text x="884" y="157" class="label">下一次开发</text>
+<rect x="384" y="181" width="440" height="382" rx="16" fill="var(--panel)" stroke="var(--line)"/>
+<circle cx="52" cy="232" r="9" fill="var(--tag)" stroke="var(--accent)" stroke-width="1.4"/>
+<text x="76" y="230" class="heading">接口讨论</text>
+<text x="76" y="257" class="body">确认回调的重试约定</text>
+<path class="line" d="M332 241H372" marker-end="url(#arrow)"/>
+<rect x="400" y="202" width="408" height="100" rx="10" fill="var(--card)" stroke="var(--line)"/>
+<text x="420" y="229" class="heading">项目约定</text>
+<text x="420" y="256" class="body">回调必须携带幂等键</text>
+<text x="420" y="281" class="code">spec / billing.md</text>
+<path class="line" d="M834 241H872" marker-end="url(#arrow)"/>
+<text x="884" y="230" class="heading">修改接口</text>
+<text x="884" y="257" class="body">沿用已确认的约定</text>
+<circle cx="52" cy="348" r="9" fill="var(--tag)" stroke="var(--accent)" stroke-width="1.4"/>
+<text x="76" y="346" class="heading">方案调研</text>
+<text x="76" y="373" class="body">记录选择与适用条件</text>
+<path class="line" d="M332 357H372" marker-end="url(#arrow)"/>
+<rect x="400" y="318" width="408" height="100" rx="10" fill="var(--card)" stroke="var(--line)"/>
+<text x="420" y="345" class="heading">研究结论</text>
+<text x="420" y="372" class="body">超时重试：依据、条件与来源</text>
+<text x="420" y="397" class="code">research / retries.md</text>
+<path class="line" d="M834 357H872" marker-end="url(#arrow)"/>
+<text x="884" y="346" class="heading">评估方案</text>
+<text x="884" y="373" class="body">查回选择时的依据</text>
+<circle cx="52" cy="464" r="9" fill="var(--tag)" stroke="var(--accent)" stroke-width="1.4"/>
+<text x="76" y="462" class="heading">故障排查</text>
+<text x="76" y="489" class="body">留下原因和验证结果</text>
+<path class="line" d="M332 473H372" marker-end="url(#arrow)"/>
+<rect x="400" y="434" width="408" height="100" rx="10" fill="var(--card)" stroke="var(--line)"/>
+<text x="420" y="461" class="heading">开发记录</text>
+<text x="420" y="488" class="body">重复扣款：修复与验证记录</text>
+<text x="420" y="513" class="code">workspace / journal.md</text>
+<path class="line" d="M834 473H872" marker-end="url(#arrow)"/>
+<text x="884" y="462" class="heading">处理相似问题</text>
+<text x="884" y="489" class="body">复用已验证的解法</text>
+<path class="line" d="M350 604H1038V545" stroke-dasharray="4 5" marker-end="url(#arrow)"/>
+<rect x="42" y="581" width="308" height="45" rx="8" fill="var(--bg)" stroke="var(--line)" stroke-dasharray="5 4"/>
+<text x="58" y="609" class="small">原始对话 · 按需查证</text>
+<path class="line" d="M1038 515V651H604V575" marker-end="url(#arrow)"/>
+<rect x="614" y="630" width="410" height="37" rx="8" fill="var(--bg)"/>
+<text x="630" y="654" class="small">新的验证与决定，更新已有知识</text>
+<text x="42" y="704" class="small">知识以 Markdown 保存在项目中；由 Agent 记录、查阅与更新。</text>
+</svg>

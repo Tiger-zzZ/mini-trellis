@@ -19,6 +19,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { buildDoctorReport } from "../../src/commands/doctor.js";
 
 const TEMPLATE_SCRIPTS = path.resolve(
   __dirname,
@@ -153,6 +154,147 @@ function tryAddSession(
     stderr: r.stderr ?? "",
   };
 }
+
+describe.skipIf(!hasPython())("recording diagnostics", () => {
+  let tmp: string;
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-record-status-"));
+    setupRepo(tmp);
+  });
+  afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  it("reports actual failure and recovery without saving note content", () => {
+    const before = fs.readFileSync(indexPath(tmp), "utf8");
+    fs.writeFileSync(
+      indexPath(tmp),
+      before.replace("@@@auto:current-status", "BROKEN"),
+    );
+    const args = ["--no-commit", "--summary", "private-note-sentinel"];
+    expect(tryAddSession(tmp, "private-title-sentinel", args).status).toBe(1);
+    const check = () =>
+      buildDoctorReport(tmp).checks.find((c) => c.name === "recording-runtime");
+    expect(check()?.level).toBe("warn");
+    expect(check()?.detail).toContain("partial checkpoint");
+    const file = path.join(tmp, ".trellis/.runtime/writes/latest.json");
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).last_exit_code).toBe(1);
+    fs.writeFileSync(indexPath(tmp), before);
+    expect(tryAddSession(tmp, "private-title-sentinel", args).status).toBe(0);
+    expect(sessionNumbers(tmp)).toEqual([1]);
+    expect(check()?.level).toBe("ok");
+    const metadata = fs.readFileSync(file, "utf8");
+    expect(metadata).not.toContain("sentinel");
+    expect(metadata).not.toContain(DEVELOPER);
+    expect(JSON.parse(metadata).last_exit_code).toBe(0);
+  });
+
+  it("does not turn a successful note write into a failure when diagnostics are unwritable", () => {
+    fs.mkdirSync(path.join(tmp, ".trellis/.runtime"), { recursive: true });
+    fs.writeFileSync(path.join(tmp, ".trellis/.runtime/writes"), "blocked");
+    const result = tryAddSession(tmp, "saved note", ["--no-commit"]);
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("recording diagnostic write failed");
+    expect(readJournal(tmp)).toContain("saved note");
+  });
+
+  it("does not count --help or argument errors as a recording attempt", () => {
+    for (const args of [["--help"], ["--unknown-argument"]]) {
+      spawnSync("python3", [".trellis/scripts/add_session.py", ...args], {
+        cwd: tmp,
+        encoding: "utf8",
+      });
+    }
+    expect(
+      fs.existsSync(path.join(tmp, ".trellis/.runtime/writes/latest.json")),
+    ).toBe(false);
+  });
+
+  it("validates an existing topic before linking it from the journal", () => {
+    const topic = path.join(tmp, ".trellis/research/payment.md");
+    fs.mkdirSync(path.dirname(topic), { recursive: true });
+    fs.writeFileSync(topic, "# Payment policy\n\nConfirmed: one attempt.\n");
+    const saved = tryAddSession(tmp, "linked topic", [
+      "--no-commit",
+      "--summary",
+      "verified topic",
+      "--topic",
+      ".trellis/research/payment.md",
+    ]);
+    expect(saved.status).toBe(0);
+    expect(readJournal(tmp)).toContain(".trellis/research/payment.md");
+    const journalFile = journalPath(tmp);
+    const journal = readJournal(tmp);
+    const topicHref = journal.match(
+      /\[\.trellis\/research\/payment\.md\]\(([^)]+)\)/,
+    )?.[1];
+    expect(topicHref).toBeDefined();
+    expect(
+      path.resolve(path.dirname(journalFile), topicHref ?? ""),
+    ).toBe(topic);
+    expect(saved.stderr).toContain("topic content must be verified separately");
+    expect(saved.stderr).toContain(
+      `.trellis/workspace/${DEVELOPER}/journal-1.md`,
+    );
+    expect(saved.stderr).toContain(`.trellis/workspace/${DEVELOPER}/index.md`);
+
+    const before = readJournal(tmp);
+    const rejected = tryAddSession(tmp, "missing topic", [
+      "--no-commit",
+      "--topic",
+      ".trellis/research/missing.md",
+    ]);
+    expect(rejected.status).toBe(1);
+    expect(rejected.stderr).toContain("journal not written");
+    expect(readJournal(tmp)).toBe(before);
+  });
+
+  it("keeps topic links usable after journal rotation and a retry", () => {
+    const topicRelative = ".trellis/research/payment rules (v2)#中文.md";
+    const topic = path.join(tmp, topicRelative);
+    fs.mkdirSync(path.dirname(topic), { recursive: true });
+    fs.writeFileSync(topic, "# Payment policy\n\nConfirmed: one attempt.\n");
+    fs.writeFileSync(
+      path.join(tmp, ".trellis/config.yaml"),
+      "session_auto_commit: false\nmax_journal_lines: 12\n",
+    );
+    const args = ["--no-commit", "--topic", topicRelative];
+    expect(tryAddSession(tmp, "rotated topic", args).status).toBe(0);
+    const journal = readJournal(tmp, 2);
+    const href = journal.match(/Topics: \[[^\n]+\]\(([^)]+)\)/)?.[1];
+    expect(href).toBeDefined();
+    expect(
+      path.resolve(path.dirname(journalPath(tmp, 2)), decodeURIComponent(href ?? "")),
+    ).toBe(topic);
+    const retry = tryAddSession(tmp, "rotated topic", args);
+    expect(retry.status).toBe(0);
+    expect(retry.stderr).toContain("[RESUME]");
+    expect(readJournal(tmp, 2)).toBe(journal);
+    expect(fs.existsSync(journalPath(tmp, 3))).toBe(false);
+  });
+
+  it("keeps concurrent diagnostic updates atomic and bounded", () => {
+    execFileSync(
+      "python3",
+      [
+        "-c",
+        `
+import sys
+from concurrent.futures import ThreadPoolExecutor
+sys.path.insert(0, '.trellis/scripts')
+from add_session import _write_recording_status
+with ThreadPoolExecutor(max_workers=4) as pool:
+    list(pool.map(_write_recording_status, [0, 1] * 20))
+`,
+      ],
+      { cwd: tmp },
+    );
+    const dir = path.join(tmp, ".trellis/.runtime/writes");
+    expect(fs.readdirSync(dir)).toEqual(["latest.json"]);
+    const value = JSON.parse(
+      fs.readFileSync(path.join(dir, "latest.json"), "utf8"),
+    );
+    expect(value.last_status).toBe(value.last_exit_code === 0 ? "ok" : "error");
+  });
+});
 
 function runAddSession(repo: string, title: string, extraArgs: string[] = []): void {
   const r = tryAddSession(repo, title, extraArgs);

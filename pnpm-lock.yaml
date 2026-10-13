@@ -24,8 +24,8 @@ importers:
         specifier: ^12.1.0
         version: 12.1.0
       figlet:
-        specifier: ^1.9.4
-        version: 1.9.4
+        specifier: 1.8.2
+        version: 1.8.2
       inquirer:
         specifier: ^9.3.7
         version: 9.3.8(@types/node@20.19.28)
@@ -855,9 +855,9 @@ packages:
       picomatch:
         optional: true
 
-  figlet@1.9.4:
-    resolution: {integrity: sha512-uN6QE+TrzTAHC1IWTyrc4FfGo2KH/82J8Jl1tyKB7+z5DBit/m3D++Iu5lg91qJMnQQ3vpJrj5gxcK/pk4R9tQ==}
-    engines: {node: '>= 17.0.0'}
+  figlet@1.8.2:
+    resolution: {integrity: sha512-iPCpE9B/rOcjewIzDnagP9F2eySzGeHReX8WlrZQJkqFBk2wvq8gY0c6U6Hd2y9HnX1LQcYSeP7aEHoPt6sVKQ==}
+    engines: {node: '>= 0.4.0'}
     hasBin: true
 
   file-entry-cache@8.0.0:
@@ -2104,9 +2104,7 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.3
 
-  figlet@1.9.4:
-    dependencies:
-      commander: 14.0.2
+  figlet@1.8.2: {}
 
   file-entry-cache@8.0.0:
     dependencies:

@@ -205,3 +205,90 @@ export interface ListMemProjectsOptions {
   filter?: MemFilter;
   onWarning?: (warning: MemWarning) => void;
 }
+
+// ---------- unified recall (v0.2.1) ----------
+
+/** Where a recall hit came from. Dialogue platforms stay separate so a result
+ * names the host that recorded it. */
+export type RecallSourceKind = MemSourceKind | "doc";
+
+/** How strong the lexical match was. `weak` marks the single automatic
+ * relaxation used when nothing matched strongly. */
+export type RecallStrength = "strong" | "weak";
+
+/**
+ * One recall hit. The same shape covers a document section and a dialogue
+ * window, so a caller renders either without knowing which store it came from.
+ * Unknown fields are omitted rather than invented.
+ */
+export interface RecallHit {
+  sourceKind: RecallSourceKind;
+  /** Passed back to `readMemRefs` to expand this hit. */
+  ref: string;
+  title?: string;
+  /** Document heading or dialogue speaker of the matched text. */
+  section?: string;
+  excerpt: string;
+  /** Document location. Absent for dialogue hits. */
+  path?: string;
+  line?: number;
+  /** Dialogue location. Absent for document hits. */
+  sessionId?: string;
+  turn?: number;
+  /** The query terms that matched, strongest first. */
+  matchedTerms: string[];
+  strength: RecallStrength;
+  /** `archived` for research archive hits; otherwise omitted. */
+  status?: "archived";
+  /** Source time when one is known. A file mtime is never used here. */
+  sourceTime?: string;
+}
+
+export interface RecallResult {
+  /** Ranked hits, capped at the requested limit. */
+  hits: RecallHit[];
+  /** Hits found before the cap. */
+  totalHits: number;
+  /** True when a bound was reached and something was left unscanned. */
+  incomplete: boolean;
+  /** Display cap reached; separate from incomplete scanning. */
+  truncated: boolean;
+  warnings: MemWarning[];
+}
+
+export interface RecallMemOptions {
+  query: string;
+  /** Project directory. Defaults to the working directory. */
+  cwd?: string;
+  /** Max hits to return (default 3). */
+  limit?: number;
+  /** Total compact-JSON evidence-record character budget across all hits (default 3000). */
+  maxChars?: number;
+  platform?: MemSourceFilter;
+}
+
+/** One expanded source, returned by `readMemRefs`. */
+export interface RecallRead {
+  ref: string;
+  sourceKind: RecallSourceKind;
+  title?: string;
+  text: string;
+  path?: string;
+  sessionId?: string;
+  /** Set when the source moved or changed since the ref was built. */
+  changed?: boolean;
+  truncated?: boolean;
+}
+
+export interface RecallReadResult {
+  reads: RecallRead[];
+  truncated: boolean;
+  warnings: MemWarning[];
+}
+
+export interface ReadMemRefsOptions {
+  refs: readonly string[];
+  cwd?: string;
+  /** Total compact-JSON evidence-record budget for the batch (default 4000). */
+  maxChars?: number;
+}

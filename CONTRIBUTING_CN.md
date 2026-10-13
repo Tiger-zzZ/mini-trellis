@@ -4,7 +4,7 @@
 
 ## 范围
 
-v1 是记忆层：spec、research、journal、mem。不要加回四阶段任务流、额外宿主，或会改写项目文件的 `update`。
+mini-trellis 是轻量的项目记忆层：spec、research、journal 和跨会话召回。贡献应帮助 Agent 保存与查找可复用知识，同时保持安装和日常使用简单。
 
 支持宿主：Claude Code、Codex、OpenCode、Pi。
 
@@ -20,4 +20,4 @@ pnpm --filter mini-trellis test
 `.trellis/` 不进仓库，它是每个贡献者自己的记忆层。`pnpm build` 之后跑一次
 `node packages/cli/bin/mini-trellis.js init -u <你> --claude`，`.claude/` 里的 SessionStart hook 才有东西可读。
 
-不要写到 Trellis `main`。在 `mini-trellis` 分支工作。
+从当前开发分支创建功能分支，完成修改后提交 PR。

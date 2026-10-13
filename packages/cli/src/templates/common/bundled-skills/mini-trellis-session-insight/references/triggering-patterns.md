@@ -1,12 +1,14 @@
 # Triggering Patterns
 
-Verbatim user phrasings that should make an AI reach for `mini-trellis mem`. Calibrate instinct against these — if a user message hits one of these patterns and you do not reach for `mem`, you probably missed an obvious recall.
+Examples of requests that may need earlier project knowledge. Use `mini-trellis mem` when the current conversation or open files do not already provide the answer.
 
 Patterns are grouped by the *intent* behind the phrasing, not the surface words. The same intent shows up in different languages and registers.
 
+Start with project-scoped `recall`. It returns source-linked excerpts from documents and past conversations. If an excerpt answers the question with its necessary conditions and negations, cite it and stop. Use `read` only for missing context; a hit is not a reason to repeat the query or run another search path.
+
 ## Past-solution recall
 
-The user is asking "how did we (or I) solve this before". Past dialogue holds the answer; the codebase shows the result but not the reasoning.
+The user is asking "how did we (or I) solve this before". Topic notes and past conversations can explain the reasoning behind the code.
 
 - "How did we solve this last time?"
 - "What did we end up doing about X?"
@@ -15,11 +17,11 @@ The user is asking "how did we (or I) solve this before". Past dialogue holds th
 - "之前是怎么搞定 X 的?"
 - "我记得以前修过类似的"
 
-Reach: `mini-trellis mem search "<symptom keyword>" --global --limit 10`, then `context` into the hit that looks closest.
+Reach: `mini-trellis mem recall "<symptom keyword or relevant path>"`. Use `mini-trellis mem read "<ref>"` if the excerpt leaves the resolution or its conditions unclear.
 
 ## Decision retrieval
 
-The user is referencing a decision that lives in old dialogue, not in any committed file.
+The user is referencing an earlier decision whose rationale may be in project notes or past dialogue.
 
 - "What was the decision on X?"
 - "Did we decide to use Postgres or SQLite?"
@@ -28,7 +30,7 @@ The user is referencing a decision that lives in old dialogue, not in any commit
 - "关于 X 我们之前是怎么定的?"
 - "之前讨论过 X 的方案吗?"
 
-Reach: `mini-trellis mem search "<decision keyword>"` to find the session, then `extract <id> --grep "<keyword>"` to recover the discussion.
+Reach: `mini-trellis mem recall "<decision keyword>"`. Expand a returned ref only when needed to distinguish a proposal, rejection, or confirmed decision.
 
 ## Cross-session continuation
 
@@ -41,7 +43,7 @@ The user resumed work after a gap and the context is implicit.
 - "我们上次做到哪了"
 - "接着昨天那个任务"
 
-Reach: `mini-trellis mem list` for this project (or `--cwd <project-path>`), then `extract` the most recent session.
+Reach: check the active journal and current context first. If earlier details are missing, use `mini-trellis mem recall "<work topic or changed path>"`, then read only the refs needed to resume.
 
 ## Familiar-bug debugging
 
@@ -54,7 +56,7 @@ The current bug feels like one already seen. Past sessions probably hold the res
 - "这个 bug 是不是上次那个?"
 - "怎么又是这个 error?"
 
-Reach: `mini-trellis mem search "<error message fragment>" --global`. Anchor on a short, distinctive token from the actual error string.
+Reach: `mini-trellis mem recall "<error message fragment>"`. Anchor on a short, distinctive token from the actual error string, and read a ref only if the fix or its conditions need more context.
 
 ## Self-pattern spotting
 
@@ -67,7 +69,7 @@ The user is asking whether they keep repeating the same kind of mistake or decis
 - "我老犯这个错?"
 - "这类问题之前出现过几次?"
 
-Reach: `mini-trellis mem search "<topic>" --global --limit 50` and scan the dates / projects in the listing. Optionally `extract` two or three for comparison.
+Reach: `mini-trellis mem recall "<topic>"`. Compare the returned examples and their sources; expand only unresolved context. Describe observed examples rather than treating a limited result set as a complete count.
 
 ## Session retrospective (on demand)
 
@@ -80,13 +82,19 @@ The user explicitly wants to look back at recent work — not as a forced step, 
 - "记一下这次踩的坑"
 - "复盘下这个任务"
 
-Reach: `mini-trellis mem list`, then `extract <id>` (add `--grep` when you already know the topic). Present a summary — surface concrete file:line citations where possible. Whether to also write the summary somewhere (spec, research, notes) is the user's call; offer, don't auto-write.
+Reach: summarize from the current conversation first. If older context is needed, use `mini-trellis mem recall "<work topic>"` and read only the refs that fill a gap. Include source or file:line citations where useful.
+
+For an explicit recording request or a confirmed reusable decision, follow the host's remember guidance: update an existing spec/research topic, check the saved content, and link it from a brief journal entry. Summarizing alone does not turn unconfirmed ideas into decisions. Respect requests not to record; ordinary edits need no automatic note.
+
+## Explicit cross-project requests
+
+Keep lookup in the current project by default. When the user explicitly asks about another project, pass `--cwd "<requested project path>"` to both `recall` and any follow-up `read`. Each lookup stays scoped to that project. Cross-project conversation-only commands and filters are listed in [the CLI reference](cli-quick-reference.md).
 
 ## Anti-patterns: do NOT reach for `mem` here
 
 - "What does this function do?" → read the file.
 - "Why is this test failing?" → read the test output and the file.
-- "What's the right pattern for X in our codebase?" → grep / read spec files.
+- "What's the right pattern for X in our codebase?" → read an already located spec or code example; use recall if the relevant rule is missing.
 - "What's the latest npm version of Y?" → call `npm view`.
 - "Fix this bug." → debug. Reach for `mem` only if you suspect prior context exists; otherwise it is noise.
 

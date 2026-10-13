@@ -11,6 +11,8 @@
  *   context <session-id>          drill-down: top-N hit turns + surrounding context
  *   extract <session-id>          dump cleaned dialogue (use --grep KW to filter turns)
  *   projects                      list active project cwds (AI-routing entry point)
+ *   recall <query>                unified lookup over project docs and dialogue
+ *   read <ref...>                 expand refs returned by recall
  *
  * Run `mini-trellis mem help` for the full flag reference.
  */
@@ -25,6 +27,8 @@ import {
   MEM_SOURCE_KINDS,
   MemSessionNotFoundError,
   readMemContext,
+  readMemRefs,
+  recallMem,
   searchMemSessions,
 } from "mini-trellis-core/mem";
 import type {
@@ -281,6 +285,104 @@ function cmdProjects(argv: Argv): void {
   );
 }
 
+/** Bound rendered stdout too; tiny budgets fail explicitly instead of hiding status. */
+function printMemoryResult<
+  T extends { truncated: boolean; warnings: { message: string }[] },
+>(
+  result: T,
+  records: unknown[],
+  maxChars: number,
+  render: (value: T) => string,
+): void {
+  let output = render(result);
+  while (output.length + 1 > maxChars && records.length) {
+    records.pop();
+    result.truncated = true;
+    output = render(result);
+  }
+  printWarnings(result.warnings);
+  if (output.length + 1 > maxChars)
+    die("output budget cannot fit status; increase --max-chars");
+  console.log(output);
+}
+
+function cmdRecall(argv: Argv): void {
+  const query = argv.positional.join(" ");
+  if (!query) die("usage: recall <query>");
+  const cwd =
+    typeof argv.flags.cwd === "string" ? argv.flags.cwd : process.cwd();
+  const limit = parseOptionalNumberFlag(argv.flags.limit, "--limit", 3);
+  const maxChars = parseOptionalNumberFlag(
+    argv.flags["max-chars"],
+    "--max-chars",
+    3000,
+  );
+  const platform = buildFilter(argv.flags).platform;
+  if (argv.flags.global)
+    die("recall is project-scoped; use --cwd to select a project");
+  const result = recallMem({
+    query,
+    cwd,
+    limit,
+    maxChars: Math.max(0, maxChars - 128),
+    platform,
+  });
+  printMemoryResult(result, result.hits, maxChars, (value) => {
+    if (argv.flags.json) return JSON.stringify(value);
+    const lines: string[] = [];
+    if (value.incomplete) lines.push("(search incomplete — see warnings)");
+    if (value.truncated)
+      lines.push("(results limited by count or output budget)");
+    if (!value.hits.length)
+      lines.push(
+        value.totalHits
+          ? "(matches exist but do not fit the output budget)"
+          : "(no matches)",
+      );
+    for (const hit of value.hits) {
+      const where = hit.path
+        ? `${hit.path}${hit.line ? `:${hit.line}` : ""}`
+        : `${hit.sourceKind}:${hit.sessionId}`;
+      lines.push(
+        `\n[${hit.sourceKind}] ${where}${hit.section ? `  § ${hit.section}` : ""}  ${hit.strength}${hit.status ? `  ${hit.status}` : ""}`,
+        `  ref: ${hit.ref}`,
+        `  ${hit.excerpt}`,
+      );
+    }
+    lines.push(
+      `\n${value.hits.length} hit(s)${value.totalHits > value.hits.length ? ` of ${value.totalHits}` : ""}`,
+    );
+    return lines.join("\n");
+  });
+}
+
+function cmdRead(argv: Argv): void {
+  const refs = argv.positional;
+  if (!refs.length) die("usage: read <ref...>");
+  const cwd =
+    typeof argv.flags.cwd === "string" ? argv.flags.cwd : process.cwd();
+  const maxChars = parseOptionalNumberFlag(
+    argv.flags["max-chars"],
+    "--max-chars",
+    4000,
+  );
+  const result = readMemRefs({
+    refs,
+    cwd,
+    maxChars: Math.max(0, maxChars - 128),
+  });
+  printMemoryResult(result, result.reads, maxChars, (value) => {
+    if (argv.flags.json) return JSON.stringify(value);
+    const lines = value.truncated ? ["(read output truncated by budget)"] : [];
+    for (const read of value.reads)
+      lines.push(
+        `\n--- ${read.ref}${read.changed ? " (changed)" : ""}`,
+        read.text,
+      );
+    return lines.join("\n");
+  });
+}
+
 function cmdContext(argv: Argv): void {
   // Drill-down step 2 in the search workflow: `search <kw>` picks a session,
   // then `context <id> --grep <kw>` returns top-N hit turns with surrounding
@@ -450,6 +552,8 @@ function cmdHelp(): void {
   console.log(`mini-trellis mem — list/search Claude/Codex/OpenCode/Pi sessions
 
 commands:
+  recall <query>                find project documents and past dialogue (default 3 hits)
+  read <ref...>                 expand refs copied from recall (one batch budget)
   list                          list sessions (default if no command)
   search <keyword>              find sessions whose contents match keyword
   context <session-id>          drill-down: top-N hit turns + surrounding context
@@ -468,7 +572,8 @@ flags:
   --grep KW                              extract / context: filter turns by keyword (multi-token AND)
   --turns N                              context: number of hit turns to return (default 3)
   --around N                             context: turns of surrounding context per hit (default 1)
-  --max-chars N                          context: total char budget (default 6000, ~1500 tokens)
+  --max-chars N                          context: text budget 6000; recall/read: stdout 3000/4000
+                                         (includes refs, titles, status; diagnostics on stderr)
   --include-children                     search / context: merge OpenCode sub-agent sessions into parent
   --json                                 emit JSON
   --help, -h                             show this help
@@ -478,6 +583,8 @@ examples:
   mini-trellis mem list --global --platform claude --since 2026-04-01
   mini-trellis mem search "session insight" --global
   mini-trellis mem extract 5842592d --grep memory
+  mini-trellis mem recall "release cadence"
+  mini-trellis mem read "<ref copied from recall>"
 `);
 }
 
@@ -504,6 +611,10 @@ export function runMem(args: readonly string[]): void {
       return cmdContext(argv);
     case "projects":
       return cmdProjects(argv);
+    case "recall":
+      return cmdRecall(argv);
+    case "read":
+      return cmdRead(argv);
     default:
       die(`unknown command: ${argv.cmd} (try 'help')`);
   }

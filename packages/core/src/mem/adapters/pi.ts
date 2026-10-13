@@ -160,7 +160,13 @@ function candidateFiles(f: MemFilter): string[] {
 
   for (const root of piSessionRoots(f.cwd)) {
     if (f.cwd && path.resolve(root) === path.resolve(defaultRoot)) {
-      pushJsonlFiles(piProjectDirFromCwd(f.cwd));
+      // Fast path: the project dir derived from the cwd. The encoding is
+      // ambiguous when the cwd is (or contains) a symlink — `/tmp` vs
+      // `/private/tmp` produce different names — so fall back to scanning the
+      // whole store; `piListSessions` then scopes by `sameProject`.
+      const derived = piProjectDirFromCwd(f.cwd);
+      if (fs.existsSync(derived)) pushJsonlFiles(derived);
+      else pushJsonlFiles(root);
     } else {
       pushJsonlFiles(root);
     }

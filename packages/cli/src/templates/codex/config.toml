@@ -9,11 +9,11 @@
 # Keep AGENTS.md as the primary project instruction file.
 project_doc_fallback_filenames = ["AGENTS.md"]
 
-# Codex hooks (`hooks.json` in this directory) only fire when the user
-# has enabled them in their USER-level config: `[features].hooks = true`
-# in ~/.codex/config.toml (Codex 0.129+; legacy name: `codex_hooks = true`,
-# still works but emits a deprecation warning on 0.129+). Project-level
-# config.toml cannot set feature flags; they must be user-level.
+# Recent Codex versions enable hooks by default. If hooks are disabled in the
+# user configuration, re-enable them there with `[features].hooks = true` in
+# ~/.codex/config.toml (the legacy `codex_hooks = true` alias may still work).
+# Project-level config.toml cannot set feature flags; this file only documents
+# the requirement.
 # Codex 0.129+ additionally gates each installed hook behind a one-time
 # `/hooks` TUI review; until the user approves it, the hook stays inactive.
 

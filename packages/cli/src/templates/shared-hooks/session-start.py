@@ -10,11 +10,14 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import json
+import hashlib
 import os
 import re
 import shlex
 import subprocess
 import sys
+from datetime import datetime, timezone
+import tempfile
 from io import StringIO
 from pathlib import Path
 
@@ -69,10 +72,8 @@ def _normalize_windows_shell_path(path_str: str) -> str:
 
 MAX_CONTEXT_CHARS = 4000
 
-FIRST_REPLY_NOTICE = """<first-reply-notice>
-On the first visible assistant reply, briefly acknowledge that mini-trellis SessionStart context loaded, then continue with the user's request. Use the user's language; otherwise say `mini-trellis SessionStart ✓`. This is one-shot and must not be repeated.
-</first-reply-notice>"""
-
+RUNTIME_STATUS_VERSION = 1
+_LAST_PROJECT_DIR: Path | None = None
 
 # Force UTF-8 on stdin/stdout/stderr on Windows. Default codepage there is
 # cp936 / cp1252 / etc. — non-ASCII content (Chinese task names, prd snippets)
@@ -177,6 +178,7 @@ def _detect_platform(input_data: dict) -> str | None:
     env_map = {
         "ZCODE_PROJECT_DIR": "zcode",
         "CURSOR_PROJECT_DIR": "cursor",
+        "CODEX_PROJECT_DIR": "codex",
         "CODEBUDDY_PROJECT_DIR": "codebuddy",
         "FACTORY_PROJECT_DIR": "droid",
         "GEMINI_PROJECT_DIR": "gemini",
@@ -484,32 +486,9 @@ def _collect_spec_index_paths(trellis_dir: Path, allowed_pkgs: set | None) -> li
     return paths
 
 
-def _collect_research_topics(trellis_dir: Path) -> list[str]:
-    research_dir = trellis_dir / "research"
-    if not research_dir.is_dir():
-        return []
-    topics: list[str] = []
-    try:
-        for path in sorted(research_dir.iterdir()):
-            if path.name.startswith(".") or path.name.lower() == "readme.md":
-                continue
-            if path.name == "archive":
-                continue
-            # A topic is a note, or a directory: `mini-trellis migrate` folds
-            # each Trellis task into one so its evidence sits next to its notes.
-            if path.is_file() and path.suffix.lower() == ".md":
-                topics.append(f".trellis/research/{path.name}")
-            elif path.is_dir():
-                topics.append(f".trellis/research/{path.name}/")
-    except OSError:
-        return []
-    return topics
-
-
 def _build_compact_current_state(
     trellis_dir: Path,
     spec_index_paths: list[str],
-    research_topics: list[str],
 ) -> str:
     repo_root = trellis_dir.parent
     lines: list[str] = []
@@ -535,15 +514,34 @@ def _build_compact_current_state(
     if spec_index_paths:
         lines.append(f"Spec indexes: {len(spec_index_paths)} available.")
 
-    if research_topics:
-        lines.append(f"Research notes: {len(research_topics)} in .trellis/research/.")
-    else:
-        lines.append("Research notes: none yet. Write .trellis/research/<topic>.md.")
+    lines.append("Research: use `mini-trellis mem recall <query>` when relevant.")
 
     return "\n".join(lines)
 
 
-def main():
+def _write_runtime_status(trellis_dir: Path, platform: str | None, status: str, output_chars: int = 0, error_category: str | None = None, context_key: str | None = None, content_hash: str | None = None, source: str | None = None) -> None:
+    """Write bounded diagnostic metadata; injected text is never persisted."""
+    try:
+        host = {"claude": "claude-code", "droid": "factory"}.get(platform or "", platform or "unknown")
+        target = trellis_dir / ".runtime" / "hooks" / f"{host}.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"schema": 1, "platform": host, "last_hook_at": datetime.now(timezone.utc).isoformat(), "last_status": status, "last_output_chars": max(0, int(output_chars))}
+        if error_category: payload["last_error_category"] = error_category
+        if content_hash: payload["last_content_hash"] = content_hash
+        if source: payload["last_source"] = source
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=target.parent,
+                                         prefix=".hook-", delete=False) as handle:
+            temp = Path(handle.name)
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+        try:
+            os.replace(temp, target)
+        finally:
+            temp.unlink(missing_ok=True)
+    except (OSError, TypeError, ValueError):
+        print("mini-trellis: hook diagnostic write failed (state-write)", file=sys.stderr)
+
+
+def _main_impl():
     if should_skip_injection():
         sys.exit(0)
 
@@ -557,6 +555,7 @@ def main():
     # Try platform-specific env vars, hook cwd, fallback to cwd
     project_dir_env_vars = [
         "CLAUDE_PROJECT_DIR",
+        "CODEX_PROJECT_DIR",
         "QODER_PROJECT_DIR",
         "CODEBUDDY_PROJECT_DIR",
         "FACTORY_PROJECT_DIR",
@@ -577,6 +576,8 @@ def main():
         project_dir = Path(_normalize_windows_shell_path(hook_input.get("cwd", "."))).resolve()
 
     trellis_dir = project_dir / ".trellis"
+    global _LAST_PROJECT_DIR
+    _LAST_PROJECT_DIR = project_dir
     context_key = _resolve_context_key(trellis_dir, hook_input)
     _persist_context_key_for_bash(context_key)
 
@@ -590,7 +591,6 @@ def main():
     output = StringIO()
 
     spec_index_paths = _collect_spec_index_paths(trellis_dir, allowed_pkgs)
-    research_topics = _collect_research_topics(trellis_dir)
     source = hook_input.get("source") if isinstance(hook_input.get("source"), str) else ""
 
     output.write("""<session-context>
@@ -598,8 +598,6 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
 </session-context>
 
 """)
-    output.write(FIRST_REPLY_NOTICE)
-    output.write("\n\n")
 
     # Legacy migration warning
     legacy_warning = _check_legacy_spec(trellis_dir, is_mono, packages)
@@ -607,33 +605,28 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
         output.write(f"<migration-warning>\n{legacy_warning}\n</migration-warning>\n\n")
 
     output.write("<current-state>\n")
-    output.write(_build_compact_current_state(trellis_dir, spec_index_paths, research_topics))
+    output.write(_build_compact_current_state(trellis_dir, spec_index_paths))
     output.write("\n</current-state>\n\n")
 
     output.write("<guidelines>\n")
     output.write(
         "Memory: journal is git-durable session notes (`/mini-trellis:remember` or "
-        "`python3 ./.trellis/scripts/add_session.py`). Cross-session dialogue is "
-        "`mini-trellis mem list|search|context|extract`.\n"
+        "`python3 ./.trellis/scripts/add_session.py`). For relevant prior knowledge, use "
+        "`mini-trellis mem recall <query>`. If the excerpt already answers the question "
+        "with its source and conditions, cite it and stop; use `mini-trellis mem read <ref>` "
+        "only for missing context or qualifiers. Do not repeat a sufficient lookup.\n"
         "Research lives in `.trellis/research/<topic>.md`, or in "
         "`.trellis/research/<topic>/` when a topic brings evidence files with it; "
         "promote durable boundaries into `.trellis/spec/` as short markdown.\n\n"
         "Record when a decision is confirmed, a research finding is worth keeping, "
-        "or the session/compact is ending. Do not record every turn, and do not "
-        "create a git commit unless the user explicitly asks.\n\n"
+        "or the session/compact is ending. Keep confirmed rules short and faithful; "
+        "leave unconfirmed scope, exceptions, and implementation choices open or label "
+        "them as inference, not part of the contract. Update the existing topic first, read back "
+        "the changed rule, then run add_session.py with `--topic <actual-path>` so the "
+        "journal links the file. Verify the journal too; journal-only or topic-only "
+        "writes are partial and must be reported as such. Do not record every turn, "
+        "and do not create a git commit unless the user explicitly asks.\n\n"
     )
-
-    if spec_index_paths:
-        output.write("## Spec indexes (read on demand)\n")
-        for p in spec_index_paths:
-            output.write(f"- {p}\n")
-        output.write("\n")
-
-    if research_topics:
-        output.write("## Research notes (read on demand)\n")
-        for p in research_topics:
-            output.write(f"- {p}\n")
-        output.write("\n")
 
     if source == "compact":
         output.write(
@@ -656,14 +649,38 @@ Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. R
             + tail
         )
 
+    platform = _detect_platform(hook_input)
+    content_hash = hashlib.sha256(context_text.encode("utf-8")).hexdigest()[:24]
+
     # Kiro (CLI trellis agent agentSpawn) adds a hook's stdout directly to the
     # conversation context — no JSON envelope. Emit the bare overview text.
     # Conditionally isolated: all other platforms keep the JSON path below.
     if _detect_platform(hook_input) == "kiro":
         print(context_text, flush=True)
+        _write_runtime_status(trellis_dir, platform, "ok", len(context_text), context_key=context_key, content_hash=content_hash, source=source)
         return
 
-    platform = _detect_platform(hook_input)
+    # Missing identity fails open. compact/clear/resume always deliver again.
+    context_dir = trellis_dir / ".runtime" / "context" / (platform or "unknown")
+    status_path = None
+    if context_key:
+        context_hash = hashlib.sha256(context_key.encode("utf-8")).hexdigest()[:24]
+        status_path = context_dir / f"{context_hash}.json"
+    try:
+        previous = (
+            json.loads(status_path.read_text(encoding="utf-8"))
+            if status_path is not None
+            else {}
+        )
+    except (OSError, ValueError):
+        previous = {}
+    if not isinstance(previous, dict):
+        previous = {}
+    if source == "startup" and context_key and previous.get("source") == source and previous.get("content_hash") == content_hash:
+        _write_runtime_status(trellis_dir, platform, "deduped", output_chars=0, context_key=context_key, content_hash=content_hash, source=source)
+        print("{}", flush=True)
+        return
+
     result: dict[str, object] = {
         # Claude Code / Qoder / CodeBuddy / Droid / Gemini / Copilot / Trae /
         # ZCode format.
@@ -672,17 +689,39 @@ Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. R
             "additionalContext": context_text,
         },
     }
-    # Cursor sessionStart format (top-level snake_case per Cursor docs).
-    # ZCode reads BOTH `hookSpecificOutput.additionalContext` and top-level
-    # `additional_context` without deduplication, so emitting both keys would
-    # duplicate the context in the conversation. Keep the previous shared output
-    # shape for every other platform.
-    if platform != "zcode":
+    # Cursor and the other shared hosts use the top-level compatibility field.
+    # Codex's SessionStart contract accepts the nested shape above; leaving the
+    # extra field out there avoids an ambiguous duplicate. ZCode already had
+    # the same exception for its own parser.
+    if platform not in {"codex", "zcode"}:
         result["additional_context"] = context_text
 
     # Output JSON - stdout is already configured for UTF-8
     print(json.dumps(result, ensure_ascii=False), flush=True)
+    _write_runtime_status(trellis_dir, platform, "ok", len(context_text), context_key=context_key, content_hash=content_hash, source=source)
+    try:
+        if status_path is not None:
+            status_path.parent.mkdir(parents=True, exist_ok=True)
+            temp = status_path.with_name(f".{status_path.name}.{os.getpid()}.tmp")
+            temp.write_text(
+                json.dumps({"source": source, "content_hash": content_hash}),
+                encoding="utf-8",
+            )
+            os.replace(temp, status_path)
+    except OSError:
+        pass
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        _main_impl()
+    except Exception as exc:
+        project = os.environ.get("CLAUDE_PROJECT_DIR") or os.environ.get("CODEX_PROJECT_DIR")
+        project_path = Path(_normalize_windows_shell_path(project)).resolve() if project else _LAST_PROJECT_DIR
+        if project_path:
+            _write_runtime_status(
+                project_path / ".trellis" if project_path else Path(".trellis"),
+                _detect_platform({}), "error", error_category=type(exc).__name__,
+            )
+        print(f"mini-trellis SessionStart failed: {type(exc).__name__}", file=sys.stderr)
+        raise

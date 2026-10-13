@@ -2,11 +2,14 @@
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "startup|resume|clear|compact",
         "hooks": [
           {
             "type": "command",
             "command": "{{PYTHON_CMD}} -X utf8 .codex/hooks/session-start.py",
-            "timeout": 30
+            "timeout": 30,
+            "statusMessage": "Loading mini-trellis context",
+            "additionalContextLimit": 2500
           }
         ]
       }

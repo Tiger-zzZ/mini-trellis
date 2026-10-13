@@ -121,7 +121,8 @@ def get_session_auto_commit(repo_root: Path | None = None) -> bool:
     Governs both ``add_session.py:_auto_commit_workspace`` and
     ``task_store.py:_auto_commit_archive``.
 
-    Default: ``True`` (existing behavior — auto-stage + auto-commit).
+    Missing-key fallback: ``True`` for existing projects. New installations
+    explicitly set ``session_auto_commit: false`` in their config template.
     Set ``session_auto_commit: false`` in ``.trellis/config.yaml`` to skip
     auto-staging entirely; the journal/archive files are still written to
     disk, but the user manages ``git add`` / ``git commit`` themselves.
@@ -313,7 +314,7 @@ def get_packages(repo_root: Path | None = None) -> dict[str, dict] | None:
         or None if not configured (single-repo mode).
 
     Example return:
-        {"cli": {"path": "packages/cli"}, "docs-site": {"path": "docs-site", "type": "submodule"}}
+        {"cli": {"path": "packages/cli"}, "docs": {"path": "docs", "type": "submodule"}}
     """
     config = _load_config(repo_root)
     packages = config.get("packages")
@@ -345,7 +346,7 @@ def get_submodule_packages(repo_root: Path | None = None) -> dict[str, str]:
         Empty dict if none configured.
 
     Example return:
-        {"docs-site": "docs-site"}
+        {"docs": "docs"}
     """
     packages = get_packages(repo_root)
     if packages is None:

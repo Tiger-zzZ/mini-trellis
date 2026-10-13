@@ -452,7 +452,7 @@ export async function init(options: InitOptions): Promise<void> {
   const cwd = process.cwd();
   const isFirstInit = !fs.existsSync(path.join(cwd, DIR_NAMES.WORKFLOW));
 
-  const banner = figlet.textSync("mini-trellis", { font: "Rebel" });
+  const banner = figlet.textSync("mini-trellis", { font: "Standard" });
   console.log(chalk.cyan(`\n${banner.trimEnd()}`));
   console.log(chalk.gray("\n   Memory layer: spec, research, journal, mem\n"));
 

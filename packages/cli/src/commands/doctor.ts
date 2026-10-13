@@ -18,6 +18,62 @@ export interface DoctorReport {
   platforms: AITool[];
 }
 
+interface RuntimeStatus {
+  schema?: number;
+  platform?: string;
+  last_hook_at?: string;
+  last_status?: string;
+  last_output_chars?: number;
+  last_error_category?: string;
+}
+
+interface RecordingStatus {
+  schema: number;
+  last_write_at: string;
+  last_status: "ok" | "error";
+  last_exit_code: number;
+}
+
+function recordingCheck(cwd: string): DoctorCheck {
+  const name = "recording-runtime";
+  const file = path.join(cwd, ".trellis/.runtime/writes/latest.json");
+  if (!fs.existsSync(file)) {
+    return {
+      name,
+      level: "unknown",
+      detail: "no add_session.py outcome observed",
+    };
+  }
+  try {
+    const value = JSON.parse(fs.readFileSync(file, "utf8")) as RecordingStatus;
+    if (
+      value?.schema !== 1 ||
+      typeof value.last_write_at !== "string" ||
+      !Number.isFinite(Date.parse(value.last_write_at)) ||
+      !Number.isInteger(value.last_exit_code) ||
+      value.last_exit_code < 0 ||
+      !["ok", "error"].includes(value.last_status) ||
+      (value.last_status === "ok") !== (value.last_exit_code === 0)
+    )
+      throw new Error("invalid metadata");
+    return {
+      name,
+      level: value.last_status === "ok" ? "ok" : "warn",
+      detail:
+        `last add_session.py ${value.last_status} at ${value.last_write_at}; exit ${value.last_exit_code}` +
+        (value.last_status === "error"
+          ? "; recording-failed (a partial checkpoint may exist; inspect the command error before retrying)"
+          : " (does not verify direct spec/research edits)"),
+    };
+  } catch {
+    return {
+      name,
+      level: "warn",
+      detail: "recording metadata is unreadable or invalid; outcome unknown",
+    };
+  }
+}
+
 const PLATFORM_CHECKS: Record<AITool, string[]> = {
   "claude-code": [".claude/hooks/session-start.py", ".claude/settings.json"],
   codex: [".codex/hooks/session-start.py", ".codex/hooks.json"],
@@ -37,6 +93,29 @@ export function buildDoctorReport(cwd: string): DoctorReport {
   const exists = (relative: string): boolean =>
     fs.existsSync(path.join(cwd, relative));
 
+  const runtimeStatus = (platform: AITool): RuntimeStatus | null => {
+    const file = path.join(
+      cwd,
+      ".trellis",
+      ".runtime",
+      "hooks",
+      `${platform}.json`,
+    );
+    try {
+      const value = JSON.parse(fs.readFileSync(file, "utf8")) as RuntimeStatus;
+      return value?.schema === 1 &&
+        typeof value.last_status === "string" &&
+        typeof value.last_hook_at === "string" &&
+        Number.isFinite(Date.parse(value.last_hook_at)) &&
+        Number.isInteger(value.last_output_chars) &&
+        (value.last_output_chars ?? -1) >= 0
+        ? value
+        : null;
+    } catch {
+      return null;
+    }
+  };
+
   const workflowReady =
     exists(".trellis") && exists(".trellis/scripts/add_session.py");
   checks.push({
@@ -46,6 +125,7 @@ export function buildDoctorReport(cwd: string): DoctorReport {
       ? ".trellis and add_session.py are present"
       : "missing .trellis or .trellis/scripts/add_session.py; run mini-trellis init",
   });
+  checks.push(recordingCheck(cwd));
 
   const agents = exists("AGENTS.md")
     ? fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf8")
@@ -96,12 +176,32 @@ export function buildDoctorReport(cwd: string): DoctorReport {
         name: `${platform}-trigger`,
         detail: triggerDetail,
       });
-      checks.push({
-        level: "unknown",
-        name: `${platform}-runtime`,
-        detail:
-          "run one real host session to confirm the hook reaches the model",
-      });
+      const runtime = runtimeStatus(platform);
+      if (!runtime) {
+        checks.push({
+          level: "unknown",
+          name: `${platform}-runtime`,
+          detail:
+            platform === "codex"
+              ? "no real hook execution observed; ensure Codex trusts this project, then use /hooks to review/trust the project hook and start a new session"
+              : "no real hook execution observed; run one host session",
+        });
+      } else if (
+        runtime.last_status === "ok" ||
+        runtime.last_status === "deduped"
+      ) {
+        checks.push({
+          level: "ok",
+          name: `${platform}-runtime`,
+          detail: `hook ${runtime.last_status} at ${runtime.last_hook_at ?? "unknown time"}; emitted ${runtime.last_output_chars ?? 0} chars (model delivery still requires real-session evidence)`,
+        });
+      } else {
+        checks.push({
+          level: "warn",
+          name: `${platform}-runtime`,
+          detail: `last hook ${runtime.last_status ?? "unknown"} at ${runtime.last_hook_at ?? "unknown time"}${runtime.last_error_category ? `; error ${runtime.last_error_category}` : ""}`,
+        });
+      }
     }
   }
 

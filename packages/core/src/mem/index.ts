@@ -18,6 +18,12 @@ export {
 
 export { readMemContext } from "./context.js";
 
+export { queryTerms, matchTerms, excerptAround } from "./lexical.js";
+
+export { discoverDocs, resolveProjectRoot } from "./docs.js";
+
+export { recallMem, readMemRefs } from "./recall.js";
+
 export { listMemProjects } from "./projects.js";
 
 export { MEM_SOURCE_KINDS } from "./types.js";
@@ -46,4 +52,12 @@ export type {
   ReadMemContextOptions,
   ExtractMemDialogueOptions,
   ListMemProjectsOptions,
+  RecallSourceKind,
+  RecallStrength,
+  RecallHit,
+  RecallResult,
+  RecallMemOptions,
+  RecallRead,
+  RecallReadResult,
+  ReadMemRefsOptions,
 } from "./types.js";

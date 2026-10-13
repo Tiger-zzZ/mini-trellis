@@ -160,7 +160,7 @@ function claudeText(content: string | ClaudeBlock[] | undefined): string {
 }
 
 export function claudeExtractDialogue(s: MemSessionInfo): DialogueTurn[] {
-  // - user: type=="user" + role=="user" + content is a string
+  // - user: type=="user" + role=="user", keep string or text blocks
   // - assistant: type=="assistant" + role=="assistant", keep only `text` blocks
   // - thinking / tool_use blocks dropped entirely; injection tags stripped
   // - compaction: an `isCompactSummary` user event marks the boundary. Claude
@@ -182,11 +182,19 @@ export function claudeExtractDialogue(s: MemSessionInfo): DialogueTurn[] {
       return;
     }
     if (t === "user" && msg.role === "user") {
-      if (typeof content === "string") {
-        const text = stripInjectionTags(content);
-        if (text && !isBootstrapTurn(text, content.length)) {
-          turns.push({ role: "user", text });
-        }
+      const text = claudeText(content);
+      const originalLength =
+        typeof content === "string"
+          ? content.length
+          : Array.isArray(content)
+            ? content.reduce(
+                (n, block) =>
+                  n + (block.type === "text" ? (block.text?.length ?? 0) : 0),
+                0,
+              )
+            : 0;
+      if (text && !isBootstrapTurn(text, originalLength)) {
+        turns.push({ role: "user", text });
       }
     } else if (
       t === "assistant" &&
@@ -235,11 +243,19 @@ export function collectClaudeTurnsAndEvents(s: MemSessionInfo): {
     }
 
     if (t === "user" && msg.role === "user") {
-      if (typeof content === "string") {
-        const text = stripInjectionTags(content);
-        if (text && !isBootstrapTurn(text, content.length)) {
-          turns.push({ role: "user", text });
-        }
+      const text = claudeText(content);
+      const originalLength =
+        typeof content === "string"
+          ? content.length
+          : Array.isArray(content)
+            ? content.reduce(
+                (n, block) =>
+                  n + (block.type === "text" ? (block.text?.length ?? 0) : 0),
+                0,
+              )
+            : 0;
+      if (text && !isBootstrapTurn(text, originalLength)) {
+        turns.push({ role: "user", text });
       }
       return;
     }

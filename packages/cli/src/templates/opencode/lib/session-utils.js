@@ -9,10 +9,6 @@ const PYTHON_CMD = platform() === "win32" ? "python" : "python3"
 
 const MAX_CONTEXT_CHARS = 4000
 
-const FIRST_REPLY_NOTICE = `<first-reply-notice>
-On the first visible assistant reply, briefly acknowledge that mini-trellis SessionStart context loaded, then continue with the user's request. Use the user's language; otherwise say \`mini-trellis SessionStart ✓\`. This is one-shot and must not be repeated.
-</first-reply-notice>`
-
 function loadTrellisConfig(directory, contextKey = null) {
   const scriptPath = join(directory, ".trellis", "scripts", "get_context.py")
   if (!existsSync(scriptPath)) {
@@ -117,27 +113,6 @@ function resolveSpecScope(config) {
   return null
 }
 
-function collectResearchTopics(directory) {
-  const researchDir = join(directory, ".trellis", "research")
-  if (!existsSync(researchDir)) return []
-  try {
-    return readdirSync(researchDir, { withFileTypes: true })
-      .filter(entry => {
-        if (entry.name.startsWith(".") || entry.name.toLowerCase() === "readme.md") return false
-        if (entry.name === "archive") return false
-        // A topic is a note, or a directory: `mini-trellis migrate` folds each
-        // Trellis task into one so its evidence sits next to its notes.
-        if (entry.isDirectory()) return true
-        return entry.isFile() && entry.name.toLowerCase().endsWith(".md")
-      })
-      .map(entry => ({ name: entry.name, dir: entry.isDirectory() }))
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map(topic => `.trellis/research/${topic.name}${topic.dir ? "/" : ""}`)
-  } catch {
-    return []
-  }
-}
-
 function collectSpecIndexPaths(directory, allowedPkgs) {
   const specDir = join(directory, ".trellis", "spec")
   const paths = []
@@ -216,7 +191,7 @@ function runGit(directory, args) {
   }
 }
 
-function buildCompactCurrentState(ctx, specIndexPaths, researchTopics) {
+function buildCompactCurrentState(ctx, specIndexPaths) {
   const directory = ctx.directory
   const lines = []
   lines.push(`Developer: ${readDeveloper(directory)}`)
@@ -249,11 +224,7 @@ function buildCompactCurrentState(ctx, specIndexPaths, researchTopics) {
     lines.push(`Spec indexes: ${specIndexPaths.length} available.`)
   }
 
-  if (researchTopics.length > 0) {
-    lines.push(`Research notes: ${researchTopics.length} in .trellis/research/.`)
-  } else {
-    lines.push("Research notes: none yet. Write .trellis/research/<topic>.md.")
-  }
+  lines.push("Research: use `mini-trellis mem recall <query>` when relevant.")
 
   return lines.join("\n")
 }
@@ -267,14 +238,12 @@ export function buildSessionContext(ctx, platformInput = null) {
   const config = loadTrellisConfig(directory, contextKey)
   const allowedPkgs = resolveSpecScope(config)
   const paths = collectSpecIndexPaths(directory, allowedPkgs)
-  const researchTopics = collectResearchTopics(directory)
 
   const parts = []
 
   parts.push(`<session-context>
 mini-trellis SessionStart context. Orient from journal, spec, and research.
 </session-context>`)
-  parts.push(FIRST_REPLY_NOTICE)
 
   const legacyWarning = checkLegacySpec(directory, config)
   if (legacyWarning) {
@@ -282,35 +251,21 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
   }
 
   parts.push("<current-state>")
-  parts.push(buildCompactCurrentState(ctx, paths, researchTopics))
+  parts.push(buildCompactCurrentState(ctx, paths))
   parts.push("</current-state>")
 
   parts.push("<guidelines>")
   parts.push(
     "Memory: journal is git-durable session notes (`/mini-trellis:remember` or " +
-    "`python3 ./.trellis/scripts/add_session.py`). Cross-session dialogue is " +
-    "`mini-trellis mem list|search|context|extract`.\n" +
+    "`python3 ./.trellis/scripts/add_session.py`). For relevant prior knowledge, use " +
+    "`mini-trellis mem recall <query>`, then `mini-trellis mem read <ref>` for context.\n" +
     "Research lives in `.trellis/research/<topic>.md`, or in " +
     "`.trellis/research/<topic>/` when a topic brings evidence files with it; " +
     "promote durable boundaries into `.trellis/spec/` as short markdown.\n"
     + "Record confirmed decisions, useful research findings, and session/compact endings. Do not record every turn or create a git commit unless the user asks.\n"
+    + "Keep confirmed rules short and faithful; leave unconfirmed scope, exceptions, and implementation choices open or label them as inference, not part of the contract.\n"
   )
 
-  if (paths.length > 0) {
-    parts.push("## Spec indexes (read on demand)")
-    for (const p of paths) {
-      parts.push(`- ${p}`)
-    }
-    parts.push("")
-  }
-
-  if (researchTopics.length > 0) {
-    parts.push("## Research notes (read on demand)")
-    for (const p of researchTopics) {
-      parts.push(`- ${p}`)
-    }
-    parts.push("")
-  }
 
   parts.push("</guidelines>")
 

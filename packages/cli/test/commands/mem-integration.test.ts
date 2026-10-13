@@ -204,6 +204,7 @@ describe("runMem subcommand integration", () => {
       recursive: true,
       force: true,
     });
+    nodeFs.rmSync(projectCwd, { recursive: true, force: true });
     noop();
   });
 
@@ -647,6 +648,156 @@ describe("runMem subcommand integration", () => {
     expect(ours).toBeDefined();
     expect(ours?.sessions).toBeGreaterThan(0);
     expect(ours?.by_platform.claude).toBe(1);
+  });
+
+  // ---------- recall / read (unified lookup) ----------
+
+  // A real on-disk project dir so `discoverDocs` has documents to find. The
+  // session fixture's cwd points here too, so recall sees one project.
+  function seedProjectDocs(): void {
+    nodeFs.mkdirSync(nodePath.join(projectCwd, "docs"), { recursive: true });
+    nodeFs.writeFileSync(
+      nodePath.join(projectCwd, "README.md"),
+      "# mem-int-project\n\nIdempotency is enforced per request key.\n",
+    );
+    nodeFs.writeFileSync(
+      nodePath.join(projectCwd, "docs", "billing.md"),
+      "# Billing\n\nRetries must not double-charge a customer.\n",
+    );
+  }
+
+  it("recall: finds a project document with a doc ref", () => {
+    seedProjectDocs();
+    runMem(["recall", "idempotency", "--cwd", projectCwd]);
+    const joined = logs.join("\n");
+    expect(joined).toContain("[doc] README.md");
+    expect(joined).toContain("ref: doc:v1:");
+    expect(joined).toContain("Idempotency");
+    expect(joined).toMatch(/\d+ hit\(s\)/);
+  });
+
+  it("recall --json: emits {hits,totalHits,incomplete,warnings}", () => {
+    seedProjectDocs();
+    runMem(["recall", "double-charge", "--cwd", projectCwd, "--json"]);
+    const parsed = JSON.parse(logs.join("\n")) as {
+      hits: {
+        sourceKind: string;
+        ref: string;
+        path?: string;
+        excerpt: string;
+      }[];
+      totalHits: number;
+      incomplete: boolean;
+    };
+    const hit = parsed.hits.find((h) => h.path === "docs/billing.md");
+    expect(hit?.sourceKind).toBe("doc");
+    expect(hit?.excerpt).toContain("double-charge");
+    expect(parsed.totalHits).toBeGreaterThan(0);
+  });
+
+  it("recall: surfaces a matching dialogue session by ref", () => {
+    runMem(["recall", "memory leak", "--cwd", projectCwd]);
+    const joined = logs.join("\n");
+    expect(joined).toContain("session:v1:");
+    expect(joined).toContain("memory");
+  });
+
+  it("recall: missing query exits non-zero", () => {
+    expect(() => runMem(["recall"])).toThrow(/__exit__:2/);
+    expect(errs.join("\n")).toContain("usage: recall <query>");
+  });
+
+  function recallRef(query: string, sourceKind: string): string {
+    runMem(["recall", query, "--cwd", projectCwd, "--json"]);
+    const result = JSON.parse(logs.join("\n")) as {
+      hits: { ref: string; sourceKind: string }[];
+    };
+    logs.length = 0;
+    const ref = result.hits.find((h) => h.sourceKind === sourceKind)?.ref;
+    if (!ref) throw new Error("fixture did not return an expandable ref");
+    return ref;
+  }
+
+  it("read: expands a doc ref back to its text", () => {
+    seedProjectDocs();
+    runMem(["read", recallRef("idempotency", "doc"), "--cwd", projectCwd]);
+    const joined = logs.join("\n");
+    expect(joined).toContain("--- doc:v1:");
+    expect(joined).toContain("Idempotency");
+  });
+
+  it("read: expands a session ref to its surrounding turns", () => {
+    runMem(["read", recallRef("memory leak", "claude"), "--cwd", projectCwd]);
+    const joined = logs.join("\n");
+    expect(joined).toContain("--- session:v1:");
+    expect(joined).toContain("memory leak");
+  });
+
+  it("read --json: emits a reads array", () => {
+    seedProjectDocs();
+    runMem([
+      "read",
+      recallRef("double-charge", "doc"),
+      "--cwd",
+      projectCwd,
+      "--json",
+    ]);
+    const parsed = JSON.parse(logs.join("\n")) as {
+      reads: { ref: string; text: string; sourceKind: string }[];
+    };
+    expect(parsed.reads).toHaveLength(1);
+    expect(parsed.reads[0]?.sourceKind).toBe("doc");
+    expect(parsed.reads[0]?.text).toContain("double-charge");
+  });
+
+  it("read: refuses a ref that escapes the project", () => {
+    seedProjectDocs();
+    runMem(["read", "doc:../../etc/passwd:1", "--cwd", projectCwd, "--json"]);
+    const parsed = JSON.parse(logs.join("\n")) as { reads: unknown[] };
+    expect(parsed.reads).toEqual([]);
+    expect(errs.join("\n")).toContain("invalid or unversioned ref");
+  });
+
+  it("recall caps complete rendered JSON and text including headers", () => {
+    seedProjectDocs();
+    for (const jsonFlag of [[], ["--json"]]) {
+      logs.length = 0;
+      runMem([
+        "recall",
+        "idempotency",
+        "--cwd",
+        projectCwd,
+        "--max-chars",
+        "400",
+        ...jsonFlag,
+      ]);
+      expect(logs.join("\n").length + 1).toBeLessThanOrEqual(400);
+    }
+  });
+
+  it("read caps a rendered batch and rejects an unrepresentable status budget", () => {
+    seedProjectDocs();
+    const ref = recallRef("double-charge", "doc");
+    runMem(["read", ref, "--cwd", projectCwd, "--max-chars", "400", "--json"]);
+    expect(logs.join("\n").length + 1).toBeLessThanOrEqual(400);
+    logs.length = 0;
+    expect(() =>
+      runMem([
+        "recall",
+        "idempotency",
+        "--cwd",
+        projectCwd,
+        "--max-chars",
+        "0",
+        "--json",
+      ]),
+    ).toThrow(/__exit__:2/);
+    expect(logs).toEqual([]);
+  });
+
+  it("read: missing ref exits non-zero", () => {
+    expect(() => runMem(["read"])).toThrow(/__exit__:2/);
+    expect(errs.join("\n")).toContain("usage: read <ref...>");
   });
 
   // ---------- help / unknown ----------

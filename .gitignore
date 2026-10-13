@@ -145,6 +145,10 @@ vite.config.ts.timestamp-*
 # local. Run `mini-trellis init` after cloning to create yours.
 .trellis/
 
+# Local development plans and internal acceptance material
+/docs/plans/
+/experiments/
+
 # Multi-agent temp files
 .session-id
 .agent-log

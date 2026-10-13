@@ -5,9 +5,9 @@ and this modification notice.
 
 ## Scope
 
-v1 is a memory layer: spec, research, journal, mem. Do not add the four-phase
-task workflow, extra agent hosts, or an `update` command that rewrites project
-files.
+mini-trellis is a lightweight project memory layer: spec, research, journal,
+and cross-session recall. Contributions should help agents save and find
+reusable knowledge while keeping setup and daily use simple.
 
 Supported hosts: Claude Code, Codex, OpenCode, Pi.
 
@@ -24,4 +24,5 @@ pnpm --filter mini-trellis test
 After `pnpm build`, run `node packages/cli/bin/mini-trellis.js init -u <you> --claude`
 once so the SessionStart hook in `.claude/` has something to read.
 
-Do not write onto Trellis `main`. Work on the `mini-trellis` branch.
+Create a feature branch from the current development branch, make your changes,
+and submit a pull request.

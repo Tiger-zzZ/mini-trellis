@@ -92,6 +92,7 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
   });
 
   it("writes research/, short spec, remember, and four-host SessionStart", () => {
+    expect(fs.readFileSync(path.join(tmpDir, ".trellis/config.yaml"), "utf8")).toContain("session_auto_commit: false");
     expect(exists(tmpDir, ".trellis/research/README.md")).toBe(true);
     expect(exists(tmpDir, ".trellis/research/archive")).toBe(true);
     expect(exists(tmpDir, ".trellis/spec/guides/mini-memory.md")).toBe(true);
@@ -116,6 +117,12 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
     ).toBe(true);
     expect(exists(tmpDir, ".codex/hooks.json")).toBe(true);
     expect(exists(tmpDir, ".codex/hooks/session-start.py")).toBe(true);
+    const codexHooks = JSON.parse(
+      fs.readFileSync(path.join(tmpDir, ".codex/hooks.json"), "utf8"),
+    );
+    const codexSessionStart = codexHooks.hooks.SessionStart[0];
+    expect(codexSessionStart.matcher).toBe("startup|resume|clear|compact");
+    expect(codexSessionStart.hooks[0].additionalContextLimit).toBe(2500);
 
     expect(exists(tmpDir, ".opencode/commands/mini-trellis/remember.md")).toBe(
       true,
@@ -171,6 +178,14 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
       );
     });
     expect(forbidden).toEqual([]);
+  });
+
+  it("records a new installation's session without making a git commit", () => {
+    const count = () => execFileSync("git", ["rev-list", "--all", "--count"], { cwd: tmpDir, encoding: "utf8" }).trim();
+    const before = count();
+    execFileSync("python3", [".trellis/scripts/add_session.py", "--title", "Synthetic confirmed decision"], { cwd: tmpDir, stdio: "pipe" });
+    expect(count()).toBe(before);
+    expect(fs.readFileSync(path.join(tmpDir, ".trellis/workspace/tester/journal-1.md"), "utf8")).toContain("Synthetic confirmed decision");
   });
 
   it("refreshes selected templates through full re-initialize while keeping custom memory files", async () => {

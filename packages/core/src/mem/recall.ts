@@ -1,0 +1,526 @@
+import { sameProject } from "./filter.js";
+/** Unified local recall: source-scoped discovery, lexical evidence, versioned refs. */
+import { createHash } from "node:crypto";
+import * as path from "node:path";
+import {
+  allowedDocPath,
+  discoverDocs,
+  readDocText,
+  type DocDiscovery,
+} from "./docs.js";
+import { excerptAround, matchTerms, queryTerms, windowAt } from "./lexical.js";
+import { MEM_PLATFORMS } from "./platforms.js";
+import { listAll, resolveFilter, WIDE_LIMIT } from "./sessions.js";
+import type {
+  DialogueTurn,
+  MemWarning,
+  ReadMemRefsOptions,
+  RecallHit,
+  RecallMemOptions,
+  RecallRead,
+  RecallReadResult,
+  RecallResult,
+} from "./types.js";
+
+const EXCERPT_CHARS = 400;
+const MAX_QUERY_CHARS = 2000;
+const MAX_REFS = 30;
+
+interface EvidenceRef {
+  kind: "doc" | "session";
+  path?: string;
+  platform?: "claude" | "codex" | "opencode" | "pi";
+  id?: string;
+  turn?: number;
+  start: number;
+  end: number;
+  hash: string;
+}
+interface Candidate {
+  hit: RecallHit;
+  source: string;
+  anchorStart: number;
+  anchorEnd: number;
+  coverage: number;
+  derivedCoverage: number;
+  titleCoverage: number;
+  pathCoverage: number;
+  duplicateKey: string;
+}
+
+function fingerprint(text: string): string {
+  return createHash("sha256").update(text).digest("hex").slice(0, 24);
+}
+function encodeRef(ref: EvidenceRef): string {
+  return `${ref.kind}:v1:${Buffer.from(JSON.stringify(ref)).toString("base64url")}`;
+}
+function decodeRef(ref: string): EvidenceRef | undefined {
+  if (ref.length > 8192) return undefined;
+  const match = /^(doc|session):v1:([A-Za-z0-9_-]+)$/.exec(ref);
+  if (!match) return undefined;
+  try {
+    const x = JSON.parse(
+      Buffer.from(match[2] ?? "", "base64url").toString("utf8"),
+    ) as EvidenceRef;
+    if (
+      x?.kind !== match[1] ||
+      !Number.isSafeInteger(x.start) ||
+      !Number.isSafeInteger(x.end) ||
+      x.start < 0 ||
+      x.end < x.start ||
+      typeof x.hash !== "string" ||
+      !/^[a-f0-9]{24}$/.test(x.hash)
+    )
+      return undefined;
+    if (x.kind === "doc") return typeof x.path === "string" ? x : undefined;
+    return typeof x.id === "string" &&
+      Number.isSafeInteger(x.turn) &&
+      (x.turn ?? -1) >= 0 &&
+      ["claude", "codex", "opencode", "pi"].includes(x.platform ?? "")
+      ? x
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+function positive(value: number | undefined, fallback: number): number {
+  const n = value ?? fallback;
+  if (!Number.isSafeInteger(n) || n < 0)
+    throw new RangeError("memory limits must be non-negative integers");
+  return n;
+}
+function headingBefore(text: string, index: number): string | undefined {
+  let heading: string | undefined;
+  for (const match of text.matchAll(/^(#{1,6})\s+(.*\S)\s*$/gm)) {
+    if (match.index > index) break;
+    heading = match[2];
+  }
+  return heading;
+}
+
+/** Limit the serialized evidence records, including refs and source metadata. */
+function select(
+  candidates: Candidate[],
+  limit: number,
+  maxChars: number,
+): { hits: RecallHit[]; truncated: boolean } {
+  const ranked = [...candidates].sort(
+    (a, b) =>
+      b.coverage - a.coverage ||
+      b.titleCoverage - a.titleCoverage ||
+      b.pathCoverage - a.pathCoverage ||
+      b.derivedCoverage - a.derivedCoverage ||
+      (b.hit.sourceTime ?? "").localeCompare(a.hit.sourceTime ?? ""),
+  );
+  const hits: RecallHit[] = [];
+  let used = 0;
+  let truncated = false;
+  const emitted = new Set<string>();
+  for (const candidate of ranked) {
+    if (emitted.has(candidate.duplicateKey)) continue;
+    if (hits.length >= limit) {
+      truncated = true;
+      break;
+    }
+    const hit = { ...candidate.hit };
+    const overhead = JSON.stringify({ ...hit, excerpt: "" }).length;
+    const available = maxChars - used - overhead;
+    if (available < 1) {
+      truncated = true;
+      continue;
+    }
+    if (JSON.stringify(hit).length > maxChars - used) {
+      // JSON escaping and metadata also consume the budget. Keep the anchor.
+      let cap = Math.min(hit.excerpt.length, available);
+      do {
+        hit.excerpt = windowAt(
+          candidate.source,
+          candidate.anchorStart,
+          candidate.anchorEnd,
+          cap,
+        ).excerpt;
+        cap -= Math.max(1, JSON.stringify(hit).length - (maxChars - used));
+      } while (cap > 0 && JSON.stringify(hit).length > maxChars - used);
+      if (!hit.excerpt || JSON.stringify(hit).length > maxChars - used) {
+        truncated = true;
+        continue;
+      }
+      truncated = true;
+    }
+    hits.push(hit);
+    emitted.add(candidate.duplicateKey);
+    used += JSON.stringify(hit).length;
+  }
+  return { hits, truncated };
+}
+
+export function recallMem(options: RecallMemOptions): RecallResult {
+  const limit = positive(options.limit, 3);
+  const maxChars = positive(options.maxChars, 3000);
+  const warnings: MemWarning[] = [];
+  const query = options.query.slice(0, MAX_QUERY_CHARS);
+  if (query.length !== options.query.length)
+    warnings.push({
+      code: "query-truncated",
+      message: "query exceeded 2000 characters; results are partial",
+    });
+  const terms = queryTerms(query);
+  if (!terms.length)
+    return {
+      hits: [],
+      totalHits: 0,
+      incomplete: warnings.length > 0,
+      truncated: false,
+      warnings,
+    };
+  const required = [
+    ...new Set(
+      query
+        .normalize("NFKC")
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((t) => t.length >= 2),
+    ),
+  ];
+  const discovery = discoverDocs(path.resolve(options.cwd ?? process.cwd()));
+  warnings.push(...discovery.warnings);
+  const candidates: Candidate[] = [];
+  const add = (
+    text: string,
+    hit: Omit<RecallHit, "ref" | "excerpt" | "matchedTerms" | "strength">,
+    ref: Omit<EvidenceRef, "start" | "end">,
+  ): void => {
+    const matches = matchTerms(text, terms);
+    const pathMatches = hit.path ? matchTerms(hit.path, terms) : [];
+    const title = ref.kind === "doc"
+      ? /^#{1,6}\s+(.+)$/m.exec(text)?.[1] ?? hit.title ?? ""
+      : "";
+    const titleMatches = matchTerms(title, terms);
+    if (!matches.length && !pathMatches.length) return;
+    const window = matches.length
+      ? excerptAround(text, matches.map((h) => h.term), EXCERPT_CHARS)
+      : windowAt(text, 0, 0, EXCERPT_CHARS);
+    const matchedTerms = [...new Set([...matches, ...pathMatches].map((h) => h.term))];
+    const coverage = required.filter((t) => matchedTerms.includes(t)).length;
+    const titleCoverage = titleMatches.length / terms.length;
+    const pathCoverage = pathMatches.length / terms.length;
+    const record: RecallHit = {
+      ...hit,
+      ...(title ? { title } : {}),
+      ref: encodeRef({
+        ...ref,
+        start: window.anchorStart,
+        end: window.anchorEnd,
+      }),
+      excerpt: window.excerpt,
+      matchedTerms,
+      strength: coverage === required.length ? "strong" : "weak",
+    };
+    if (ref.kind === "doc") {
+      record.line = text.slice(0, window.anchorStart).split("\n").length;
+      record.section = headingBefore(text, window.anchorStart);
+    }
+    candidates.push({
+      hit: record,
+      source: text,
+      anchorStart: window.anchorStart,
+      anchorEnd: window.anchorEnd,
+      coverage,
+      derivedCoverage: matchedTerms.length / Math.max(1, terms.length),
+      titleCoverage,
+      pathCoverage,
+      // The full versioned neighborhood and speaker must agree. Equal excerpts
+      // alone may hide different qualifiers, denials, or attribution.
+      duplicateKey: JSON.stringify([hit.sourceKind, hit.path ?? hit.sessionId,
+        hit.section, ref.hash, window.anchorStart, window.anchorEnd]),
+    });
+  };
+  for (const doc of discovery.docs) {
+    const text = readDocText(discovery.root, doc.filePath, warnings);
+    if (text === undefined) continue;
+    add(
+      text,
+      {
+        sourceKind: "doc",
+        title: doc.relPath,
+        path: doc.relPath,
+        ...(doc.archived ? { status: "archived" as const } : {}),
+      },
+      { kind: "doc", path: doc.relPath, hash: fingerprint(text) },
+    );
+  }
+  const filter = resolveFilter({
+    cwd: discovery.root,
+    platform: options.platform,
+    limit: WIDE_LIMIT,
+  });
+  for (const session of listAll(filter, warnings)) {
+    const adapter = MEM_PLATFORMS[session.platform];
+    try {
+      adapter.prepare?.(session.filePath, warnings);
+      const turns = adapter.extract(session, warnings);
+      turns.forEach((turn, idx) => {
+        if (turn.kind === "marker") return;
+        add(
+          turn.text,
+          {
+            sourceKind: session.platform,
+            title: session.id,
+            section: turn.role,
+            sessionId: session.id,
+            turn: idx,
+            ...(session.created ? { sourceTime: session.created } : {}),
+          },
+          {
+            kind: "session",
+            platform: session.platform,
+            id: session.id,
+            turn: idx,
+            hash: fingerprint(
+              JSON.stringify(turns.slice(Math.max(0, idx - 1), idx + 2)),
+            ),
+          },
+        );
+      });
+    } finally {
+      adapter.release?.();
+    }
+  }
+  const strong = candidates.filter((c) => c.hit.strength === "strong");
+  const pool = strong.length ? strong : candidates;
+  const selected = select(pool, limit, maxChars);
+  return {
+    ...selected,
+    totalHits: pool.length,
+    incomplete: warnings.length > 0,
+    warnings,
+  };
+}
+
+/** Preserve the hit first, then spend the remaining budget on neighboring turns. */
+function dialogueWindow(
+  turns: readonly DialogueTurn[],
+  idx: number,
+  start: number,
+  end: number,
+  budget: number,
+): { text: string; truncated: boolean } {
+  const selected = new Map<number, string>();
+  const hit = turns[idx];
+  if (!hit) return { text: "", truncated: false };
+  const prefix = `${hit.role}: `;
+  if (budget < prefix.length + 1) return { text: "", truncated: true };
+  const neighbors = [idx - 1, idx + 1]
+    .filter((i) => turns[i] && turns[i]?.kind !== "marker")
+    .sort(
+      (a, b) => (turns[a]?.text.length ?? 0) - (turns[b]?.text.length ?? 0),
+    );
+  const hitBudget = neighbors.length
+    ? Math.max(1, Math.floor((budget - prefix.length) / 2))
+    : budget - prefix.length;
+  const window = windowAt(hit.text, start, end, hitBudget);
+  selected.set(idx, prefix + window.excerpt);
+  let used = prefix.length + window.excerpt.length;
+  let truncated = window.truncated;
+  for (const neighbor of neighbors) {
+    const turn = turns[neighbor];
+    if (!turn || turn.kind === "marker") continue;
+    const label = `${turn.role}: `;
+    const available = budget - used - label.length - 2;
+    if (available < 1) {
+      truncated = true;
+      continue;
+    }
+    const anchor = neighbor < idx ? turn.text.length : 0;
+    const w = windowAt(turn.text, anchor, anchor, available);
+    selected.set(neighbor, label + w.excerpt);
+    used += label.length + w.excerpt.length + 2;
+    truncated ||= w.truncated;
+  }
+  return {
+    text: [...selected]
+      .sort(([a], [b]) => a - b)
+      .map(([, t]) => t)
+      .join("\n\n"),
+    truncated,
+  };
+}
+
+function readDoc(
+  ref: string,
+  evidence: EvidenceRef,
+  discovery: DocDiscovery,
+  budget: number,
+  warnings: MemWarning[],
+): RecallRead | undefined {
+  const abs = path.resolve(discovery.root, evidence.path ?? "");
+  const real = allowedDocPath(discovery.root, abs);
+  if (!real || !discovery.docs.some((d) => d.filePath === real)) {
+    warnings.push({
+      code: "ref-outside-project",
+      message:
+        "document ref is missing or outside the allowed project sources; recall again",
+    });
+    return undefined;
+  }
+  const text = readDocText(discovery.root, real, warnings);
+  if (text === undefined) return undefined;
+  if (fingerprint(text) !== evidence.hash) {
+    warnings.push({
+      code: "ref-changed",
+      message: "document changed since recall; recall again before using it",
+    });
+    return {
+      ref,
+      sourceKind: "doc",
+      path: evidence.path,
+      text: "",
+      changed: true,
+    };
+  }
+  if (evidence.end > text.length) {
+    warnings.push({
+      code: "ref-invalid",
+      message: "document anchor is out of bounds",
+    });
+    return undefined;
+  }
+  const w = windowAt(text, evidence.start, evidence.end, budget);
+  return {
+    ref,
+    sourceKind: "doc",
+    path: evidence.path,
+    title: evidence.path,
+    text: w.excerpt,
+    changed: false,
+    truncated: w.truncated,
+  };
+}
+
+function readSession(
+  ref: string,
+  evidence: EvidenceRef,
+  root: string,
+  budget: number,
+  warnings: MemWarning[],
+): RecallRead | undefined {
+  const platform = evidence.platform;
+  if (!platform || evidence.id === undefined || evidence.turn === undefined)
+    return undefined;
+  const session = listAll(
+    resolveFilter({ cwd: root, platform, limit: WIDE_LIMIT }),
+    warnings,
+  ).find((s) => s.id === evidence.id && sameProject(s.cwd, root));
+  if (!session) {
+    warnings.push({
+      code: "ref-missing",
+      message: "session ref no longer resolves in this project",
+    });
+    return undefined;
+  }
+  const turns = MEM_PLATFORMS[platform].extract(session, warnings);
+  const idx = evidence.turn;
+  const turn = turns[idx];
+  if (
+    !turn ||
+    fingerprint(JSON.stringify(turns.slice(Math.max(0, idx - 1), idx + 2))) !==
+      evidence.hash
+  ) {
+    warnings.push({
+      code: "ref-changed",
+      message: "dialogue window changed since recall; recall again",
+    });
+    return {
+      ref,
+      sourceKind: platform,
+      sessionId: session.id,
+      text: "",
+      changed: true,
+    };
+  }
+  if (evidence.end > turn.text.length) {
+    warnings.push({
+      code: "ref-invalid",
+      message: "dialogue anchor is out of bounds",
+    });
+    return undefined;
+  }
+  const window = dialogueWindow(
+    turns,
+    idx,
+    evidence.start,
+    evidence.end,
+    budget,
+  );
+  return {
+    ref,
+    sourceKind: platform,
+    title: session.id,
+    sessionId: session.id,
+    ...window,
+    changed: false,
+  };
+}
+
+/** Expand only versioned refs emitted by recall, with one total batch budget. */
+export function readMemRefs(options: ReadMemRefsOptions): RecallReadResult {
+  const discovery = discoverDocs(path.resolve(options.cwd ?? process.cwd()));
+  const warnings = [...discovery.warnings];
+  const budget = positive(options.maxChars, 4000);
+  const reads: RecallRead[] = [];
+  let used = 0;
+  let truncated = options.refs.length > MAX_REFS;
+  const refs = [...new Set(options.refs)].slice(0, MAX_REFS);
+  for (const [index, ref] of refs.entries()) {
+    const evidence = decodeRef(ref);
+    if (!evidence) {
+      warnings.push({
+        code: "ref-invalid",
+        message:
+          "invalid or unversioned ref; run recall to obtain a current ref",
+      });
+      continue;
+    }
+    // Reserve metadata before reading, so one batch cannot grow per-ref caps.
+    const overhead = JSON.stringify({
+      ref,
+      sourceKind: evidence.platform ?? "doc",
+      title: evidence.path ?? evidence.id,
+      ...(evidence.kind === "doc"
+        ? { path: evidence.path }
+        : { sessionId: evidence.id }),
+      text: "",
+      changed: false,
+      truncated: false,
+    }).length;
+    const allowance = Math.floor((budget - used) / (refs.length - index));
+    const remaining = allowance - overhead;
+    if (remaining < 1) {
+      truncated = true;
+      break;
+    }
+    let read =
+      evidence.kind === "doc"
+        ? readDoc(ref, evidence, discovery, remaining, warnings)
+        : readSession(ref, evidence, discovery.root, remaining, warnings);
+    if (!read) continue;
+    let cap = remaining;
+    while (JSON.stringify(read).length > allowance && cap > 0) {
+      cap -= Math.max(1, JSON.stringify(read).length - allowance);
+      if (cap <= 0) break;
+      read =
+        evidence.kind === "doc"
+          ? readDoc(ref, evidence, discovery, cap, warnings)
+          : readSession(ref, evidence, discovery.root, cap, warnings);
+      if (!read) break;
+    }
+    if (!read || JSON.stringify(read).length > allowance) {
+      truncated = true;
+      continue;
+    }
+    reads.push(read);
+    used += JSON.stringify(read).length;
+    truncated ||= read.truncated === true;
+  }
+  return { reads, warnings, truncated };
+}

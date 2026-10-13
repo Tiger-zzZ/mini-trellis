@@ -2,8 +2,8 @@
  * Default home-based session roots for the persisted-session adapters.
  *
  * `HOME` is captured once at module load — consumers that need to point the
- * adapters at a fake home (tests) must mock `node:os` before importing any
- * mem module.
+ * adapters at a fake home (tests, the baseline corpus) must mock `node:os`
+ * before importing any mem module.
  */
 
 import * as fs from "node:fs";

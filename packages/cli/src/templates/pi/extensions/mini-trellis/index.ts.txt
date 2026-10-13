@@ -29,43 +29,16 @@ function findRoot(start: string): string {
   return start;
 }
 
-function collectResearchTopics(root: string): string[] {
-  const researchDir = join(root, ".trellis", "research");
-  if (!exists(researchDir)) return [];
-  try {
-    return readdirSync(researchDir, { withFileTypes: true })
-      .filter((entry) => {
-        if (entry.name.startsWith(".") || entry.name.toLowerCase() === "readme.md") return false;
-        if (entry.name === "archive") return false;
-        // A topic is a note, or a directory: `mini-trellis migrate` folds each
-        // Trellis task into one so its evidence sits next to its notes.
-        if (entry.isDirectory()) return true;
-        return entry.isFile() && entry.name.toLowerCase().endsWith(".md");
-      })
-      .map((entry) => ({ name: entry.name, dir: entry.isDirectory() }))
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((topic) => `.trellis/research/${topic.name}${topic.dir ? "/" : ""}`);
-  } catch {
-    return [];
-  }
-}
-
-function collectSpecIndexPaths(root: string): string[] {
+function countSpecIndexes(root: string): number {
   const specDir = join(root, ".trellis", "spec");
-  const paths: string[] = [];
-  const guidesIndex = join(specDir, "guides", "index.md");
-  if (exists(guidesIndex)) paths.push(".trellis/spec/guides/index.md");
-  if (!exists(specDir)) return paths;
+  if (!exists(specDir)) return 0;
   try {
-    for (const sub of readdirSync(specDir).sort()) {
-      if (sub.startsWith(".") || sub === "guides") continue;
-      const indexFile = join(specDir, sub, "index.md");
-      if (exists(indexFile)) paths.push(`.trellis/spec/${sub}/index.md`);
-    }
+    return readdirSync(specDir).filter((name) =>
+      exists(join(specDir, name, "index.md")),
+    ).length;
   } catch {
-    // ignore
+    return 0;
   }
-  return paths;
 }
 
 function readDeveloper(root: string): string | null {
@@ -103,53 +76,26 @@ function activeJournal(root: string): string | null {
 }
 
 function buildStartupContext(root: string): string {
-  const MAX_CONTEXT_CHARS = 4000;
-  const spec = collectSpecIndexPaths(root);
-  const research = collectResearchTopics(root);
   const journal = activeJournal(root);
-  const lines: string[] = [
-    "<session-context>",
-    "mini-trellis SessionStart context. Orient from journal, spec, and research.",
-    "</session-context>",
-    "",
-    "<current-state>",
-  ];
-  if (journal) lines.push(`Journal: ${journal}`);
-  if (spec.length) lines.push(`Spec indexes: ${spec.length} available.`);
-  lines.push(
-    research.length
-      ? `Research notes: ${research.length} in .trellis/research/.`
-      : "Research notes: none yet. Write .trellis/research/<topic>.md.",
-  );
-  lines.push("</current-state>", "", "<guidelines>");
-  lines.push(
-    "Memory: journal is git-durable session notes (`/mini-trellis-remember` or `python3 ./.trellis/scripts/add_session.py`). Cross-session dialogue is `mini-trellis mem list|search|context|extract`.",
-    "Research lives in `.trellis/research/<topic>.md`, or in `.trellis/research/<topic>/` when a topic brings evidence files with it; promote durable boundaries into `.trellis/spec/` as short markdown.",
-    "Record confirmed decisions, useful research findings, and session/compact endings. Do not record every turn or create a git commit unless the user asks.",
-  );
-  if (spec.length) {
-    lines.push("", "## Spec indexes (read on demand)");
-    for (const p of spec) lines.push(`- ${p}`);
-  }
-  if (research.length) {
-    lines.push("", "## Research notes (read on demand)");
-    for (const p of research) lines.push(`- ${p}`);
-  }
-  lines.push(
-    "</guidelines>",
-    "",
-    "<ready>",
-    "Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. Remember at session end or after compact.",
-    "</ready>",
-  );
-  const context = lines.join("\n");
-  if (context.length <= MAX_CONTEXT_CHARS) return context;
-  const tail = context.slice(-300);
-  return (
-    context.slice(0, MAX_CONTEXT_CHARS - tail.length - 80) +
-    "\n[mini-trellis context truncated; read files on demand]\n" +
-    tail
-  );
+  const specCount = countSpecIndexes(root);
+  return `<session-context>
+mini-trellis memory is available on demand. Do not announce this hook.
+Use \`mini-trellis mem recall <query>\` for relevant prior decisions or conventions;
+include the affected path/identifier when useful. Unrelated edits need no history lookup.
+Use \`mini-trellis mem read <ref>\` only if an excerpt lacks needed context or qualifiers.
+Reuse evidence already in the current context; recall again after compact or when a
+source changes or disappears. Never treat stale or missing sources as current rules.
+Keep confirmed decisions and useful findings in \`.trellis/research/<topic>.md\`;
+update the existing topic, and promote lasting contracts into \`.trellis/spec/\`.
+Keep confirmed rules short and faithful; leave unconfirmed scope, exceptions, and
+implementation choices open or label them as inference, not part of the contract.
+New notes follow the user's language; updates keep the file's language. Preserve identifiers.
+Record meaningful session outcomes with \`python3 ./.trellis/scripts/add_session.py\`.
+Journal entries should link to the topic instead of duplicating it. Ordinary edits and
+unconfirmed or rejected suggestions are not new durable decisions. Report write failures.
+Do not create a git commit unless the user explicitly asks.
+</session-context>` + (journal ? `\nJournal: ${journal}` : "") +
+    (specCount ? `\nSpec indexes: ${specCount} available.` : "");
 }
 
 export default function trellisExtension(pi: {
@@ -160,17 +106,11 @@ export default function trellisExtension(pi: {
 }): void {
   if (process.env.TRELLIS_SUBAGENT_CHILD === "1") return;
   const root = findRoot(process.cwd() || homedir());
-  const startup = buildStartupContext(root);
-
-  pi.on?.("session_start", (_event, ctx) => {
-    ctx?.ui?.notify?.(
-      "mini-trellis context is available. Use /mini-trellis-remember to persist journal notes.",
-      "info",
-    );
-  });
 
   pi.on?.("before_agent_start", (event) => {
     const cur = (event as { systemPrompt?: string }).systemPrompt ?? "";
+    const startup = buildStartupContext(root);
+    if (cur.includes(startup)) return { systemPrompt: cur };
     return {
       systemPrompt: [cur, startup].filter(Boolean).join("\n\n"),
     };

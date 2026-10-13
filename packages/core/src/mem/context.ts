@@ -4,6 +4,7 @@
  * top hits.
  */
 
+import { excerptAround, windowAt } from "./lexical.js";
 import {
   buildChildIndex,
   extractDialogue,
@@ -31,8 +32,9 @@ interface SelectedContext {
 /**
  * Pure selection: rank turns against `grep` (user-role first, then hit
  * density), take the top `nTurns`, expand each by `around` turns of context,
- * then emit turns within `maxChars` — head-truncating any single turn that
- * exceeds half the budget. With no `grep`, returns the first `nTurns` turns.
+ * then emit turns within `maxChars`. A turn longer than its share is cut
+ * around the densest matched-term window, so a hit at the end of a
+ * long turn survives. With no `grep`, returns the first `nTurns` turns.
  */
 export function selectContextTurns(
   turns: readonly DialogueTurn[],
@@ -90,22 +92,39 @@ export function selectContextTurns(
       display.add(j);
     }
   }
-  const ordered = [...display].sort((a, b) => a - b);
   const hitSet = new Set(hitIndices);
-
+  // Allocate evidence first, then short neighboring qualifiers, finally render
+  // in dialogue order. A long preceding turn cannot consume the hit's budget.
+  const neighbors = [...display]
+    .filter((i) => !hitSet.has(i))
+    .sort(
+      (a, b) => (turns[a]?.text.length ?? 0) - (turns[b]?.text.length ?? 0),
+    );
+  const priority = [...hitIndices, ...neighbors];
   const out: MemContextTurn[] = [];
   let used = 0;
-  for (const i of ordered) {
+  for (const i of priority) {
     const t = turns[i];
-    if (!t) continue;
-    let text = t.text;
-    const cap = Math.floor(maxChars / 2);
-    if (text.length > cap)
-      text = text.slice(0, cap) + `\n…[+${t.text.length - cap} chars]`;
-    if (used + text.length > maxChars && out.length > 0) break;
+    if (!t || used >= maxChars) continue;
+    const available = Math.max(0, maxChars - used);
+    const cap =
+      hitSet.has(i) && neighbors.length
+        ? Math.min(available, Math.max(1, Math.floor(maxChars / 2)))
+        : available;
+    const tokens = (grep ?? "")
+      .normalize("NFKC")
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+    const text =
+      hitSet.has(i) && tokens.length
+        ? excerptAround(t.text, tokens, cap).excerpt
+        : windowAt(t.text, 0, 0, cap).excerpt;
+    if (!text) continue;
     out.push({ idx: i, role: t.role, text, isHit: hitSet.has(i) });
     used += text.length;
   }
+  out.sort((a, b) => a.idx - b.idx);
 
   return { turns: out, totalHitTurns, budgetUsed: used };
 }

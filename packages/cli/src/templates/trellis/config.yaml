@@ -17,10 +17,10 @@ max_journal_lines: 2000
 #-------------------------------------------------------------------------------
 
 # Auto-commit journal/index after add_session.py.
-# - true (default): auto-stage and auto-commit journal files
-# - false: write files only; you decide when to git add / commit
+# - true: auto-stage and auto-commit journal files
+# - false (new-install default): write files only; you decide when to commit
 #
-# session_auto_commit: true
+session_auto_commit: false
 
 #-------------------------------------------------------------------------------
 # Monorepo / Packages

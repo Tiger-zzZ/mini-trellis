@@ -6,25 +6,32 @@
 
 | Layer | Path | Role |
 |-------|------|------|
-| Journal | `.trellis/workspace/<dev>/journal-*.md` | Git-durable session notes |
+| Journal | `.trellis/workspace/<dev>/journal-*.md` | Per-developer session notes |
 | Research | `.trellis/research/<topic>.md` | Topic inbox. `README.md` is not a topic |
 | Spec | `.trellis/spec/**/index.md`, then linked files | Durable contracts. Short markdown |
-| Dialogue | `mini-trellis mem list\|search\|context\|extract` | Cross-session chat |
+| Recall | `mini-trellis mem recall "<query>"` | Project Markdown and cross-session dialogue |
 
 ## SessionStart contract
 
-- Inject the active journal path, spec **index** paths, and research topic files.
-- Do **not** list individual spec articles — only `index.md`.
-- Do **not** inject `.trellis/research/archive/`.
-- Compact source: remind the user to run remember (`/mini-trellis:remember`, `/mini-trellis-remember` on Pi, `$mini-trellis-remember` on Codex) if durable notes from the compacted window are missing.
+- Deliver a short memory entry and the active journal path; do not enumerate research topics or inject their bodies.
+- Retrieve relevant rules and research on demand with `mini-trellis mem recall "<query>"`. Use `mini-trellis mem read "<ref>"` only when excerpts lack necessary context or conditions.
+- Archived research remains searchable and is marked archived; it is not injected at startup.
+- After compact, restore the short entry and remember any confirmed conclusions that have not been saved.
 
 ## Remember
+
+Save confirmed decisions and reusable findings in the relevant spec/research topic, updating an existing topic when possible. Check the saved content, then record a short journal entry linking to it:
+
+Keep confirmed rules short and faithful. Unconfirmed scope, exceptions, and implementation choices stay open or are labeled as inference, not added to the contract.
 
 ```bash
 python3 ./.trellis/scripts/add_session.py \
   --title "Short title" \
   --commit - \
-  --summary "What happened, what was decided, what to reuse"
+  --summary "What happened, what was decided, what to reuse" \
+  --topic .trellis/research/example.md
 ```
 
-If the session produced reusable research, write `.trellis/research/<topic>.md`. Promote a note into `.trellis/spec/` only if the boundary still holds, then link it from the matching `index.md`. Cold research: `git mv` into `.trellis/research/archive/`.
+Use the actual topic path; omit `--topic` for a handoff without a topic. The script writes journal/index and a relative topic link; it does not edit the topic. Verify the files before reporting completion. Skip ordinary changes and unconfirmed ideas. New notes follow the discussion language; updates keep the original document's language.
+
+Promote durable boundaries into `.trellis/spec/` and link them from the matching `index.md`. Cold research can move into `.trellis/research/archive/`.

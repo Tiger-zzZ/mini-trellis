@@ -6,6 +6,7 @@
  * needs exactly the same semantics.
  */
 
+import * as fs from "node:fs";
 import * as path from "node:path";
 
 import type { MemFilter } from "./types.js";
@@ -54,6 +55,31 @@ export function inRangeOverlap(
   return true;
 }
 
+/**
+ * Resolve symlinks so `/tmp` and `/private/tmp` compare equal on macOS. When the
+ * path itself does not exist, resolve the nearest ancestor that does and keep
+ * the remainder, so a session recorded under a directory created later still
+ * matches that directory.
+ */
+function real(p: string): string {
+  const abs = path.resolve(p);
+  let existing = abs;
+  const missing: string[] = [];
+  while (!fs.existsSync(existing)) {
+    missing.unshift(path.basename(existing));
+    const parent = path.dirname(existing);
+    if (parent === existing) break;
+    existing = parent;
+  }
+  let resolved = existing;
+  try {
+    resolved = fs.realpathSync(existing);
+  } catch {
+    resolved = existing;
+  }
+  return path.join(resolved, ...missing);
+}
+
 /** True iff `sessionCwd` is within `target` (exact match or descendant
  * directory). When `target` is undefined there is no scoping and everything
  * matches; sessions with an unknown cwd are dropped under scoping. */
@@ -63,7 +89,7 @@ export function sameProject(
 ): boolean {
   if (!target) return true;
   if (!sessionCwd) return false;
-  const a = path.resolve(sessionCwd);
-  const b = path.resolve(target);
+  const a = real(sessionCwd);
+  const b = real(target);
   return a === b || a.startsWith(b + path.sep);
 }

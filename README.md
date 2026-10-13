@@ -1,162 +1,157 @@
-# mini-trellis
+<h1 align="center">mini-trellis</h1>
 
-**A memory layer for AI coding agents.** A trimmed fork of [Trellis](https://github.com/mindfold-ai/Trellis) 0.6.17 that keeps spec, research, journal and cross-session recall, and drops everything else.
+<p align="center"><strong>Project knowledge for the next coding session.</strong></p>
 
-English | [简体中文](./README_CN.md)
+<p align="center">Keep conventions, research and development notes for your agent.<br/>Find earlier decisions and their sources when you need them again.</p>
 
-<p>
-<a href="https://www.npmjs.com/package/mini-trellis"><img src="https://img.shields.io/npm/v/mini-trellis.svg?style=flat-square&color=2563eb" alt="npm version" /></a>
-<a href="https://www.npmjs.com/package/mini-trellis"><img src="https://img.shields.io/npm/dm/mini-trellis?style=flat-square&color=cb3837&label=downloads" alt="npm downloads" /></a>
-<a href="https://github.com/Tiger-zzZ/mini-trellis/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-16a34a.svg?style=flat-square" alt="license" /></a>
-<a href="https://github.com/Tiger-zzZ/mini-trellis/stargazers"><img src="https://img.shields.io/github/stars/Tiger-zzZ/mini-trellis?style=flat-square&color=f59e0b" alt="GitHub stars" /></a>
-<a href="https://github.com/Tiger-zzZ/mini-trellis/issues"><img src="https://img.shields.io/github/issues/Tiger-zzZ/mini-trellis?style=flat-square" alt="GitHub issues" /></a>
-<a href="https://github.com/Tiger-zzZ/mini-trellis/pulls"><img src="https://img.shields.io/github/issues-pr/Tiger-zzZ/mini-trellis?style=flat-square" alt="GitHub pull requests" /></a>
+<p align="center">Local Markdown · On-demand lookup · Across sessions</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#working-with-project-memory">How it works</a> ·
+  <a href="#migrating-from-trellis">Migration</a> ·
+  <a href="./README_CN.md">简体中文</a>
 </p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/mini-trellis"><img src="https://img.shields.io/npm/v/mini-trellis?style=flat-square&amp;color=28785e" alt="npm version" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 license" /></a>
+</p>
+
+![Conventions, research and verified fixes accumulate in project Markdown, inform later work, and are updated with new evidence.](./docs/assets/knowledge-en.svg)
+
+- **Carry decisions forward.** Keep agreed interface boundaries and project conventions where the next session can read them.
+- **Build on earlier research.** Save the conclusion, its conditions and its sources. Update the same topic as you learn more.
+- **Check the original discussion.** Search local conversation history when you need to distinguish a proposal from the decision that followed.
+
+mini-trellis adds project memory to your existing way of working. Planning, implementation and review stay with you and your agent. Knowledge is stored as editable Markdown; history lookup runs locally, without an embedding model or a separate retrieval service.
 
 ## Quick start
 
-```bash
-npm install -g mini-trellis
-mini-trellis init -u your-name --claude   # add as needed: --codex --opencode --pi
-```
+v0.2.1 brings unified project knowledge recall, topic-linked journals, and lightweight session context. See the [release notes](./docs/releases/v0.2.1.md).
 
-Then `/mini-trellis:remember` records a session from inside the agent, and `mini-trellis mem search "keywords"` searches past conversations.
+Requires **Node.js ≥ 18.17**, **Python ≥ 3.9**, and Git for version control.
 
-## Why this fork exists
-
-Trellis gave me four things I rely on every day: spec, research notes, session journals, and a way to search past AI conversations. It also shipped a full four-phase task workflow: `task.py`, PRD gates, sub-agent review, a per-turn breadcrumb telling the model which phase it is in. Over time I noticed I was routing around the workflow and only ever using the memory parts.
-
-Models have moved on too. A current agent plans and verifies on its own; it does not need a script reminding it which step it is on. What it still cannot do is remember what we decided last week, or find the conversation where we already solved this bug. That gap is what this fork keeps.
-
-So mini-trellis cuts the workflow and keeps the memory. The "mini" is the point.
-
-Credit where due: the heavy lifting is all Trellis. Standing on the shoulders of giants, my main contribution was deleting code.
-
-## Trellis vs mini-trellis
-
-Trellis is an engineering framework: it decides how a task moves from PRD to implementation to review, and it drives that with hooks on every turn, sub-agents, and a task state machine. mini-trellis is only the memory underneath that framework. It never creates a task, never tells the model what phase it is in, and never dispatches a sub-agent. It injects a short orientation at session start, lets the model read spec and research on demand, and gives it two verbs: `remember` to write the journal, and `mem` to search past dialogue. Everything Trellis does *around* memory is left to the model and to you.
-
-| | Trellis 0.6.17 | mini-trellis 0.2.0 |
-|---|---|---|
-| Purpose | Engineering framework: spec + task workflow + memory | Memory layer only |
-| Hosts | 22 AI coding tools | Claude Code, Codex, OpenCode, Pi |
-| Hooks | SessionStart + per-turn breadcrumb + PreToolUse sub-agent injection | SessionStart only |
-| Task system | `task.py`, `tasks/`, PRD / jsonl gates, `workflow.md`, archive | None |
-| Sub-agents | `trellis-research` / `implement` / `check` | None |
-| Skills & commands shipped | ~10 skills, 3 commands, 3 agents | `remember`, `session-insight`, `update-spec` |
-| CLI | init, update, workflow, channel, ablate, restore, mem, upgrade, uninstall, platforms | init, migrate, mem, upgrade, uninstall, platforms |
-| Spec | 7-section templates per layer, generated at init | One short seed; you write short markdown |
-| Research | Lives inside a task directory | First-class `.trellis/research/` inbox with a cold `archive/` |
-| Journal trigger | Task archive, then `finish-work` | `remember`, plus a reminder after compact |
-| Code shipped | ~110k lines across `packages/` | ~31k lines |
-| License | AGPL-3.0 | AGPL-3.0 (unchanged) |
-
-If you want an opinionated workflow with guard rails, use Trellis. If you want your agent to remember and stay out of the way, use this.
-
-## What's kept
-
-| Path | What it is |
-|------|------------|
-| `.trellis/spec/` | Durable contracts, short markdown; read `index.md` first. Only what should still hold next week belongs here |
-| `.trellis/research/<topic>.md` | Research inbox: process and evidence worth reusing later; `git mv` stale notes into `research/archive/` |
-| `.trellis/workspace/<you>/journal-*.md` | Session notes: what you did, what you decided, what's next; appended by remember, auto-commit configurable |
-| `mini-trellis mem search <kw>` | The first three are written for the future; this one reads the past — chat history from Claude / Codex / OpenCode / Pi |
-
-## How a session goes
-
-1. **SessionStart** injects a few lines: your journal path, the spec index paths, the hot research topics. Paths only, never bodies. Nothing about tasks or phases.
-2. **During the session** the model reads spec or research on demand, and reaches for `mini-trellis mem` when a question sounds like "didn't we already discuss this".
-3. **At the end, or after a compact,** ask the agent to run `remember` to append a journal entry (auto-commit follows `session_auto_commit`). Reusable research can go into `.trellis/research/<topic>.md`; lasting boundaries go into spec via `mini-trellis-update-spec`. The hook supplies context and reminders; closing a session does not automatically save notes.
-
-## What's automatic and what isn't
-
-Automatic, three things: the SessionStart orientation, the research topic listing, and `mem` searching your local chat history.
-
-Writing the journal, promoting into spec, and keeping research notes are all deliberate acts — having hooks does not mean it remembers for you. Memory holds what you asked the agent to put there.
-
-## Install
+Run in your project:
 
 ```bash
 npm install -g mini-trellis
 mini-trellis init -u your-name --claude
-# also: --codex --opencode --pi
 ```
 
-Python ≥ 3.9 is required for the journal scripts and SessionStart hooks. Codex SessionStart needs `[features].hooks = true` in `~/.codex/config.toml`, then a one-time `/hooks` approval.
+Choose your agent's flag from the [supported tools](#supported-tools) below. Flags can be combined.
 
-| Command | What it does |
-|---|---|
-| `mini-trellis init` | Write the memory skeleton and the host surfaces for the flags you pass |
-| `mini-trellis mem list\|search\|context\|extract\|projects` | Search local session logs of the four hosts; nothing is uploaded |
-| `mini-trellis migrate` | Convert a Trellis project (see below) |
-| `mini-trellis upgrade` | Upgrade the global CLI via npm |
-| `mini-trellis refresh --dry-run` | Preview a safe refresh of installed scripts and host assets |
-| `mini-trellis doctor` | Check installation, configuration, and host trigger points |
-| `mini-trellis uninstall` | Remove the host files and `.trellis/` from a project |
-| `mini-trellis platforms` | Show which hosts are configured here |
-
-`refresh` only updates mini-trellis assets that are claimed and unchanged locally; conflicts are kept and reported. `refresh --dry-run` never writes files.
-
-Current release is 0.2.0. Host delivery can vary by host version; use `mini-trellis doctor` and verify one real session.
-
-### Upgrading an existing mini-trellis project
-
-`mini-trellis upgrade` updates the global CLI only. To refresh an existing project's installed scripts and host templates:
-
-1. Commit or back up `.trellis/`, `AGENTS.md`, and the configured host directories, including ignored files.
-2. Run `mini-trellis refresh --dry-run` to review the planned files and conflicts.
-3. Run `mini-trellis refresh` after review; it only updates claimed, unchanged assets and keeps custom config, workspace, spec, research, and journal files.
-4. Run `mini-trellis doctor`, then open a new host session to verify context delivery.
-
-Use `migrate` for Trellis projects or leftover `.trellis/tasks/`; it is not a general template updater.
-
-## Coming from Trellis?
-
-If Trellis is already running in one of your projects, my honest advice is: leave it there. Point mini-trellis at a new project instead. The two share `.trellis/`, and their instruction surfaces don't merge cleanly — Trellis's skills, commands, and agents stay discoverable right next to mini-trellis's.
-
-If you do want to convert one, `mini-trellis migrate` handles it:
+Start a new agent session. Once you have a decision worth keeping, ask the agent to save it and invoke its `remember` command. To look up project knowledge from the terminal:
 
 ```bash
-mini-trellis migrate --dry-run   # list what would go
-mini-trellis migrate             # asks first, defaults to no
+mini-trellis mem recall "callback retries"
 ```
 
-It rewrites the four host surfaces with mini-trellis's versions, deletes the Trellis-only instruction files (skills, commands, agents, per-turn injectors, `workflow.md`, `task.py`), replaces the Trellis block in `AGENTS.md`, and drops `.trellis/.version` so the Trellis CLI stops offering to update the project back to the four-phase workflow.
+## Working with project memory
 
-It also converges `.trellis/tasks/` into the memory layer, because with `task.py` gone nothing reads that tree any more:
+Consider a billing service where repeated callbacks caused duplicate charges. The fix is complete, but the reason for it needs to survive the session.
 
-- Each task directory becomes one research topic: `.trellis/tasks/<name>/` → `.trellis/research/<name>/`, and archived ones go to `.trellis/research/archive/YYYY-MM/<name>/`. Date prefixes and directory names are kept, preserving relative links within the retained task content. Links to departing files such as `../prd.md` are not repaired.
-- Each topic keeps its `research/` subtree and `design.md` exactly where they are. Everything else at the task root — `task.json`, `prd.md`, `implement*`, `check.jsonl`, `drafts/`, and any file migrate does not recognise — leaves the topic. You choose once, up front: archive it to `.trellis/research/<topic>/legacy/`, or delete it. Archive is the default, `--yes` included.
-- Repo-relative `.trellis/tasks/…` mentions inside the notes that stay are repointed by their full source paths. Stale pre-archive paths are repaired only when the task name is unique. Ambiguous or unsupported references are left unchanged and counted; references to other repositories are not rewritten.
-- The `current_task` pointer in `.trellis/.runtime/sessions/*.json` is cleared, and `.trellis/tasks/` is removed once it is empty.
+| Keep | Example | Use it next time |
+| --- | --- | --- |
+| A project convention | Every callback must carry an idempotency key. | Check the rule before changing the callback handler. |
+| Research and evidence | Retry conditions, alternatives considered, and links to the provider's documentation. | Revisit the reasoning when the provider changes its API. |
+| A development note | What caused the duplicate charge, what changed, and which test verified the fix. | Find the earlier investigation when a similar report arrives. |
 
-If a topic destination already exists under `.trellis/research/`, or a task root already contains `legacy`, migrate stops before touching anything and lists the collisions. Move or rename those entries before retrying. Migration directories must be real directories, not symlinks. Unprocessed entries, including dangling symlinks, keep `tasks/` from being removed and are reported. Note symlinks are never followed for rewriting.
+The agent saves these findings as project notes, ready to consult and update in later sessions.
 
-**There is no backup.** Deleting is permanent, so commit or copy anything you might want back first.
+### Where knowledge lives
 
-### What you get afterwards
+| Location | Contents |
+| --- | --- |
+| `.trellis/spec/` | Current project conventions and durable contracts. Read the relevant `index.md` first. |
+| `.trellis/research/` | Topic notes with conclusions, conditions and sources. Historical topics can be kept under `archive/`. |
+| `.trellis/workspace/<you>/` | Your session journals: changes, decisions, verification and next steps. |
+| Your agent's local history | Original conversations, searched in place with `mini-trellis mem`. |
 
-- `.trellis/spec/`, `research/`, and `workspace/` are left alone. Your spec content survives, including any `backend/`/`frontend/` docs Trellis wrote — those still show up in the SessionStart spec list.
-- `.trellis/config.yaml` and `.trellis/scripts/` get overwritten with mini-trellis's versions. Re-apply any local edits.
-- Migrated task directories are topics under `.trellis/research/` now; hot topics are listed by SessionStart. `.trellis/tasks/` is removed only if no unprocessed entries remain.
-- `.trellis/.version` is removed and mini-trellis never writes one, so the Trellis CLI stays quiet in that project.
+The Markdown files can be reviewed, edited and versioned in Git. Check your ignore rules if you want to share them with the team. Original conversations remain in the agent's own local store.
 
-## Record a session
+### During a session
 
-- Claude / OpenCode: `/mini-trellis:remember`
-- Codex: `$mini-trellis-remember`
-- Pi: `/mini-trellis-remember`
+At startup, the configured hook supplies knowledge locations and recording guidance. The agent can read the relevant notes while working and search history when a previous decision matters.
 
-Promote a lasting boundary into spec with the `mini-trellis-update-spec` skill.
+Record confirmed decisions, reusable findings and verified fixes. Update an existing topic when it already covers the subject; keep the journal brief and link to the detailed note. Use `mini-trellis-update-spec` to capture a lasting project rule.
 
-## Feedback
+Use `remember` to save a checkpoint before ending a session. New installations write notes without an automatic Git commit; existing projects follow their `session_auto_commit` setting.
 
-This was cut in a hurry. Please try it, complain freely in [issues](https://github.com/Tiger-zzZ/mini-trellis/issues), and send pull requests; see [CONTRIBUTING](./CONTRIBUTING.md) for the local setup. Thanks to the Trellis team, and to everyone on the forum who pushed for a smaller Trellis.
+### Find project knowledge
 
-## License
+`recall` searches project Markdown and past conversations together. It discovers documents automatically and returns short excerpts with their sources. Copy a result's `ref` into `read` to expand it:
 
-AGPL-3.0. Original copyright Mindfold LLC; this fork's modification notice is in `COPYRIGHT`.
+```bash
+mini-trellis mem recall "callback retries"
+mini-trellis mem read "<ref>"
+```
 
-## Community Support
+Lookup stays within the current project. Results are kept short; expand the sources you need. `read` checks for source changes before returning the text.
 
-[Linuxdo](https://linux.do/)
+For conversation-only lookup, use `mem search`, then `mem context` with a returned session ID. See `mini-trellis mem help` for commands and filters.
+
+## Supported tools
+
+| Agent | Initialization flag | Record a session |
+| --- | --- | --- |
+| Claude Code | `--claude` | `/mini-trellis:remember` |
+| Codex | `--codex` | `$mini-trellis-remember` |
+| OpenCode | `--opencode` | `/mini-trellis:remember` |
+| Pi | `--pi` | `/mini-trellis-remember` |
+
+For example, add both Claude Code and Codex with `mini-trellis init -u your-name --claude --codex`.
+
+For Codex:
+
+1. Run `codex` in the project and review the project trust prompt. If project-local configuration is disabled, follow Codex's message to trust the resolved project path in `~/.codex/config.toml`.
+2. Open `/hooks` to review and approve the project hook. Project trust and hook trust are separate checks; an `untrusted` hook stays inactive.
+3. If your Codex version requires the opt-in, set `hooks = true` under `[features]` in the user config.
+4. Run `mini-trellis doctor`, then start a new session. Hook delivery remains `unknown` until a real run is observed.
+
+## Upgrade and check an installation
+
+`upgrade` updates the global CLI. `refresh` updates the project's installed scripts and agent files.
+
+Back up `.trellis/`, `AGENTS.md` and the configured agent directories first, including ignored files. Then:
+
+```bash
+mini-trellis upgrade
+mini-trellis refresh --dry-run
+```
+
+Review the preview before applying it:
+
+```bash
+mini-trellis refresh
+mini-trellis doctor
+```
+
+Refresh updates only managed assets that have not been modified locally. It preserves knowledge and custom configuration, and reports conflicts for you to resolve. Open a new agent session after refreshing.
+
+Use `mini-trellis platforms` to inspect configured tools. To remove an installation, check `mini-trellis uninstall --help` first: uninstall removes `.trellis/`, including knowledge files, so back them up before removal.
+
+## Migrating from Trellis
+
+Trellis projects can be converted with `migrate`. The two tools share `.trellis/`; use migration to replace the existing integration rather than installing both into the same project.
+
+```bash
+mini-trellis migrate --dry-run
+mini-trellis migrate
+```
+
+Migration retains existing spec, research and journals, and moves task research into research topics. Other task material is archived under `legacy/` by default; deletion is an explicit choice. Trellis-specific workflow files are removed, while scripts, configuration and detected host integrations are replaced with mini-trellis versions.
+
+Before migration, back up project knowledge and custom configuration, including Git-ignored files. The migration command does not create backups. It asks for confirmation and defaults to no.
+
+See the [migration guide](./docs/migration.md) for path mappings, retained files, conflicts and link handling. Use `refresh` to update an existing mini-trellis installation.
+
+## Contributing
+
+Bug reports and practical examples are welcome in [Issues](https://github.com/Tiger-zzZ/mini-trellis/issues). For local development, see [CONTRIBUTING](./CONTRIBUTING.md). Community: [Linux.do](https://linux.do/).
+
+## Acknowledgments and license
+
+mini-trellis originated from [Trellis](https://github.com/mindfold-ai/Trellis) 0.6.17 by Mindfold. Thanks to its authors for the foundation of the project.
+
+[AGPL-3.0](./LICENSE). Original copyright Mindfold LLC; modification notices and contributor attribution are retained in [COPYRIGHT](./COPYRIGHT).
