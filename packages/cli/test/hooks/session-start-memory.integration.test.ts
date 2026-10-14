@@ -154,6 +154,28 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
     },
   );
 
+  it("compact SessionStart names the host session_id in the recovery hint", () => {
+    const sessionId = "compact-session-abc123";
+    const text = hook("claude", sessionId, "compact").text;
+    assertMemoryPayload(text);
+    expect(text).toContain("follows compact");
+    expect(text).toContain(`local session ${sessionId}`);
+    expect(text).toContain(`mini-trellis mem context ${sessionId}`);
+    expect(text).not.toMatch(/local session history:/);
+  });
+
+  it("compact SessionStart stays generic when session_id is absent", () => {
+    const text = hook("claude", undefined, "compact").text;
+    assertMemoryPayload(text);
+    expect(text).toContain("follows compact");
+    expect(text).toContain("local session history");
+    expect(text).toContain("mini-trellis mem recall <query>");
+    expect(text).toContain("mini-trellis mem read <ref>");
+    // Must not invent a concrete session id or a ready-to-run context command.
+    expect(text).not.toMatch(/local session (?!history\b)\S+/);
+    expect(text).not.toMatch(/mini-trellis mem context \S+/);
+  });
+
   it("delivers changed entry content and fails open without identity or valid state", () => {
     const first = hook("claude", "same").text;
     fs.writeFileSync(

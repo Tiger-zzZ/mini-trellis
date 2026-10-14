@@ -243,6 +243,72 @@ describe("runMem subcommand integration", () => {
     );
   });
 
+  // ---------- recent (cross-host handoff) ----------
+
+  it("recent: lists sessions from more than one host with a usable context command", () => {
+    const piId = seedPiPhaseSession();
+    const otherCwd = "/tmp/mem-int-other-project";
+    const otherDir = nodePath.join(
+      CLAUDE_PROJECTS,
+      otherCwd.replace(/[/_]/g, "-"),
+    );
+    writeJsonl(nodePath.join(otherDir, "foreign-session.jsonl"), [
+      {
+        type: "user",
+        cwd: otherCwd,
+        timestamp: "2026-04-16T10:00:00Z",
+        message: { role: "user", content: "other project talk" },
+      },
+    ]);
+
+    runMem(["recent", "--cwd", projectCwd]);
+    const joined = logs.join("\n");
+    expect(joined).toContain("[claude  ]");
+    expect(joined).toContain("[pi      ]");
+    expect(joined).toContain(sessionId);
+    expect(joined).toContain(piId);
+    expect(joined).toContain(`mini-trellis mem context ${sessionId}`);
+    expect(joined).toContain(`mini-trellis mem context ${piId}`);
+    expect(joined).toContain("cross-host handoff");
+    expect(joined).not.toContain("foreign-session");
+    expect(joined).not.toContain(otherCwd);
+  });
+
+  it("recent --json: includes ready-to-run context commands", () => {
+    const piId = seedPiPhaseSession();
+    runMem(["recent", "--cwd", projectCwd, "--json"]);
+    const parsed = JSON.parse(logs[0] ?? "[]") as {
+      platform: string;
+      id: string;
+      command: string;
+    }[];
+    expect(parsed.length).toBeGreaterThanOrEqual(2);
+    const platforms = new Set(parsed.map((r) => r.platform));
+    expect(platforms.has("claude")).toBe(true);
+    expect(platforms.has("pi")).toBe(true);
+    expect(parsed).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: sessionId,
+          platform: "claude",
+          command: `mini-trellis mem context ${sessionId}`,
+        }),
+        expect.objectContaining({
+          id: piId,
+          platform: "pi",
+          command: `mini-trellis mem context ${piId}`,
+        }),
+      ]),
+    );
+  });
+
+  it("handoff: aliases recent", () => {
+    runMem(["handoff", "--cwd", projectCwd, "--limit", "1"]);
+    const joined = logs.join("\n");
+    expect(joined).toContain("recent:");
+    expect(joined).toContain(`mini-trellis mem context ${sessionId}`);
+  });
+
   // ---------- search ----------
 
   it("search: surfaces the matching session and its hit count", () => {

@@ -35,6 +35,12 @@ describe("parseArgv", () => {
     expect(r.positional).toEqual(["memory", "leak"]);
   });
 
+  it("accepts recent and handoff as command names", () => {
+    expect(parseArgv(["recent"]).cmd).toBe("recent");
+    expect(parseArgv(["handoff", "--limit", "3"]).cmd).toBe("handoff");
+    expect(parseArgv(["handoff", "--limit", "3"]).flags.limit).toBe("3");
+  });
+
   it("parses --flag value pairs and standalone --flag as boolean", () => {
     const r = parseArgv([
       "list",
