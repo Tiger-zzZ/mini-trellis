@@ -7,6 +7,7 @@
  *
  * Commands:
  *   list                          list sessions (default if no command)
+ *   recent                        newest sessions across hosts (cross-host handoff)
  *   search <keyword>              find sessions whose contents match keyword
  *   context <session-id>          drill-down: top-N hit turns + surrounding context
  *   extract <session-id>          dump cleaned dialogue (use --grep KW to filter turns)
@@ -151,6 +152,28 @@ function printSessions(rows: readonly MemSessionInfo[]): void {
   }
 }
 
+/** Default cap for `mem recent` — a short cross-host handoff list. */
+const RECENT_DEFAULT_LIMIT = 8;
+
+function contextCommand(sessionId: string): string {
+  return `mini-trellis mem context ${sessionId}`;
+}
+
+function printRecentSessions(rows: readonly MemSessionInfo[]): void {
+  if (rows.length === 0) {
+    console.log("(no sessions)");
+    return;
+  }
+  for (const s of rows) {
+    const when = shortDate(s.updated ?? s.created);
+    console.log(
+      `[${s.platform.padEnd(8)}] ${when}  ${s.id}` +
+        (s.title ? `  — ${s.title}` : ""),
+    );
+    console.log(`             → ${contextCommand(s.id)}`);
+  }
+}
+
 // ---------- commands ----------
 
 function printWarnings(
@@ -180,6 +203,45 @@ function cmdList(argv: Argv): void {
   );
   printSessions(rows);
   console.log(`\n${rows.length} session(s)`);
+}
+
+function cmdRecent(argv: Argv): void {
+  // Cross-host handoff: same project scope as list, smaller default limit.
+  const flags =
+    argv.flags.limit === undefined
+      ? { ...argv.flags, limit: String(RECENT_DEFAULT_LIMIT) }
+      : argv.flags;
+  const f = buildFilter(flags);
+  const warnings: { message: string }[] = [];
+  const rows = listMemSessions({
+    filter: f,
+    onWarning: (warning) => warnings.push(warning),
+  });
+  printWarnings(warnings);
+  if (argv.flags.json) {
+    console.log(
+      JSON.stringify(
+        rows.map((s) => ({
+          platform: s.platform,
+          id: s.id,
+          updated: s.updated ?? s.created ?? null,
+          title: s.title ?? null,
+          cwd: s.cwd ?? null,
+          command: contextCommand(s.id),
+        })),
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+  console.log(
+    `recent: ${f.cwd ? `project=${shortPath(f.cwd)}` : "global"}  platform=${f.platform}  limit=${f.limit}`,
+  );
+  printRecentSessions(rows);
+  console.log(
+    `\n${rows.length} session(s) — open with the → command (cross-host handoff)`,
+  );
 }
 
 function cmdSearch(argv: Argv): void {
@@ -555,6 +617,8 @@ commands:
   recall <query>                find project documents and past dialogue (default 3 hits)
   read <ref...>                 expand refs copied from recall (one batch budget)
   list                          list sessions (default if no command)
+  recent                        newest local sessions across hosts for this project
+                                (cross-host handoff; default --limit ${RECENT_DEFAULT_LIMIT})
   search <keyword>              find sessions whose contents match keyword
   context <session-id>          drill-down: top-N hit turns + surrounding context
                                 (paired with search; use --grep KW to anchor)
@@ -568,7 +632,7 @@ flags:
   --until YYYY-MM-DD                     inclusive upper bound
   --global                               include all projects (default: cwd-scoped)
   --cwd <path>                           override the project cwd
-  --limit N                              cap output (default 50)
+  --limit N                              cap output (default 50; recent default ${RECENT_DEFAULT_LIMIT})
   --grep KW                              extract / context: filter turns by keyword (multi-token AND)
   --turns N                              context: number of hit turns to return (default 3)
   --around N                             context: turns of surrounding context per hit (default 1)
@@ -580,6 +644,7 @@ flags:
 
 examples:
   mini-trellis mem list
+  mini-trellis mem recent
   mini-trellis mem list --global --platform claude --since 2026-04-01
   mini-trellis mem search "session insight" --global
   mini-trellis mem extract 5842592d --grep memory
@@ -603,6 +668,9 @@ export function runMem(args: readonly string[]): void {
   switch (argv.cmd) {
     case "list":
       return cmdList(argv);
+    case "recent":
+    case "handoff":
+      return cmdRecent(argv);
     case "search":
       return cmdSearch(argv);
     case "extract":

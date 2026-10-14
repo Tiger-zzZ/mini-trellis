@@ -486,6 +486,21 @@ def _collect_spec_index_paths(trellis_dir: Path, allowed_pkgs: set | None) -> li
     return paths
 
 
+def _session_id_from_hook(hook_input: dict) -> str | None:
+    """Return the host session id from SessionStart stdin, if the host sent one.
+
+    Matches the field names hosts actually emit (`session_id` / `sessionId` /
+    `sessionID`). Does not invent an id from the environment.
+    """
+    for key in ("session_id", "sessionId", "sessionID"):
+        value = hook_input.get(key)
+        if isinstance(value, str):
+            trimmed = value.strip()
+            if trimmed:
+                return trimmed
+    return None
+
+
 def _build_compact_current_state(
     trellis_dir: Path,
     spec_index_paths: list[str],
@@ -622,12 +637,23 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
     )
 
     if source == "compact":
-        output.write(
-            "This SessionStart follows compact. Details missing from the summary may "
-            "still be in local session history: use `mini-trellis mem recall <query>`, "
-            "then `mini-trellis mem read <ref>` for the original turns. Record durable "
-            "decisions that were not saved yet with `/mini-trellis:remember`.\n"
-        )
+        session_id = _session_id_from_hook(hook_input)
+        if session_id:
+            output.write(
+                "This SessionStart follows compact. Details missing from the summary may "
+                f"still be in local session {session_id}: use "
+                f"`mini-trellis mem context {session_id}`, or "
+                "`mini-trellis mem recall <query>` then `mini-trellis mem read <ref>`. "
+                "Record durable decisions that were not saved yet with "
+                "`/mini-trellis:remember`.\n"
+            )
+        else:
+            output.write(
+                "This SessionStart follows compact. Details missing from the summary may "
+                "still be in local session history: use `mini-trellis mem recall <query>`, "
+                "then `mini-trellis mem read <ref>` for the original turns. Record durable "
+                "decisions that were not saved yet with `/mini-trellis:remember`.\n"
+            )
     output.write("</guidelines>\n\n")
 
     output.write("""<ready>
