@@ -1,6 +1,5 @@
 {
   "include": [
-    ".trellis/scripts/**/*.py",
     ".claude/hooks/**/*.py",
     "packages/cli/src/templates/**/*.py"
   ],
