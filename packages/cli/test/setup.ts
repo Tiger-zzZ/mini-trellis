@@ -3,6 +3,13 @@
 // instead of picking up whatever the dev's terminal happens to export.
 delete process.env.TRELLIS_CONTEXT_ID;
 
+// Host agents often enable commit.gpgsign globally. SSH signing under
+// parallel vitest load can hang past the suite's 10s timeout; test repos
+// never need signed commits.
+process.env.GIT_CONFIG_COUNT = "1";
+process.env.GIT_CONFIG_KEY_0 = "commit.gpgsign";
+process.env.GIT_CONFIG_VALUE_0 = "false";
+
 // Strip CLAUDE_ENV_FILE: session-start.py appends `export TRELLIS_CONTEXT_ID=…`
 // to it, so a dev running the suite inside a Claude Code session would write
 // test fixture keys into their own real shell setup file.

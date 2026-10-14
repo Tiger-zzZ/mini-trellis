@@ -343,8 +343,16 @@ function cmdRecall(argv: Argv): void {
       const where = hit.path
         ? `${hit.path}${hit.line ? `:${hit.line}` : ""}`
         : `${hit.sourceKind}:${hit.sessionId}`;
+      const lineage =
+        hit.status === "superseded"
+          ? hit.supersededBy
+            ? `  superseded → ${hit.supersededBy}`
+            : "  superseded"
+          : hit.status
+            ? `  ${hit.status}`
+            : "";
       lines.push(
-        `\n[${hit.sourceKind}] ${where}${hit.section ? `  § ${hit.section}` : ""}  ${hit.strength}${hit.status ? `  ${hit.status}` : ""}`,
+        `\n[${hit.sourceKind}] ${where}${hit.section ? `  § ${hit.section}` : ""}  ${hit.strength}${lineage}`,
         `  ref: ${hit.ref}`,
         `  ${hit.excerpt}`,
       );
@@ -374,11 +382,19 @@ function cmdRead(argv: Argv): void {
   printMemoryResult(result, result.reads, maxChars, (value) => {
     if (argv.flags.json) return JSON.stringify(value);
     const lines = value.truncated ? ["(read output truncated by budget)"] : [];
-    for (const read of value.reads)
+    for (const read of value.reads) {
+      const hint =
+        read.status === "superseded"
+          ? read.supersededBy
+            ? `superseded by: ${read.supersededBy}`
+            : "superseded"
+          : undefined;
       lines.push(
         `\n--- ${read.ref}${read.changed ? " (changed)" : ""}`,
+        ...(hint ? [hint] : []),
         read.text,
       );
+    }
     return lines.join("\n");
   });
 }

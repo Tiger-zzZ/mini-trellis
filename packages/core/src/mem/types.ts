@@ -238,8 +238,16 @@ export interface RecallHit {
   /** The query terms that matched, strongest first. */
   matchedTerms: string[];
   strength: RecallStrength;
-  /** `archived` for research archive hits; otherwise omitted. */
-  status?: "archived";
+  /**
+   * `archived` for research archive / migrated legacy hits;
+   * `superseded` when a local lineage mark says so. Otherwise omitted.
+   */
+  status?: "archived" | "superseded";
+  /**
+   * Repo-relative successor path when `superseded_by` resolves to an allowed
+   * in-project Markdown knowledge file. Never expanded into the excerpt.
+   */
+  supersededBy?: string;
   /** Source time when one is known. A file mtime is never used here. */
   sourceTime?: string;
 }
@@ -278,6 +286,13 @@ export interface RecallRead {
   /** Set when the source moved or changed since the ref was built. */
   changed?: boolean;
   truncated?: boolean;
+  /** Present when the document carries a superseded lineage mark. */
+  status?: "superseded";
+  /**
+   * Successor path hint only — never the successor body. Omitted when the
+   * mark has no resolvable in-project Markdown target.
+   */
+  supersededBy?: string;
 }
 
 export interface RecallReadResult {

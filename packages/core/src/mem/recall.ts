@@ -9,6 +9,7 @@ import {
   type DocDiscovery,
 } from "./docs.js";
 import { excerptAround, matchTerms, queryTerms, windowAt } from "./lexical.js";
+import { parseDocLineage } from "./lineage.js";
 import { MEM_PLATFORMS } from "./platforms.js";
 import { listAll, resolveFilter, WIDE_LIMIT } from "./sessions.js";
 import type {
@@ -98,6 +99,11 @@ function headingBefore(text: string, index: number): string | undefined {
   return heading;
 }
 
+/** Effective notes outrank archived / superseded ones at equal coverage. */
+function inactiveRank(hit: RecallHit): number {
+  return hit.status === "archived" || hit.status === "superseded" ? 1 : 0;
+}
+
 /** Limit the serialized evidence records, including refs and source metadata. */
 function select(
   candidates: Candidate[],
@@ -110,8 +116,7 @@ function select(
       b.titleCoverage - a.titleCoverage ||
       b.pathCoverage - a.pathCoverage ||
       b.derivedCoverage - a.derivedCoverage ||
-      (a.hit.status === "archived" ? 1 : 0) -
-        (b.hit.status === "archived" ? 1 : 0) ||
+      inactiveRank(a.hit) - inactiveRank(b.hit) ||
       (b.hit.sourceTime ?? "").localeCompare(a.hit.sourceTime ?? ""),
   );
   const hits: RecallHit[] = [];
@@ -240,13 +245,22 @@ export function recallMem(options: RecallMemOptions): RecallResult {
   for (const doc of discovery.docs) {
     const text = readDocText(discovery.root, doc.filePath, warnings);
     if (text === undefined) continue;
+    const lineage = parseDocLineage(text, discovery.root);
+    const status = lineage.superseded
+      ? ("superseded" as const)
+      : doc.archived
+        ? ("archived" as const)
+        : undefined;
     add(
       text,
       {
         sourceKind: "doc",
         title: doc.relPath,
         path: doc.relPath,
-        ...(doc.archived ? { status: "archived" as const } : {}),
+        ...(status ? { status } : {}),
+        ...(lineage.supersededBy
+          ? { supersededBy: lineage.supersededBy }
+          : {}),
       },
       { kind: "doc", path: doc.relPath, hash: fingerprint(text) },
     );
@@ -388,6 +402,7 @@ function readDoc(
     return undefined;
   }
   const w = windowAt(text, evidence.start, evidence.end, budget);
+  const lineage = parseDocLineage(text, discovery.root);
   return {
     ref,
     sourceKind: "doc",
@@ -396,6 +411,10 @@ function readDoc(
     text: w.excerpt,
     changed: false,
     truncated: w.truncated,
+    ...(lineage.superseded ? { status: "superseded" as const } : {}),
+    ...(lineage.supersededBy
+      ? { supersededBy: lineage.supersededBy }
+      : {}),
   };
 }
 

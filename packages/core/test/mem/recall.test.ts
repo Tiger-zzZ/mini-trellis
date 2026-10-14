@@ -13,6 +13,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { discoverDocs } from "../../src/mem/docs.js";
 import { excerptAround, queryTerms } from "../../src/mem/lexical.js";
+import {
+  parseDocLineage,
+  resolveSupersededBy,
+} from "../../src/mem/lineage.js";
 import { MEM_PLATFORMS } from "../../src/mem/platforms.js";
 import { readMemRefs, recallMem } from "../../src/mem/recall.js";
 
@@ -244,6 +248,90 @@ describe("recallMem", () => {
     );
     const result = recallMem({ query: "release cadence", cwd: root });
     expect(result.hits[0]?.status).toBe("archived");
+  });
+
+  it("marks a note with superseded_by as superseded and ranks active notes ahead at equal coverage", () => {
+    write(
+      ".trellis/research/new-cadence.md",
+      "# Cadence\n\nThe release cadence is biweekly.\n",
+    );
+    write(
+      ".trellis/research/old-cadence.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/new-cadence.md\n---\n\n# Cadence\n\nThe release cadence is biweekly.\n",
+    );
+    const result = recallMem({
+      cwd: root,
+      query: "release cadence biweekly",
+      limit: 2,
+    });
+    expect(result.hits[0]?.path).toBe(".trellis/research/new-cadence.md");
+    expect(result.hits[0]?.status).toBeUndefined();
+    expect(result.hits[1]?.path).toBe(".trellis/research/old-cadence.md");
+    expect(result.hits[1]?.status).toBe("superseded");
+    expect(result.hits[1]?.supersededBy).toBe(
+      ".trellis/research/new-cadence.md",
+    );
+  });
+
+  it("returns the note text plus a successor hint on mem read without expanding the successor body", () => {
+    write(
+      ".trellis/research/successor.md",
+      "# Successor\n\nSUCCESSOR_BODY_ONLY\n",
+    );
+    write(
+      ".trellis/research/old.md",
+      "---\nsuperseded_by: .trellis/research/successor.md\n---\n\n# Old\n\nOLD_NOTE_BODY needle\n",
+    );
+    const ref =
+      recallMem({ cwd: root, query: "OLD_NOTE_BODY needle" }).hits[0]?.ref ??
+      "";
+    const read = readMemRefs({ cwd: root, refs: [ref] });
+    expect(read.reads[0]?.text).toContain("OLD_NOTE_BODY");
+    expect(read.reads[0]?.status).toBe("superseded");
+    expect(read.reads[0]?.supersededBy).toBe(
+      ".trellis/research/successor.md",
+    );
+    expect(read.reads[0]?.text).not.toContain("SUCCESSOR_BODY_ONLY");
+  });
+
+  it("accepts a heading/preamble lineage mark without YAML front matter", () => {
+    write(
+      ".trellis/research/next.md",
+      "# Next\n\nactive needle body\n",
+    );
+    write(
+      ".trellis/research/prior.md",
+      "# Superseded\nstatus: superseded\nsuperseded_by: .trellis/research/next.md\n\n# Prior\n\nprior needle body\n",
+    );
+    const hit = recallMem({ cwd: root, query: "prior needle" }).hits[0];
+    expect(hit?.status).toBe("superseded");
+    expect(hit?.supersededBy).toBe(".trellis/research/next.md");
+  });
+
+  it("ignores a missing or escaping superseded_by path without crashing", () => {
+    write(
+      ".trellis/research/orphan.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/does-not-exist.md\n---\n\n# Orphan\n\norphan needle\n",
+    );
+    write(
+      ".trellis/research/escape.md",
+      "---\nsuperseded_by: ../../etc/passwd\n---\n\n# Escape\n\nescape needle\n",
+    );
+    const orphan = recallMem({ cwd: root, query: "orphan needle" });
+    expect(orphan.hits[0]?.status).toBe("superseded");
+    expect(orphan.hits[0]?.supersededBy).toBeUndefined();
+    const escape = recallMem({ cwd: root, query: "escape needle" });
+    // Invalid superseded_by alone is ignored — note stays effective.
+    expect(escape.hits[0]?.status).toBeUndefined();
+    expect(escape.hits[0]?.supersededBy).toBeUndefined();
+    expect(resolveSupersededBy(root, "../secret.md")).toBeUndefined();
+    expect(resolveSupersededBy(root, "/etc/passwd")).toBeUndefined();
+    expect(
+      parseDocLineage(
+        "---\nsuperseded_by: ../outside.md\n---\n",
+        root,
+      ).superseded,
+    ).toBe(false);
   });
 
   it("marks a partial overlap as weak and prefers full coverage", () => {
