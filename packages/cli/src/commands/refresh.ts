@@ -7,7 +7,9 @@ import {
   getConfiguredPlatforms,
 } from "../configurators/index.js";
 import { renderTemplateMap } from "../configurators/shared.js";
+import { RETIRED_SCRIPT_MODULES } from "./migrate.js";
 import { collectTrellisScriptTemplates } from "../templates/extract.js";
+import { PATHS } from "../constants/paths.js";
 import { agentsMdContent } from "../templates/markdown/index.js";
 import {
   mergeJsonFile,
@@ -26,6 +28,7 @@ export type RefreshAction =
   | "add"
   | "update"
   | "merge"
+  | "remove"
   | "unchanged"
   | "conflict";
 
@@ -142,6 +145,17 @@ export function buildRefreshPlan(
     }
   }
 
+  for (const name of RETIRED_SCRIPT_MODULES) {
+    const relative = `${PATHS.SCRIPTS}/common/${name}`;
+    if (fs.existsSync(path.join(cwd, relative))) {
+      items.push({
+        path: relative,
+        action: "remove",
+        detail: "retired task-engine module",
+      });
+    }
+  }
+
   const agentsPath = path.join(cwd, "AGENTS.md");
   const existingAgents = fs.existsSync(agentsPath)
     ? fs.readFileSync(agentsPath, "utf8")
@@ -187,6 +201,10 @@ function applyRefresh(cwd: string, report: RefreshReport): void {
       }
       continue;
     }
+    if (item.action === "remove") {
+      fs.rmSync(filePath, { force: true });
+      continue;
+    }
     if (!content || item.action === "unchanged" || item.action === "conflict")
       continue;
     if (JSON_PATHS.has(item.path)) {
@@ -230,7 +248,9 @@ export function runRefresh(
             ? "!"
             : item.action === "add"
               ? "+"
-              : "~";
+              : item.action === "remove"
+                ? "-"
+                : "~";
       const color =
         item.action === "conflict"
           ? chalk.yellow

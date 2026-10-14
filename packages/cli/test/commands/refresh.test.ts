@@ -48,6 +48,21 @@ describe("refresh", () => {
     expect(current.length).toBeGreaterThan(0);
   });
 
+  it("removes a retired task-engine module and leaves it during dry-run", () => {
+    const cwd = project();
+    const rel = ".trellis/scripts/common/task_store.py";
+    const filePath = path.join(cwd, rel);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, "retired\n");
+
+    const dry = runRefresh({ cwd, dryRun: true });
+    expect(dry.items.find((item) => item.path === rel)?.action).toBe("remove");
+    expect(fs.existsSync(filePath)).toBe(true);
+
+    runRefresh({ cwd });
+    expect(fs.existsSync(filePath)).toBe(false);
+  });
+
   it("does not write during dry-run", () => {
     const cwd = project();
     const report = runRefresh({ cwd, dryRun: true, json: true });

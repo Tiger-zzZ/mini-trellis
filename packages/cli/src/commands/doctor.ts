@@ -231,13 +231,21 @@ export function runDoctor(
     console.log(chalk.bold("mini-trellis doctor\n"));
     for (const check of report.checks) {
       const icon =
-        check.level === "ok" ? "✓" : check.level === "warn" ? "!" : "✗";
+        check.level === "ok"
+          ? "✓"
+          : check.level === "warn"
+            ? "!"
+            : check.level === "unknown"
+              ? "?"
+              : "✗";
       const color =
         check.level === "ok"
           ? chalk.green
           : check.level === "warn"
             ? chalk.yellow
-            : chalk.red;
+            : check.level === "unknown"
+              ? chalk.gray
+              : chalk.red;
       console.log(`${color(icon)} ${check.name}: ${check.detail}`);
     }
     console.log();

@@ -9,6 +9,7 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#working-with-project-memory">How it works</a> ·
+  <a href="#context-overhead">Context overhead</a> ·
   <a href="#migrating-from-trellis">Migration</a> ·
   <a href="./README_CN.md">简体中文</a>
 </p>
@@ -28,7 +29,7 @@ mini-trellis adds project memory to your existing way of working. Planning, impl
 
 ## Quick start
 
-v0.2.1 brings unified project knowledge recall, topic-linked journals, and lightweight session context. See the [release notes](./docs/releases/v0.2.1.md).
+v0.2.2 streamlines the session-start entry and automatically cleans legacy workflow hooks during migration. See the [release notes](./docs/releases/v0.2.2.md).
 
 Requires **Node.js ≥ 18.17**, **Python ≥ 3.9**, and Git for version control.
 
@@ -40,6 +41,15 @@ mini-trellis init -u your-name --claude
 ```
 
 Choose your agent's flag from the [supported tools](#supported-tools) below. Flags can be combined.
+
+You can also hand this to the agent you are already using:
+
+```text
+Install or migrate mini-trellis in this project. If the command is missing, run npm install -g mini-trellis first.
+If this project has legacy workflow files (for example .trellis/workflow.md, .trellis/scripts/task.py, or inject-*.py), run mini-trellis migrate --dry-run, show me the plan, and run mini-trellis migrate -y after I confirm.
+If this is a new project, run mini-trellis init -u <name> -y with only the tools I actually use (--claude, --codex, --opencode, --pi).
+Then run mini-trellis doctor and report the result. Do not delete .trellis/spec, .trellis/research, or .trellis/workspace.
+```
 
 Start a new agent session. Once you have a decision worth keeping, ask the agent to save it and invoke its `remember` command. To look up project knowledge from the terminal:
 
@@ -131,6 +141,24 @@ Refresh updates only managed assets that have not been modified locally. It pres
 
 Use `mini-trellis platforms` to inspect configured tools. To remove an installation, check `mini-trellis uninstall --help` first: uninstall removes `.trellis/`, including knowledge files, so back them up before removal.
 
+## Context overhead
+
+A phase-gated workflow injects state or specs at session start, on every user prompt, and whenever a sub-agent starts. mini-trellis keeps only a short startup entry; prior decisions and project specs are read when needed, stay in the main session context, and are not re-injected.
+
+![Context Breakdown and Cumulative Overhead Across a 10-Turn Task](./docs/assets/context-overhead-en.svg)
+
+Measured on the same repository fixture across a 10-turn backend task, where both runs load the same three backend spec files (`backend/index.md`, `error-handling.md`, `quality-guidelines.md`, 2,690 chars total) and the same research note (474 chars):
+
+| Stage | Phase-Gated Workflow | mini-trellis | What changed |
+| --- | --- | --- | --- |
+| Session start (`SessionStart`) | 7,883 chars | 1,167 chars | Drops the workflow manual and full directory tree; keeps current state and lookup commands. |
+| Every turn (`UserPromptSubmit`, 10 turns) | 9,530 chars (953 / turn) | 0 chars | No per-turn state hook. |
+| Prior decision lookup | 1,621 chars (`research` sub-agent) | 1,053 chars (`mem recall` 579 + `mem read` 474) | Finds the topic via a short excerpt, then reads the full note. |
+| Project specs | 18,585 chars (`implement` 8,074 + `check` 10,511) | 2,690 chars | Reads the 3 spec files once in the main session instead of re-injecting specs and task wrappers into two cold-start sub-agents. |
+| **10-turn total** | **37,619 chars** | **4,910 chars** | **Identical spec and note text loaded; 86.9% less injected context (7.7×).** |
+
+On a production repository with 19 domain spec files (137k chars) and 262 migrated research notes (2.37M chars), mini-trellis startup stays at 1,171 chars, while `Phase-Gated Workflow` `implement` + `check` sub-agent injections reach 127k–512k chars per task.
+
 ## Migrating from Trellis
 
 Trellis projects can be converted with `migrate`. The two tools share `.trellis/`; use migration to replace the existing integration rather than installing both into the same project.
@@ -152,6 +180,6 @@ Bug reports and practical examples are welcome in [Issues](https://github.com/Ti
 
 ## Acknowledgments and license
 
-mini-trellis originated from [Trellis](https://github.com/mindfold-ai/Trellis) 0.6.17 by Mindfold. Thanks to its authors for the foundation of the project.
+mini-trellis evolved from the open-source [Trellis](https://github.com/mindfold-ai/Trellis) project. Thanks to the early contributors for the foundation.
 
 [AGPL-3.0](./LICENSE). Original copyright Mindfold LLC; modification notices and contributor attribution are retained in [COPYRIGHT](./COPYRIGHT).

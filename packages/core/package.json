@@ -1,6 +1,6 @@
 {
   "name": "mini-trellis-core",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "mini-trellis core — mem primitives consumed by the CLI",
   "repository": {
     "type": "git",

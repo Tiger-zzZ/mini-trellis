@@ -118,8 +118,7 @@ def get_max_journal_lines(repo_root: Path | None = None) -> int:
 def get_session_auto_commit(repo_root: Path | None = None) -> bool:
     """Whether scripts should auto-stage + auto-commit session/task changes.
 
-    Governs both ``add_session.py:_auto_commit_workspace`` and
-    ``task_store.py:_auto_commit_archive``.
+    Governs ``add_session.py:_auto_commit_workspace``.
 
     Missing-key fallback: ``True`` for existing projects. New installations
     explicitly set ``session_auto_commit: false`` in their config template.

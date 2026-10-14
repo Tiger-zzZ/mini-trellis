@@ -299,9 +299,71 @@ function consider(
     filePath: real,
     relPath: rel,
     origin,
-    archived: rel.startsWith(".trellis/research/archive/"),
+    archived:
+      rel.startsWith(".trellis/research/archive/") ||
+      /^\.trellis\/research\/(?:[^/]+\/)+legacy\//.test(rel),
     bytes,
   });
+}
+
+function hasSkippedMarkdown(
+  state: ScanState,
+  dir: string,
+  bypassIgnore: boolean,
+): boolean {
+  let entries: fs.Dirent[];
+  try {
+    const real = fs.realpathSync(dir);
+    const relative = relPosix(state.root, real);
+    if (
+      relative === ".." ||
+      relative.startsWith("../") ||
+      path.isAbsolute(relative)
+    )
+      return false;
+    if (state.directories.has(real)) return false;
+    state.directories.add(real);
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return true;
+  }
+  for (const entry of entries) {
+    if (++state.entries > MAX_ENTRIES || Date.now() > state.deadline) {
+      return true;
+    }
+    const abs = path.join(dir, entry.name);
+    if (entry.isSymbolicLink()) {
+      try {
+        const real = fs.realpathSync(abs);
+        const rel = path.relative(state.root, real);
+        if (rel.startsWith("..") || path.isAbsolute(rel)) continue;
+      } catch {
+        continue;
+      }
+    }
+    if (entry.isDirectory() || entry.isSymbolicLink()) {
+      let stat: fs.Stats;
+      try {
+        stat = fs.statSync(abs);
+      } catch {
+        continue;
+      }
+      if (stat.isDirectory()) {
+        if (EXCLUDED_DIRS.has(entry.name)) continue;
+        if (entry.name.startsWith(".") && entry.name !== ".trellis") continue;
+        const rel = relPosix(state.root, abs);
+        if (!bypassIgnore && state.ignored(rel)) continue;
+        if (hasSkippedMarkdown(state, abs, bypassIgnore)) return true;
+        continue;
+      }
+    }
+    if (!entry.isFile() && !entry.isSymbolicLink()) continue;
+    if (!MARKDOWN_EXT.has(path.extname(entry.name).toLowerCase())) continue;
+    const rel = relPosix(state.root, abs);
+    if (!bypassIgnore && state.ignored(rel)) continue;
+    return true;
+  }
+  return false;
 }
 
 /** Walk a directory, honoring exclusions. `trellis` bypasses gitignore. */
@@ -313,7 +375,12 @@ function walk(
   bypassIgnore: boolean,
 ): void {
   if (depth > MAX_SCAN_DEPTH || state.truncated) {
-    if (depth > MAX_SCAN_DEPTH) state.truncated = true;
+    if (
+      depth > MAX_SCAN_DEPTH &&
+      hasSkippedMarkdown(state, dir, bypassIgnore)
+    ) {
+      state.truncated = true;
+    }
     return;
   }
   let entries: fs.Dirent[];
@@ -409,11 +476,13 @@ function expandLinks(state: ScanState): void {
       if (!raw || raw.includes("://") || raw.startsWith("#")) continue;
       const target = raw.split("#")[0];
       if (!target) continue;
-      expansions += 1;
+      if (!MARKDOWN_EXT.has(path.extname(target).toLowerCase())) continue;
       const resolved = path.resolve(path.dirname(doc.filePath), target);
+      if (state.seen.has(resolved)) continue;
       const rel = path.relative(state.root, resolved);
       if (rel.startsWith("..") || path.isAbsolute(rel)) continue;
       if (!fs.existsSync(resolved)) continue;
+      expansions += 1;
       consider(state, resolved, "link");
     }
   }

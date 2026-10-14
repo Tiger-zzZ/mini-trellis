@@ -610,29 +610,23 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
 
     output.write("<guidelines>\n")
     output.write(
-        "Memory: journal is git-durable session notes (`/mini-trellis:remember` or "
-        "`python3 ./.trellis/scripts/add_session.py`). For relevant prior knowledge, use "
-        "`mini-trellis mem recall <query>`. If the excerpt already answers the question "
-        "with its source and conditions, cite it and stop; use `mini-trellis mem read <ref>` "
-        "only for missing context or qualifiers. Do not repeat a sufficient lookup.\n"
-        "Research lives in `.trellis/research/<topic>.md`, or in "
-        "`.trellis/research/<topic>/` when a topic brings evidence files with it; "
-        "promote durable boundaries into `.trellis/spec/` as short markdown.\n\n"
-        "Record when a decision is confirmed, a research finding is worth keeping, "
-        "or the session/compact is ending. Keep confirmed rules short and faithful; "
-        "leave unconfirmed scope, exceptions, and implementation choices open or label "
-        "them as inference, not part of the contract. Update the existing topic first, read back "
-        "the changed rule, then run add_session.py with `--topic <actual-path>` so the "
-        "journal links the file. Verify the journal too; journal-only or topic-only "
-        "writes are partial and must be reported as such. Do not record every turn, "
-        "and do not create a git commit unless the user explicitly asks.\n\n"
+        "Memory: use `mini-trellis mem recall <query>` for prior decisions, rejected "
+        "approaches, and project rules. If the excerpt answers the question with its "
+        "source and conditions, cite it and stop; use `mini-trellis mem read <ref>` "
+        "only for missing context. Do not repeat a sufficient lookup.\n"
+        "Research lives in `.trellis/research/`; durable rules belong in `.trellis/spec/`.\n"
+        "Record a confirmed decision, a rejected approach worth not retrying, or a useful "
+        "handoff with `/mini-trellis:remember` or "
+        "`python3 ./.trellis/scripts/add_session.py`. The remember command has the write "
+        "steps. Do not record every turn, and do not create a git commit unless the user asks.\n"
     )
 
     if source == "compact":
         output.write(
-            "This SessionStart was triggered by compact. If durable decisions "
-            "or research from the compacted window are not in journal yet, "
-            "run `/mini-trellis:remember` before continuing.\n"
+            "This SessionStart follows compact. Details missing from the summary may "
+            "still be in local session history: use `mini-trellis mem recall <query>`, "
+            "then `mini-trellis mem read <ref>` for the original turns. Record durable "
+            "decisions that were not saved yet with `/mini-trellis:remember`.\n"
         )
     output.write("</guidelines>\n\n")
 

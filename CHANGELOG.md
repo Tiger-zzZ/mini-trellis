@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.2.2 — 2026-10-14
+
+- Migration now removes Trellis hook commands, the legacy Pi extension, and the Codex `max_depth = 1` pin before writing mini-trellis host config. User hooks and custom settings stay. A second run can repair config left behind after the scripts were already deleted.
+- Session start no longer carries the topic-writing procedure. Recall guidance stays in the short entry; write steps stay in the remember command. A compact restart points back at local session history.
+- Recording guidance can keep a rejected approach that a later session should not retry, labeled as rejected rather than as a current rule.
+- Removes unused Trellis task-engine modules from the installed script templates. `migrate` and `refresh` delete leftover copies in an existing project. `get_context.py` remains because OpenCode still uses it to resolve monorepo spec scope.
+- Document discovery in `mem recall` no longer triggers false `doc-search-incomplete` warnings on large migrated repositories with >200 internal links or deep non-Markdown evidence directories, and ranks active research notes ahead of migrated `legacy/` task files.
+- `mini-trellis doctor` renders `unknown` checks with `?` instead of `✗`.
+
+Version changes and upgrade instructions are in the [release notes](docs/releases/v0.2.2.md).
+
 ## v0.2.1 — 2026-10-13
 
 - Adds automatic project Markdown discovery and unified `mem recall` / `mem read` alongside local conversation history, with bounded scans and source verification.

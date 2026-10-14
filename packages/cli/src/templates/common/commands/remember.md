@@ -6,6 +6,7 @@ Save the confirmed decision or finding in the relevant topic, updating an existi
 
 - The user asks to remember / persist notes
 - A confirmed decision, reusable finding, or verified fix should survive this session
+- A rejected approach or dead end should not be retried in a later session; label it rejected, not as a current rule
 - The session is about to end and has a useful handoff
 - The session was compacted, or context is about to be compacted
 

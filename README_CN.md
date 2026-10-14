@@ -9,6 +9,7 @@
 <p align="center">
   <a href="#快速开始">快速开始</a> ·
   <a href="#知识如何留下并再次使用">工作方式</a> ·
+  <a href="#上下文开销">上下文开销</a> ·
   <a href="#从-trellis-迁移">迁移指南</a> ·
   <a href="./README.md">English</a>
 </p>
@@ -28,7 +29,7 @@ mini-trellis 为现有开发方式补上项目记忆，规划、实现和验收�
 
 ## 快速开始
 
-v0.2.1 带来统一的项目知识召回、主题笔记与开发日志的关联，以及轻量会话上下文。见[版本说明](./docs/releases/v0.2.1.md)。
+v0.2.2 进一步收窄会话启动入口，并在迁移时自动清理残留的旧工作流配置。见[版本说明](./docs/releases/v0.2.2.md)。
 
 需要 **Node.js ≥ 18.17**、**Python ≥ 3.9**，以及用于版本管理的 Git。
 
@@ -40,6 +41,15 @@ mini-trellis init -u your-name --claude
 ```
 
 按下方[支持的工具](#支持的工具)选择初始化参数，也可以组合多个参数。
+
+也可以把下面这段交给正在使用的 Agent，让它安装或从 Trellis 迁移：
+
+```text
+请在当前项目安装或迁移 mini-trellis。若还没有命令，先执行 npm install -g mini-trellis。
+如果项目里已有旧版工作流文件（例如 .trellis/workflow.md、.trellis/scripts/task.py，或 inject-*.py），先运行 mini-trellis migrate --dry-run，把计划给我看，确认后再执行 mini-trellis migrate -y。
+如果是新项目，运行 mini-trellis init -u <name> -y，并只加上我实际使用的工具参数（--claude、--codex、--opencode、--pi）。
+最后运行 mini-trellis doctor，并说明结果。不要删除 .trellis/spec、.trellis/research 或 .trellis/workspace。
+```
 
 重新开启 Agent 会话。有值得保留的结论时，让 Agent 保存，并调用对应的 `remember` 命令。也可以在终端查找项目知识：
 
@@ -131,6 +141,24 @@ Refresh 只更新受管理且未被本地修改的文件，保留知识和自定
 
 `mini-trellis platforms` 可以查看已配置的工具。需要卸载时，先查看 `mini-trellis uninstall --help`：卸载会移除 `.trellis/`，包括知识文件，请先备份。
 
+## 上下文开销
+
+`Phase-Gated Workflow` 在每次会话启动、每一轮用户输入、每次派发子代理时都会注入状态或规范。mini-trellis 只保留启动时的短入口；历史结论和项目规范在需要时读取，留在主会话上下文里，不再重复注入。
+
+![同一 10 轮开发任务下的上下文构成拆解与累计开销](./docs/assets/context-overhead-zh.svg)
+
+在同一测试仓库中完成一次 10 轮后端修改任务，两边读取相同的 3 份后端规范（`backend/index.md`、`error-handling.md`、`quality-guidelines.md`，共 2,690 字符）和同一篇研究笔记（474 字符）：
+
+| 环节 | Phase-Gated Workflow | mini-trellis | 差异来源 |
+| --- | --- | --- | --- |
+| 会话启动 (`SessionStart`) | 7,883 字符 | 1,167 字符 | 去掉四阶段流程说明和全量目录树，只保留当前状态与查找入口。 |
+| 每轮对话 (`UserPromptSubmit`，10 轮) | 9,530 字符（953 / 轮） | 0 字符 | 不注册每轮状态 hook。 |
+| 查找历史结论 | 1,621 字符（`research` 子代理） | 1,053 字符（`mem recall` 579 + `mem read` 474） | 先用摘录定位，再读取那篇研究笔记全文。 |
+| 加载项目规范 | 18,585 字符（`implement` 8,074 + `check` 10,511） | 2,690 字符 | 主会话读取 3 份规范全文一次；不再向两个冷启动子代理重复注入规范与任务包装。 |
+| **10 轮累计** | **37,619 字符** | **4,910 字符** | **规范与研究正文一字未减，总注入减少 86.9%（7.7×）。** |
+
+在包含 19 份领域规范（13.7 万字符）与 262 篇迁移笔记（237 万字符）的真实生产仓库中，mini-trellis 的会话启动注入仍保持在 1,171 字符，而 `Phase-Gated Workflow` 单次任务的 `implement` + `check` 子代理注入达到 12.7 万～51.2 万字符。
+
 ## 从 Trellis 迁移
 
 已有 Trellis 的项目可以通过 `migrate` 转换。两者共用 `.trellis/`，应通过迁移替换已有集成，避免两套指令同时生效。
@@ -152,6 +180,6 @@ mini-trellis migrate
 
 ## 致谢与许可
 
-mini-trellis 起源于 Mindfold 的 [Trellis](https://github.com/mindfold-ai/Trellis) 0.6.17。感谢原作者为项目提供的基础。
+mini-trellis 演进自开源项目 [Trellis](https://github.com/mindfold-ai/Trellis)。感谢早期贡献者奠定的基础。
 
 [AGPL-3.0](./LICENSE)。原版权归 Mindfold LLC 所有，修改声明和贡献者署名保留在 [COPYRIGHT](./COPYRIGHT) 中。

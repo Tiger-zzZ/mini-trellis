@@ -110,6 +110,8 @@ function select(
       b.titleCoverage - a.titleCoverage ||
       b.pathCoverage - a.pathCoverage ||
       b.derivedCoverage - a.derivedCoverage ||
+      (a.hit.status === "archived" ? 1 : 0) -
+        (b.hit.status === "archived" ? 1 : 0) ||
       (b.hit.sourceTime ?? "").localeCompare(a.hit.sourceTime ?? ""),
   );
   const hits: RecallHit[] = [];

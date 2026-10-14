@@ -248,12 +248,27 @@ export function scrubOpencodePackageJson(content: string): ScrubResult {
  * remove the exact entries that the Pi configurator emits.
  */
 const PI_TRELLIS_EXTENSION = "./extensions/mini-trellis/index.ts";
+const LEGACY_PI_EXTENSION = "./extensions/trellis/index.ts";
 const PI_TRELLIS_SKILLS = "./skills";
 const PI_TRELLIS_PROMPTS = "./prompts";
 const PI_SUBAGENTS_PACKAGE = "npm:pi-subagents";
 
 function isTrellisPiEntry(value: unknown, target: string): boolean {
   return typeof value === "string" && value === target;
+}
+
+function isTrellisPiExtension(value: unknown): boolean {
+  return value === PI_TRELLIS_EXTENSION || value === LEGACY_PI_EXTENSION;
+}
+
+function withoutPiSubagents(packagesValue: unknown): unknown[] | null {
+  if (!Array.isArray(packagesValue)) return null;
+  return packagesValue.filter((entry) => {
+    if (entry !== null && typeof entry === "object" && !Array.isArray(entry)) {
+      return (entry as Record<string, unknown>).source !== PI_SUBAGENTS_PACKAGE;
+    }
+    return entry !== PI_SUBAGENTS_PACKAGE;
+  });
 }
 
 /**
@@ -280,8 +295,14 @@ export function scrubPiSettings(content: string): ScrubResult {
     delete root.enableSkillCommands;
   }
 
+  const extensions = root.extensions;
+  if (Array.isArray(extensions)) {
+    const filtered = extensions.filter((value) => !isTrellisPiExtension(value));
+    if (filtered.length === 0) delete root.extensions;
+    else root.extensions = filtered;
+  }
+
   const arrayCleanups: [string, string][] = [
-    ["extensions", PI_TRELLIS_EXTENSION],
     ["skills", PI_TRELLIS_SKILLS],
     ["prompts", PI_TRELLIS_PROMPTS],
   ];
@@ -297,25 +318,50 @@ export function scrubPiSettings(content: string): ScrubResult {
     }
   }
 
-  const packagesValue = root.packages;
-  if (Array.isArray(packagesValue)) {
-    const filtered = packagesValue.filter((entry) => {
-      if (
-        entry !== null &&
-        typeof entry === "object" &&
-        !Array.isArray(entry)
-      ) {
-        const obj = entry as Record<string, unknown>;
-        return obj.source !== PI_SUBAGENTS_PACKAGE;
-      }
-      // String entries — keep unless they exactly match the package name
-      return entry !== PI_SUBAGENTS_PACKAGE;
-    });
-    if (filtered.length === 0) {
-      delete root.packages;
-    } else {
-      root.packages = filtered;
-    }
+  const filteredPackages = withoutPiSubagents(root.packages);
+  if (filteredPackages) {
+    if (filteredPackages.length === 0) delete root.packages;
+    else root.packages = filteredPackages;
+  }
+
+  const fullyEmpty = Object.keys(root).length === 0;
+  return {
+    content: JSON.stringify(root, null, 2) + "\n",
+    fullyEmpty,
+  };
+}
+
+/**
+ * Remove Trellis-only Pi entries while keeping mini-trellis and user config.
+ *
+ * `migrate` uses this before rewriting Pi settings. It drops the upstream
+ * extension path and the `pi-subagents` package Trellis installed, and leaves
+ * `enableSkillCommands`, `./skills`, prompts, and any other user entries.
+ */
+export function scrubLegacyTrellisPiSettings(content: string): ScrubResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return { content, fullyEmpty: false };
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { content, fullyEmpty: false };
+  }
+
+  const root = parsed as Record<string, unknown>;
+  if (Array.isArray(root.extensions)) {
+    const filtered = root.extensions.filter(
+      (value) => value !== LEGACY_PI_EXTENSION,
+    );
+    if (filtered.length === 0) delete root.extensions;
+    else root.extensions = filtered;
+  }
+
+  const filteredPackages = withoutPiSubagents(root.packages);
+  if (filteredPackages) {
+    if (filteredPackages.length === 0) delete root.packages;
+    else root.packages = filteredPackages;
   }
 
   const fullyEmpty = Object.keys(root).length === 0;

@@ -256,14 +256,14 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
 
   parts.push("<guidelines>")
   parts.push(
-    "Memory: journal is git-durable session notes (`/mini-trellis:remember` or " +
-    "`python3 ./.trellis/scripts/add_session.py`). For relevant prior knowledge, use " +
-    "`mini-trellis mem recall <query>`, then `mini-trellis mem read <ref>` for context.\n" +
-    "Research lives in `.trellis/research/<topic>.md`, or in " +
-    "`.trellis/research/<topic>/` when a topic brings evidence files with it; " +
-    "promote durable boundaries into `.trellis/spec/` as short markdown.\n"
-    + "Record confirmed decisions, useful research findings, and session/compact endings. Do not record every turn or create a git commit unless the user asks.\n"
-    + "Keep confirmed rules short and faithful; leave unconfirmed scope, exceptions, and implementation choices open or label them as inference, not part of the contract.\n"
+    "Memory: use `mini-trellis mem recall <query>` for prior decisions, rejected " +
+    "approaches, and project rules. If the excerpt answers the question with its " +
+    "source and conditions, cite it and stop; use `mini-trellis mem read <ref>` " +
+    "only for missing context. Do not repeat a sufficient lookup.\n" +
+    "Research lives in `.trellis/research/`; durable rules belong in `.trellis/spec/`.\n" +
+    "Record a confirmed decision, a rejected approach worth not retrying, or a useful " +
+    "handoff with `/mini-trellis:remember` or `python3 ./.trellis/scripts/add_session.py`. " +
+    "Do not record every turn, and do not create a git commit unless the user asks.\n"
   )
 
 

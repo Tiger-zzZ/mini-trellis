@@ -11,6 +11,14 @@ mini-trellis migrate             # 确认迁移，默认 no
 
 迁移会将四个宿主的 hook、settings、skill 和命令替换为 mini-trellis 版本，移除 Trellis 专用的流程文件（skill、命令、agent、每轮注入插件、`workflow.md`、`task.py`），替换 `AGENTS.md` 中的 Trellis 管理块，并移除 `.trellis/.version`，停止 Trellis CLI 在该项目中的更新提示。
 
+宿主配置不是整文件覆盖：
+
+- `.claude/settings.json` 和 `.codex/hooks.json` 会先去掉指向 `inject-*.py`、`statusline.py` 和旧 `session-start.py` 的 Trellis hook，再写入 mini-trellis 的 SessionStart。用户自己的 hook、`env` 和其他字段保留。
+- `.pi/settings.json` 会去掉 `./extensions/trellis/index.ts` 和 `npm:pi-subagents`，保留其他 extension 与 package。
+- `.codex/config.toml` 会去掉 Trellis 写入的说明和 `[agents] max_depth = 1`，再写上 mini-trellis 的项目配置。用户自己的键会附在后面。
+
+如果上一次迁移已经删掉脚本，但配置里还留着 `inject-*.py`，再运行一次 `mini-trellis migrate` 会清理这些条目。
+
 `.trellis/tasks/` 中的任务材料迁入研究目录：
 
 - 每个任务目录转为一个 research topic：`.trellis/tasks/<name>/` → `.trellis/research/<name>/`，归档任务迁入 `.trellis/research/archive/YYYY-MM/<name>/`。日期前缀和目录名保留，保留内容内部的相对链接不变。指向已移入 `legacy/` 或删除文件的链接（如 `../prd.md`）不会修复。

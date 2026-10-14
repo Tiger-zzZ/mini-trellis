@@ -39,7 +39,13 @@ import {
   homedirBypassEnabled,
 } from "../utils/cwd-guard.js";
 import { configurePlatform } from "../configurators/index.js";
-import { scrubManagedMarkdownBlock } from "../utils/uninstall-scrubbers.js";
+import {
+  scrubCodexConfigToml,
+  scrubHooksJson,
+  scrubLegacyTrellisPiSettings,
+  scrubManagedMarkdownBlock,
+  type ScrubResult,
+} from "../utils/uninstall-scrubbers.js";
 import {
   TRELLIS_BLOCK_END,
   TRELLIS_BLOCK_START,
@@ -82,7 +88,10 @@ const SCAN_RULES: { dir: string; match: (name: string) => boolean }[] = [
   { dir: ".claude/agents", match: (n) => /^trellis-.*\.md$/.test(n) },
   { dir: ".claude/commands", match: (n) => n === "trellis" },
   { dir: ".claude/skills", match: (n) => n.startsWith("trellis-") },
-  { dir: ".claude/hooks", match: (n) => /^inject-.*\.py$/.test(n) },
+  {
+    dir: ".claude/hooks",
+    match: (n) => /^(?:inject-.*|statusline)\.py$/.test(n),
+  },
   { dir: ".codex/agents", match: (n) => /^trellis-.*\.toml$/.test(n) },
   { dir: ".codex/hooks", match: (n) => /^inject-.*\.py$/.test(n) },
   { dir: ".opencode/agents", match: (n) => /^trellis-.*\.md$/.test(n) },
@@ -96,11 +105,21 @@ const SCAN_RULES: { dir: string; match: (name: string) => boolean }[] = [
   { dir: ".agents/skills", match: (n) => n.startsWith("trellis-") },
 ];
 
+/** Task-engine modules no live hook or command imports. */
+export const RETIRED_SCRIPT_MODULES = [
+  "task_store.py",
+  "task_context.py",
+  "task_utils.py",
+  "task_queue.py",
+  "cli_adapter.py",
+];
+
 /** Trellis-only files at fixed paths that no scan rule covers. */
 const FIXED_DELETIONS = [
   PATHS.WORKFLOW_GUIDE_FILE,
   `${PATHS.SCRIPTS}/task.py`,
   `${DIR_NAMES.WORKFLOW}/.template-hashes.json`,
+  ...RETIRED_SCRIPT_MODULES.map((name) => `${PATHS.SCRIPTS}/common/${name}`),
 ];
 
 /** Framework files migrate rewrites in place, shown as modifications. */
@@ -151,15 +170,136 @@ function platformsToReconfigure(cwd: string, deletions: string[]): AITool[] {
   return [...ids].sort();
 }
 
+const CLAUDE_LEGACY_HOOKS = [
+  ".claude/hooks/session-start.py",
+  ".claude/hooks/inject-workflow-state.py",
+  ".claude/hooks/inject-subagent-context.py",
+  ".claude/hooks/inject-shell-session-context.py",
+  ".claude/hooks/statusline.py",
+];
+
+const CODEX_LEGACY_HOOKS = [
+  ".codex/hooks/session-start.py",
+  ".codex/hooks/inject-workflow-state.py",
+  ".codex/hooks/inject-subagent-context.py",
+  ".codex/hooks/inject-shell-session-context.py",
+];
+
+function readText(abs: string): string | null {
+  try {
+    return fs.readFileSync(abs, "utf-8");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Hosts whose config still names Trellis hooks or the upstream Pi extension.
+ * The script files may already be gone; `mergeJsonFile` will not remove the
+ * stale command entries on its own.
+ */
+export function legacyHostPlatforms(cwd: string): AITool[] {
+  const ids = new Set<AITool>();
+  const claude = readText(path.join(cwd, ".claude/settings.json"));
+  if (claude && /inject-|hooks\/statusline\.py/.test(claude)) {
+    ids.add("claude-code");
+  }
+  const codexHooks = readText(path.join(cwd, ".codex/hooks.json"));
+  if (codexHooks && /inject-/.test(codexHooks)) ids.add("codex");
+  const pi = readText(path.join(cwd, ".pi/settings.json"));
+  if (
+    pi &&
+    (/extensions\/trellis\/index\.ts/.test(pi) || /pi-subagents/.test(pi))
+  ) {
+    ids.add("pi");
+  }
+  const toml = readText(path.join(cwd, ".codex/config.toml"));
+  if (toml && /for Trellis workflows/.test(toml)) ids.add("codex");
+  return [...ids].sort();
+}
+
 export function buildMigratePlan(cwd: string): MigratePlan {
   const deletions = collectTrellisResidue(cwd);
+  const reconfigure = new Set<AITool>([
+    ...platformsToReconfigure(cwd, deletions),
+    ...legacyHostPlatforms(cwd),
+  ]);
   return {
     deletions,
-    reconfigure: platformsToReconfigure(cwd, deletions),
+    reconfigure: [...reconfigure].sort(),
     rewrites: REWRITES,
     dropsVersion: fs.existsSync(path.join(cwd, DIR_NAMES.WORKFLOW, ".version")),
     rewritesAgents: agentsHasManagedBlock(cwd),
   };
+}
+
+function rewriteScrubbed(
+  abs: string,
+  result: ScrubResult,
+  before: string,
+): void {
+  if (result.content === before) return;
+  fs.writeFileSync(abs, result.content);
+}
+
+/**
+ * Drop Trellis hook commands before `configurePlatform` merges the
+ * mini-trellis entries back in. Returns Codex user config that the template
+ * overwrite would otherwise discard.
+ */
+function scrubLegacyHostConfig(
+  cwd: string,
+  platforms: readonly AITool[],
+): string {
+  if (platforms.includes("claude-code")) {
+    const rel = ".claude/settings.json";
+    const abs = path.join(cwd, rel);
+    const before = readText(abs);
+    if (before !== null) {
+      rewriteScrubbed(
+        abs,
+        scrubHooksJson(before, CLAUDE_LEGACY_HOOKS, "nested"),
+        before,
+      );
+    }
+  }
+
+  let codexUserToml = "";
+  if (platforms.includes("codex")) {
+    const hooks = path.join(cwd, ".codex/hooks.json");
+    const beforeHooks = readText(hooks);
+    if (beforeHooks !== null) {
+      rewriteScrubbed(
+        hooks,
+        scrubHooksJson(beforeHooks, CODEX_LEGACY_HOOKS, "nested"),
+        beforeHooks,
+      );
+    }
+    const toml = readText(path.join(cwd, ".codex/config.toml"));
+    if (toml !== null) {
+      const scrubbed = scrubCodexConfigToml(toml);
+      codexUserToml = scrubbed.fullyEmpty ? "" : scrubbed.content.trim();
+    }
+  }
+
+  if (platforms.includes("pi")) {
+    const settings = path.join(cwd, ".pi/settings.json");
+    const before = readText(settings);
+    if (before !== null) {
+      rewriteScrubbed(settings, scrubLegacyTrellisPiSettings(before), before);
+    }
+  }
+
+  return codexUserToml;
+}
+
+function restoreCodexUserToml(cwd: string, userToml: string): void {
+  const extra = userToml.trim();
+  if (!extra) return;
+  const abs = path.join(cwd, ".codex/config.toml");
+  const current = readText(abs)?.trimEnd() ?? "";
+  if (current.includes(extra)) return;
+  fs.writeFileSync(abs, current ? `${current}\n\n${extra}\n` : `${extra}\n`);
 }
 
 function agentsHasManagedBlock(cwd: string): boolean {
@@ -346,7 +486,11 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
   // A converged project has no Trellis residue left, so the tasks tree on its
   // own still means there is something to do. `.trellis/.version` alone is not
   // enough to distinguish an old mini-trellis install from Trellis.
-  if (plan.deletions.length === 0 && converge.tasks.length === 0) {
+  if (
+    plan.deletions.length === 0 &&
+    converge.tasks.length === 0 &&
+    plan.reconfigure.length === 0
+  ) {
     console.log(
       chalk.gray("No Trellis installation detected — nothing to migrate."),
     );
@@ -401,6 +545,10 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
     if (converge.tasks.length > 0) disposition = await promptTasksDisposition();
   }
 
+  // Scrub structured host config before rewriting it. mergeJsonFile only
+  // adds entries, so Trellis hook commands would otherwise keep pointing at
+  // scripts this command deletes.
+  const codexUserToml = scrubLegacyHostConfig(cwd, plan.reconfigure);
   // Delete first so the install pass never writes a file this plan removes.
   executePlan(cwd, plan);
   await installMemoryLayer(cwd);
@@ -409,6 +557,7 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
     setWriteMode("force");
     await configurePlatform(id, cwd);
   }
+  restoreCodexUserToml(cwd, codexUserToml);
 
   const report = convergeTasks(cwd, converge, disposition);
 

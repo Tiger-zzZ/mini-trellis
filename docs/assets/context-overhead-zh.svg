@@ -1,0 +1,163 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 440" role="img" aria-labelledby="title desc">
+  <title id="title">&#x56fe; 1&#xff1a;&#x540c;&#x4e00; 10 &#x8f6e;&#x5f00;&#x53d1;&#x4efb;&#x52a1;&#x4e0b;&#x7684;&#x4e0a;&#x4e0b;&#x6587;&#x6784;&#x6210;&#x62c6;&#x89e3;&#x4e0e;&#x7d2f;&#x8ba1;&#x5f00;&#x9500;</title>
+  <desc id="desc">&#x5728;&#x5b8c;&#x5168;&#x76f8;&#x540c;&#x7684;&#x4ee3;&#x7801;&#x5e93;&#x4e0e;&#x89c4;&#x8303;&#x5939;&#x5177;&#x4e0a;&#xff08;&#x4e24;&#x7aef;&#x5747;&#x5b8c;&#x6574;&#x8bfb;&#x53d6;&#x76f8;&#x540c;&#x7684; 3 &#x4efd;&#x540e;&#x7aef;&#x89c4;&#x8303;&#x5171; 2,690 &#x5b57;&#x7b26;&#x4e0e;&#x540c;&#x4e00;&#x7bc7;&#x7814;&#x7a76;&#x7b14;&#x8bb0;&#x5168;&#x6587; 474 &#x5b57;&#x7b26;&#xff09;&#xff0c;&#x5bf9;&#x6bd4; Phase-Gated Workflow &#x4e0e; mini-trellis &#x7684;&#x4e0a;&#x4e0b;&#x6587;&#x5f00;&#x9500;&#x3002;</desc>
+  <defs>
+    <style>
+      .bg { fill: #fbfaf7; }
+      .panel { fill: #ffffff; stroke: #dcd8ce; stroke-width: 1.2; }
+      .grid { stroke: #ece8df; stroke-width: 1; stroke-dasharray: 3 3; }
+      .axis { stroke: #4a4842; stroke-width: 1.3; }
+      .fig-title { font: 700 15px "Georgia", "Times New Roman", "Songti SC", "SimSun", serif; fill: #1f1e1b; }
+      .fig-sub { font: 400 11.5px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; fill: #57544d; }
+      .panel-title { font: 600 13px "Georgia", "Times New Roman", "Songti SC", "SimSun", serif; fill: #1f1e1b; }
+      .axis-label { font: 600 11px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; fill: #3a3833; }
+      .tick { font: 500 10px "SFMono-Regular", Consolas, "Liberation Mono", monospace; fill: #57544d; }
+      .cat-label { font: 600 10.5px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; fill: #2f2d29; }
+      .cat-sub { font: 400 9.5px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; fill: #6e6a61; }
+      .legend-text { font: 600 11.5px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; fill: #2a2925; }
+      .anno { font: 600 10px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+      .anno-sub { font: 400 9.5px "SFMono-Regular", Consolas, monospace; }
+      .bar-legacy { fill: #b84a39; opacity: 0.9; }
+      .bar-mini { fill: #1f7a5c; opacity: 0.92; }
+      .line-legacy { fill: none; stroke: #b84a39; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+      .line-mini { fill: none; stroke: #1f7a5c; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+      .area-legacy { fill: #b84a39; fill-opacity: 0.07; }
+      .area-mini { fill: #1f7a5c; fill-opacity: 0.10; }
+      .dot-legacy { fill: #ffffff; stroke: #b84a39; stroke-width: 2; }
+      .dot-mini { fill: #1f7a5c; stroke: #ffffff; stroke-width: 1.5; }
+      .callout-box { fill: #f4faf7; stroke: #9ecbb9; stroke-width: 1; rx: 4; }
+      .callout-legacy { fill: #fdf5f3; stroke: #e0b4ac; stroke-width: 1; rx: 4; }
+    </style>
+  </defs>
+
+  <rect width="960" height="440" rx="8" class="bg"/>
+
+  <text x="28" y="28" class="fig-title">Figure 1. &#x540c;&#x4e00; 10 &#x8f6e;&#x5f00;&#x53d1;&#x4efb;&#x52a1;&#x4e0b;&#x7684;&#x4e0a;&#x4e0b;&#x6587;&#x6784;&#x6210;&#x62c6;&#x89e3;&#x4e0e;&#x7d2f;&#x8ba1;&#x5f00;&#x9500;&#xff08;&#x540c;&#x8d28;&#x91cf;&#x53d7;&#x63a7;&#x5b9e;&#x9a8c;&#xff09;</text>
+  <text x="28" y="46" class="fig-sub">&#x4e24;&#x7aef;&#x5747;&#x5b8c;&#x6574;&#x52a0;&#x8f7d;&#x76f8;&#x540c;&#x7684; 3 &#x4efd;&#x540e;&#x7aef;&#x89c4;&#x8303;&#x5168;&#x6587;&#xff08;2,690 &#x5b57;&#x7b26;&#xff09;&#x4e0e;&#x5386;&#x53f2;&#x7814;&#x7a76;&#x7b14;&#x8bb0;&#x5168;&#x6587;&#xff08;474 &#x5b57;&#x7b26;&#xff09;</text>
+
+  <g transform="translate(555, 16)">
+    <rect x="0" y="0" width="377" height="32" rx="4" fill="#ffffff" stroke="#dcd8ce" stroke-width="1"/>
+    <rect x="14" y="10" width="12" height="12" rx="2" class="bar-legacy"/>
+    <text x="32" y="20" class="legend-text">Phase-Gated Workflow</text>
+    <rect x="195" y="10" width="12" height="12" rx="2" class="bar-mini"/>
+    <text x="213" y="20" class="legend-text">mini-trellis&#xff08;&#x6309;&#x9700;&#x8bb0;&#x5fc6;&#x5c42;&#xff09;</text>
+  </g>
+
+  <!-- PANEL A -->
+  <g transform="translate(28, 62)">
+    <rect width="435" height="334" rx="4" class="panel"/>
+    <text x="16" y="24" class="panel-title">(a) &#x5404;&#x73af;&#x8282;&#x6ce8;&#x5165;&#x5b57;&#x7b26;&#x6570;&#x62c6;&#x89e3;&#xff08;&#x52a0;&#x8f7d;&#x76f8;&#x540c;&#x89c4;&#x8303;&#x4e0e;&#x7b14;&#x8bb0;&#xff09;</text>
+
+    <line x1="64" y1="60"  x2="412" y2="60"  class="grid"/>
+    <line x1="64" y1="115" x2="412" y2="115" class="grid"/>
+    <line x1="64" y1="170" x2="412" y2="170" class="grid"/>
+    <line x1="64" y1="225" x2="412" y2="225" class="grid"/>
+    <line x1="64" y1="280" x2="412" y2="280" class="axis"/>
+    <line x1="64" y1="50"  x2="64"  y2="280" class="axis"/>
+
+    <text x="58" y="64"  text-anchor="end" class="tick">20k</text>
+    <text x="58" y="119" text-anchor="end" class="tick">15k</text>
+    <text x="58" y="174" text-anchor="end" class="tick">10k</text>
+    <text x="58" y="229" text-anchor="end" class="tick">5k</text>
+    <text x="58" y="284" text-anchor="end" class="tick">0</text>
+    <text x="18" y="170" text-anchor="middle" transform="rotate(-90 18 170)" class="axis-label">&#x6ce8;&#x5165;&#x5b57;&#x7b26;&#x6570; (chars)</text>
+
+    <!-- Cat 1: SessionStart -->
+    <rect x="82" y="193.3" width="24" height="86.7" rx="2" class="bar-legacy"/>
+    <text x="94" y="188" text-anchor="middle" class="anno" fill="#9e3828">7,883</text>
+    <rect x="110" y="267.2" width="24" height="12.8" rx="2" class="bar-mini"/>
+    <text x="122" y="262" text-anchor="middle" class="anno" fill="#165e46">1,167</text>
+    <text x="108" y="298" text-anchor="middle" class="cat-label">&#x4f1a;&#x8bdd;&#x542f;&#x52a8;</text>
+    <text x="108" y="312" text-anchor="middle" class="cat-sub">(SessionStart)</text>
+
+    <!-- Cat 2: Per-turn x10 -->
+    <rect x="168" y="175.2" width="24" height="104.8" rx="2" class="bar-legacy"/>
+    <text x="180" y="170" text-anchor="middle" class="anno" fill="#9e3828">9,530</text>
+    <rect x="196" y="278.5" width="24" height="1.5" rx="1" class="bar-mini"/>
+    <text x="208" y="273" text-anchor="middle" class="anno" fill="#165e46">0</text>
+    <text x="194" y="298" text-anchor="middle" class="cat-label">&#x6bcf;&#x8f6e;&#x72b6;&#x6001; &#xd7;10</text>
+    <text x="194" y="312" text-anchor="middle" class="cat-sub">(PromptSubmit)</text>
+
+    <!-- Cat 3: Research recall + read -->
+    <rect x="254" y="262.2" width="24" height="17.8" rx="2" class="bar-legacy"/>
+    <text x="266" y="256" text-anchor="middle" class="anno" fill="#9e3828">1,621</text>
+    <rect x="282" y="268.4" width="24" height="11.6" rx="2" class="bar-mini"/>
+    <text x="298" y="263" text-anchor="middle" class="anno" fill="#165e46">1,053</text>
+    <text x="280" y="298" text-anchor="middle" class="cat-label">&#x5386;&#x53f2;&#x51b3;&#x7b56;&#x5168;&#x6587;</text>
+    <text x="280" y="312" text-anchor="middle" class="cat-sub">(recall + read)</text>
+
+    <!-- Cat 4: 3 Backend Specs -->
+    <rect x="340" y="75.6" width="24" height="204.4" rx="2" class="bar-legacy"/>
+    <text x="352" y="70" text-anchor="middle" class="anno" fill="#9e3828">18,585</text>
+    <text x="348" y="128" text-anchor="end" class="anno-sub" fill="#9e3828">&#x5b50;&#x4ee3;&#x7406;&#xd7;2</text>
+    <rect x="368" y="250.4" width="24" height="29.6" rx="2" class="bar-mini"/>
+    <text x="386" y="245" text-anchor="middle" class="anno" fill="#165e46">2,690</text>
+    <text x="394" y="264" class="anno-sub" fill="#165e46">&#x8bfb;1&#x6b21;</text>
+    <text x="366" y="298" text-anchor="middle" class="cat-label">3 &#x4efd;&#x540e;&#x7aef;&#x89c4;&#x8303;</text>
+    <text x="366" y="312" text-anchor="middle" class="cat-sub">(&#x542b;&#x7d22;&#x5f15;&#x4e0e;&#x6b63;&#x6587;)</text>
+
+    <rect x="74" y="38" width="252" height="36" class="callout-box"/>
+    <text x="82" y="53" class="anno" fill="#165e46">&#x89c4;&#x8303;&#x4e0e;&#x7814;&#x7a76;&#x6b63;&#x6587;&#x4e00;&#x5b57;&#x672a;&#x51cf;&#xff08;&#x5171; 3,164 chars&#xff09;</text>
+    <text x="82" y="67" class="anno-sub" fill="#2c6b54">&#x7701;&#x6389;&#x7684;&#x662f;&#x6d41;&#x7a0b;&#x624b;&#x518c;&#x3001;&#x6bcf;&#x8f6e;&#x72b6;&#x6001;&#x4e0e;&#x5b50;&#x4ee3;&#x7406;&#x91cd;&#x590d;&#x6ce8;&#x5165;</text>
+  </g>
+
+  <!-- PANEL B -->
+  <g transform="translate(497, 62)">
+    <rect width="435" height="334" rx="4" class="panel"/>
+    <text x="16" y="24" class="panel-title">(b) 10 &#x8f6e;&#x5f00;&#x53d1;&#x4f1a;&#x8bdd;&#x7d2f;&#x8ba1;&#x5f00;&#x9500;&#xff08;&#x9636;&#x68af;&#x6309;&#x9700;&#x52a0;&#x8f7d; vs &#x6301;&#x7eed;&#x53e0;&#x52a0;&#xff09;</text>
+
+    <line x1="64" y1="60"  x2="412" y2="60"  class="grid"/>
+    <line x1="64" y1="115" x2="412" y2="115" class="grid"/>
+    <line x1="64" y1="170" x2="412" y2="170" class="grid"/>
+    <line x1="64" y1="225" x2="412" y2="225" class="grid"/>
+    <line x1="64" y1="280" x2="412" y2="280" class="axis"/>
+    <line x1="64" y1="50"  x2="64"  y2="280" class="axis"/>
+
+    <text x="58" y="64"  text-anchor="end" class="tick">40k</text>
+    <text x="58" y="119" text-anchor="end" class="tick">30k</text>
+    <text x="58" y="174" text-anchor="end" class="tick">20k</text>
+    <text x="58" y="229" text-anchor="end" class="tick">10k</text>
+    <text x="58" y="284" text-anchor="end" class="tick">0</text>
+
+    <text x="64"  y="298" text-anchor="middle" class="tick">t=0</text>
+    <text x="133.6" y="298" text-anchor="middle" class="tick">t=2</text>
+    <text x="238" y="298" text-anchor="middle" class="tick">t=5</text>
+    <text x="342.4" y="298" text-anchor="middle" class="tick">t=8</text>
+    <text x="412" y="298" text-anchor="middle" class="tick">t=10</text>
+    <text x="238" y="318" text-anchor="middle" class="axis-label">&#x4f1a;&#x8bdd;&#x63a8;&#x8fdb;&#x8f6e;&#x6b21;&#xff08;t=2 &#x67e5;&#x5386;&#x53f2;&#x51b3;&#x7b56;&#xff0c;t=5 &#x8bfb;&#x89c4;&#x8303;&#x5b9e;&#x73b0;&#xff0c;t=8 &#x89c4;&#x8303;&#x9a8c;&#x6536;&#xff09;</text>
+
+    <!-- Legacy Cumulative Area & Curve -->
+    <polygon points="64,236.6 98.8,231.4 133.6,217.2 168.4,212.0 203.2,206.7 238.0,157.1 272.8,151.9 307.6,146.6 342.4,83.6 377.2,78.3 412,73.1 412,280 64,280" class="area-legacy"/>
+    <polyline points="64,236.6 98.8,231.4 133.6,217.2 168.4,212.0 203.2,206.7 238.0,157.1 272.8,151.9 307.6,146.6 342.4,83.6 377.2,78.3 412,73.1" class="line-legacy"/>
+
+    <circle cx="64"    cy="236.6" r="3.5" class="dot-legacy"/>
+    <circle cx="133.6" cy="217.2" r="3.5" class="dot-legacy"/>
+    <circle cx="238.0" cy="157.1" r="3.5" class="dot-legacy"/>
+    <circle cx="342.4" cy="83.6"  r="3.5" class="dot-legacy"/>
+    <circle cx="412"   cy="73.1"  r="3.5" class="dot-legacy"/>
+
+    <!-- mini-trellis Cumulative Area & Step Curve -->
+    <polygon points="64,273.6 98.8,273.6 133.6,267.8 168.4,267.8 203.2,267.8 238.0,253.0 272.8,253.0 307.6,253.0 342.4,253.0 377.2,253.0 412,253.0 412,280 64,280" class="area-mini"/>
+    <polyline points="64,273.6 98.8,273.6 133.6,267.8 168.4,267.8 203.2,267.8 238.0,253.0 272.8,253.0 307.6,253.0 342.4,253.0 377.2,253.0 412,253.0" class="line-mini"/>
+
+    <circle cx="64"    cy="273.6" r="3.5" class="dot-mini"/>
+    <circle cx="133.6" cy="267.8" r="3.5" class="dot-mini"/>
+    <circle cx="238.0" cy="253.0" r="3.5" class="dot-mini"/>
+    <circle cx="412"   cy="253.0" r="3.5" class="dot-mini"/>
+
+    <!-- Callouts on Legacy -->
+    <rect x="74" y="66" width="218" height="36" class="callout-legacy"/>
+    <text x="82" y="81" class="anno" fill="#9e3828">10 &#x8f6e;&#x7d2f;&#x8ba1;&#xff1a;37,619 chars</text>
+    <text x="82" y="95" class="anno-sub" fill="#9e3828">t=5 implement (+8,074) / t=8 check &#x91cd;&#x590d;&#x6ce8;&#x5165; (+10,511)</text>
+
+    <!-- Step annotations on mini-trellis -->
+    <text x="133" y="261" text-anchor="middle" class="anno-sub" fill="#165e46">t=2 &#x67e5;&#x7b14;&#x8bb0; (+1,053)</text>
+    <text x="315" y="245" text-anchor="middle" class="anno-sub" fill="#165e46">t=5 &#x8bfb;3&#x4efd;&#x89c4;&#x8303; (+2,690)&#xff0c;&#x540e;&#x7eed;&#x590d;&#x7528;&#x4e3b;&#x4f1a;&#x8bdd;&#x4e0a;&#x4e0b;&#x6587;</text>
+
+    <rect x="218" y="182" width="190" height="40" class="callout-box"/>
+    <text x="226" y="198" class="anno" fill="#165e46">mini-trellis &#x7d2f;&#x8ba1;&#xff1a;4,910 chars</text>
+    <text x="226" y="213" class="anno-sub" fill="#2c6b54">&#x603b;&#x6ce8;&#x5165;&#x51cf;&#x5c11; 86.9%&#xff08;7.7&#xd7;&#xff0c;t=8 &#x65e0;&#x9700;&#x91cd;&#x8bfb;&#xff09;</text>
+  </g>
+
+  <text x="28" y="418" class="fig-sub">&#x5b9e;&#x9a8c;&#x6761;&#x4ef6;&#xff1a;&#x540c;&#x4e00; Git &#x4ed3;&#x5e93;&#x4e0e;&#x89c4;&#x8303;&#x5939;&#x5177;&#xff0c;&#x540e;&#x7aef;&#x89c4;&#x8303;&#x542b; backend/index.md (1,223 chars) + error-handling.md (720 chars) + quality-guidelines.md (747 chars)&#xff0c;&#x7814;&#x7a76;&#x7b14;&#x8bb0; 474 chars&#x3002;</text>
+</svg>

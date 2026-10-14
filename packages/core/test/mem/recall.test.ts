@@ -104,6 +104,18 @@ describe("discoverDocs", () => {
     expect(found.hits).toEqual([]);
   });
 
+  it("does not mark scan incomplete when deep directories beyond depth cap contain only non-Markdown data files", () => {
+    write(".trellis/research/topic.md", "# Topic\n\nneedle\n");
+    write(
+      `.trellis/research/${"nested/".repeat(10)}raw.json`,
+      "{\"status\":\"ok\"}\n",
+    );
+    const found = recallMem({ cwd: root, query: "needle" });
+    expect(found.incomplete).toBe(false);
+    expect(found.warnings).toEqual([]);
+    expect(found.hits[0]?.path).toBe(".trellis/research/topic.md");
+  });
+
   it("reads trellis even when gitignored, plus docs and one link level", () => {
     write(".gitignore", ".trellis/\n");
     write(".trellis/spec/billing.md", "# Billing\n\n支付接口必须幂等。\n");
@@ -128,6 +140,43 @@ describe("discoverDocs", () => {
 
     const archived = found.docs.find((d) => d.relPath.endsWith("old.md"));
     expect(archived?.archived).toBe(true);
+  });
+
+  it("does not mark search incomplete when already-discovered trellis notes have >200 internal cross-links", () => {
+    for (let i = 0; i < 30; i++) {
+      const links = Array.from(
+        { length: 10 },
+        (_, j) => `[link-${j}](./topic-${(i + j) % 30}.md) [data](./fixture-${j}.json)`,
+      ).join(" ");
+      write(`.trellis/research/topic-${i}.md`, `# Topic ${i}\n\n${links}\n`);
+    }
+    const found = discoverDocs(root);
+    expect(found.docs).toHaveLength(30);
+    expect(found.warnings).toEqual([]);
+  });
+
+  it("marks migrated legacy task files as archived and ranks active research notes ahead of them", () => {
+    write(
+      ".trellis/research/08-15-flow-impact/legacy/prd.md",
+      "# Goal\n\nTransco capacity flow impact baseline.\n",
+    );
+    write(
+      ".trellis/research/08-15-flow-impact/research/validation.md",
+      "# Goal\n\nTransco capacity flow impact verified.\n",
+    );
+    const result = recallMem({
+      cwd: root,
+      query: "Transco capacity flow impact",
+      limit: 2,
+    });
+    expect(result.hits[0]?.path).toBe(
+      ".trellis/research/08-15-flow-impact/research/validation.md",
+    );
+    expect(result.hits[0]?.status).toBeUndefined();
+    expect(result.hits[1]?.path).toBe(
+      ".trellis/research/08-15-flow-impact/legacy/prd.md",
+    );
+    expect(result.hits[1]?.status).toBe("archived");
   });
 
   it("resolves a subdirectory to the same root", () => {

@@ -231,7 +231,7 @@ export function resolvePlaceholdersNeutral(
 /** Skill description registry — maps template name to auto-trigger description. */
 const SKILL_DESCRIPTIONS: Record<string, string> = {
   remember:
-    "Save confirmed decisions and reusable findings, update existing spec/research topics, and link them from the journal. Use when asked to remember, when a decision is confirmed, or for a useful session/compact handoff.",
+    "Save confirmed decisions, rejected approaches worth not retrying, and reusable findings. Update existing spec/research topics and link them from the journal. Use when asked to remember, when a decision is confirmed, or for a useful session/compact handoff.",
   "update-spec":
     "Captures durable contracts and conventions into .trellis/spec/ as short markdown. Use when a debugging, implementation, or discussion produced a boundary that should still hold next session.",
 };
@@ -261,7 +261,7 @@ export function wrapWithSkillFrontmatter(
  */
 const COMMAND_DESCRIPTIONS: Record<string, string> = {
   remember:
-    "Save confirmed decisions, update existing topics, and record a linked journal entry.",
+    "Save confirmed decisions or rejected approaches, update existing topics, and record a linked journal entry.",
 };
 
 /** Wrap resolved command content with YAML frontmatter (name + description). */

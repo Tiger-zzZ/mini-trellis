@@ -143,8 +143,14 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
       expect(runtime?.detail).toContain("0 chars");
       expect(hook(host, "new").text).toBe(first.text);
       for (const source of ["compact", "clear", "resume"]) {
-        assertMemoryPayload(hook(host, "same", source).text);
+        const text = hook(host, "same", source).text;
+        assertMemoryPayload(text);
+        if (source === "compact") expect(text).toContain("follows compact");
+        else expect(text).not.toContain("follows compact");
       }
+      expect(first.text).not.toContain("follows compact");
+      expect(first.text).not.toContain("read back");
+      expect(first.text.length).toBeLessThan(1600);
     },
   );
 
@@ -192,7 +198,7 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
       const text = hook("claude", `topics-${count}`).text;
       lengths.push(text.length);
       expect(text).not.toContain("Private topic body");
-      expect(text.length).toBeLessThan(2000);
+      expect(text.length).toBeLessThan(1600);
     }
     expect(new Set(lengths).size).toBe(1);
   });

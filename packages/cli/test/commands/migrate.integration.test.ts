@@ -43,6 +43,7 @@ const TRELLIS_RESIDUE: [string, "file" | "dir"][] = [
   [".claude/commands/trellis", "dir"],
   [".claude/skills/trellis-brainstorm", "dir"],
   [".claude/hooks/inject-workflow-state.py", "file"],
+  [".claude/hooks/statusline.py", "file"],
   [".codex/agents/trellis-implement.toml", "file"],
   [".codex/hooks/inject-workflow-state.py", "file"],
   [".opencode/agents/trellis-check.md", "file"],
@@ -56,6 +57,11 @@ const TRELLIS_RESIDUE: [string, "file" | "dir"][] = [
   [".agents/skills/trellis-finish-work", "dir"],
   [".trellis/workflow.md", "file"],
   [".trellis/scripts/task.py", "file"],
+  [".trellis/scripts/common/task_store.py", "file"],
+  [".trellis/scripts/common/task_context.py", "file"],
+  [".trellis/scripts/common/task_utils.py", "file"],
+  [".trellis/scripts/common/task_queue.py", "file"],
+  [".trellis/scripts/common/cli_adapter.py", "file"],
   [".trellis/.template-hashes.json", "file"],
   [".trellis/.version", "file"],
 ];
@@ -203,6 +209,7 @@ describe("migrate", () => {
       expect(collectTrellisResidue(tmpDir)).toEqual(before);
       expect(exists(tmpDir, ".trellis/.version")).toBe(true);
       expect(exists(tmpDir, ".claude/commands/trellis")).toBe(true);
+      expect(exists(tmpDir, ".claude/hooks/statusline.py")).toBe(true);
       expect(exists(tmpDir, ".trellis/tasks/01-old/task.json")).toBe(true);
       expect(exists(tmpDir, ".trellis/research/01-old")).toBe(false);
     });
@@ -234,6 +241,237 @@ describe("migrate", () => {
     expect(
       fs.readFileSync(path.join(tmpDir, ".trellis/config.yaml"), "utf-8"),
     ).toContain('session_commit_message: "[mini-trellis] journal"');
+    expect(
+      fs
+        .readFileSync(path.join(tmpDir, ".codex/config.toml"), "utf-8")
+        .match(/written by mini-trellis/g),
+    ).toHaveLength(1);
+  });
+
+  it("replaces Trellis hook config without dropping user settings", async () => {
+    fs.writeFileSync(
+      path.join(tmpDir, ".claude/settings.json"),
+      JSON.stringify(
+        {
+          env: {
+            CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR: "1",
+            USER_KEEP: "1",
+          },
+          hooks: {
+            SessionStart: [
+              {
+                matcher: "startup",
+                hooks: [
+                  {
+                    type: "command",
+                    command: "python3 .claude/hooks/session-start.py",
+                    timeout: 10,
+                    statusMessage: "Loading Trellis context",
+                  },
+                ],
+              },
+            ],
+            PreToolUse: [
+              {
+                matcher: "Task",
+                hooks: [
+                  {
+                    type: "command",
+                    command:
+                      "python3 .claude/hooks/inject-subagent-context.py",
+                  },
+                ],
+              },
+            ],
+            UserPromptSubmit: [
+              {
+                hooks: [
+                  {
+                    type: "command",
+                    command: "python3 .claude/hooks/inject-workflow-state.py",
+                  },
+                  { type: "command", command: "echo keep-claude" },
+                ],
+              },
+            ],
+          },
+          statusLine: {
+            type: "command",
+            command: "python3 .claude/hooks/statusline.py",
+          },
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, ".codex/hooks.json"),
+      JSON.stringify(
+        {
+          hooks: {
+            UserPromptSubmit: [
+              {
+                hooks: [
+                  {
+                    type: "command",
+                    command:
+                      "python3 -X utf8 .codex/hooks/inject-workflow-state.py",
+                  },
+                ],
+              },
+              {
+                hooks: [{ type: "command", command: "echo keep-codex" }],
+              },
+            ],
+            SessionStart: [
+              {
+                matcher: "startup",
+                hooks: [
+                  {
+                    type: "command",
+                    command: "python3 -X utf8 .codex/hooks/session-start.py",
+                    statusMessage: "Loading Trellis context",
+                  },
+                ],
+              },
+            ],
+            SubagentStart: [
+              {
+                matcher: "trellis-implement",
+                hooks: [
+                  {
+                    type: "command",
+                    command:
+                      "python3 -X utf8 .codex/hooks/inject-subagent-context.py",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, ".pi/settings.json"),
+      JSON.stringify(
+        {
+          enableSkillCommands: true,
+          extensions: [
+            "./extensions/trellis/index.ts",
+            "./extensions/user-ext.ts",
+          ],
+          prompts: ["./prompts"],
+          packages: [
+            { source: "npm:pi-subagents" },
+            { source: "npm:user-pkg" },
+          ],
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, ".codex/config.toml"),
+      [
+        "# Project-scoped Codex defaults for Trellis workflows.",
+        'project_doc_fallback_filenames = ["AGENTS.md"]',
+        'model = "gpt-user"',
+        "",
+        "[agents]",
+        "max_depth = 1",
+        'model = "user-agent-model"',
+        "",
+      ].join("\n"),
+    );
+    const before = snapshot(tmpDir);
+    await migrate({ dryRun: true });
+    expect(snapshot(tmpDir)).toEqual(before);
+
+    await migrate({ yes: true });
+
+    const claude = fs.readFileSync(
+      path.join(tmpDir, ".claude/settings.json"),
+      "utf-8",
+    );
+    expect(claude).not.toMatch(/inject-|statusline\.py|Loading Trellis context/);
+    expect(claude).toContain("USER_KEEP");
+    expect(claude).toContain("echo keep-claude");
+    expect(claude.match(/session-start\.py/g)).toHaveLength(3);
+    expect(claude).not.toContain('"statusLine"');
+
+    const codex = fs.readFileSync(
+      path.join(tmpDir, ".codex/hooks.json"),
+      "utf-8",
+    );
+    expect(codex).not.toMatch(/inject-|Loading Trellis context/);
+    expect(codex).toContain("echo keep-codex");
+    expect(codex.match(/session-start\.py/g)).toHaveLength(1);
+    expect(codex).toContain("Loading mini-trellis context");
+
+    const pi = JSON.parse(
+      fs.readFileSync(path.join(tmpDir, ".pi/settings.json"), "utf-8"),
+    ) as {
+      extensions: string[];
+      packages: { source: string }[];
+      enableSkillCommands: boolean;
+    };
+    expect(pi.extensions).toEqual([
+      "./extensions/user-ext.ts",
+      "./extensions/mini-trellis/index.ts",
+    ]);
+    expect(pi.packages).toEqual([{ source: "npm:user-pkg" }]);
+    expect(pi.enableSkillCommands).toBe(true);
+
+    const toml = fs.readFileSync(
+      path.join(tmpDir, ".codex/config.toml"),
+      "utf-8",
+    );
+    expect(toml).toContain('model = "gpt-user"');
+    expect(toml).toContain('model = "user-agent-model"');
+    expect(toml).not.toMatch(/max_depth\s*=\s*1/);
+    expect(toml).not.toContain("for Trellis workflows");
+    expect(toml.match(/written by mini-trellis/g)).toHaveLength(1);
+  });
+
+  it("repairs hook config after the Trellis scripts are already gone", async () => {
+    removeAll(tmpDir);
+    fs.rmSync(path.join(tmpDir, ".trellis/tasks"), {
+      recursive: true,
+      force: true,
+    });
+    fs.writeFileSync(
+      path.join(tmpDir, ".codex/hooks.json"),
+      JSON.stringify(
+        {
+          hooks: {
+            UserPromptSubmit: [
+              {
+                hooks: [
+                  {
+                    type: "command",
+                    command:
+                      "python3 -X utf8 .codex/hooks/inject-workflow-state.py",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+
+    await migrate({ yes: true });
+
+    const codex = fs.readFileSync(
+      path.join(tmpDir, ".codex/hooks.json"),
+      "utf-8",
+    );
+    expect(codex).not.toContain("inject-");
+    expect(codex.match(/session-start\.py/g)).toHaveLength(1);
   });
 
   it("converges task directories into research topics", async () => {

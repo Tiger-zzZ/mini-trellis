@@ -11,6 +11,14 @@ mini-trellis migrate             # confirm migration; defaults to no
 
 It rewrites the four host surfaces with mini-trellis's versions, deletes the Trellis-only instruction files (skills, commands, agents, per-turn injectors, `workflow.md`, `task.py`), replaces the Trellis block in `AGENTS.md`, and drops `.trellis/.version` so the Trellis CLI stops offering to update the project back to the four-phase workflow.
 
+Host configuration is not replaced as a whole file:
+
+- `.claude/settings.json` and `.codex/hooks.json` lose Trellis hooks that point at `inject-*.py`, `statusline.py`, or an old `session-start.py`, then receive mini-trellis's SessionStart entry. User hooks, `env`, and other fields stay.
+- `.pi/settings.json` loses `./extensions/trellis/index.ts` and `npm:pi-subagents`. Other extensions and packages stay.
+- `.codex/config.toml` loses the Trellis notes and `[agents] max_depth = 1`, then receives the mini-trellis project config. User-owned keys are appended after it.
+
+If an earlier migration deleted the scripts but left `inject-*.py` in the hook config, running `mini-trellis migrate` again removes those entries.
+
 Task material moves from `.trellis/tasks/` into research topics:
 
 - Each task directory becomes one research topic: `.trellis/tasks/<name>/` → `.trellis/research/<name>/`, and archived ones go to `.trellis/research/archive/YYYY-MM/<name>/`. Date prefixes and directory names are kept, preserving relative links within the retained task content. Links to files moved into `legacy/` or deleted, such as `../prd.md`, are not repaired.

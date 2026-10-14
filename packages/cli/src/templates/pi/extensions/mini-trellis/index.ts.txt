@@ -85,15 +85,10 @@ include the affected path/identifier when useful. Unrelated edits need no histor
 Use \`mini-trellis mem read <ref>\` only if an excerpt lacks needed context or qualifiers.
 Reuse evidence already in the current context; recall again after compact or when a
 source changes or disappears. Never treat stale or missing sources as current rules.
-Keep confirmed decisions and useful findings in \`.trellis/research/<topic>.md\`;
-update the existing topic, and promote lasting contracts into \`.trellis/spec/\`.
-Keep confirmed rules short and faithful; leave unconfirmed scope, exceptions, and
-implementation choices open or label them as inference, not part of the contract.
-New notes follow the user's language; updates keep the file's language. Preserve identifiers.
-Record meaningful session outcomes with \`python3 ./.trellis/scripts/add_session.py\`.
-Journal entries should link to the topic instead of duplicating it. Ordinary edits and
-unconfirmed or rejected suggestions are not new durable decisions. Report write failures.
-Do not create a git commit unless the user explicitly asks.
+Keep confirmed decisions in \`.trellis/research/<topic>.md\` and lasting rules in \`.trellis/spec/\`.
+A rejected approach that later work should not retry can be recorded and labeled rejected.
+Record with \`python3 ./.trellis/scripts/add_session.py\`. Ordinary edits and unconfirmed
+guesses are not new decisions. Do not create a git commit unless the user explicitly asks.
 </session-context>` + (journal ? `\nJournal: ${journal}` : "") +
     (specCount ? `\nSpec indexes: ${specCount} available.` : "");
 }
