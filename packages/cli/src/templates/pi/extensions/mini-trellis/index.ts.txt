@@ -87,7 +87,7 @@ Reuse evidence already in the current context; recall again after compact or whe
 source changes or disappears. Never treat stale or missing sources as current rules.
 Keep confirmed decisions in \`.trellis/research/<topic>.md\` and lasting rules in \`.trellis/spec/\`.
 A rejected approach that later work should not retry can be recorded and labeled rejected.
-Record with \`python3 ./.trellis/scripts/add_session.py\`. Ordinary edits and unconfirmed
+Record with \`/mini-trellis-remember\` or \`python3 ./.trellis/scripts/add_session.py\`. Ordinary edits and unconfirmed
 guesses are not new decisions. Do not create a git commit unless the user explicitly asks.
 </session-context>` + (journal ? `\nJournal: ${journal}` : "") +
     (specCount ? `\nSpec indexes: ${specCount} available.` : "");

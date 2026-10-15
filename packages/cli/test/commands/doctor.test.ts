@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildDoctorReport } from "../../src/commands/doctor.js";
+import { agentsMdContent } from "../../src/templates/markdown/index.js";
 
 const tempDirs: string[] = [];
 
@@ -16,7 +17,7 @@ function makeProject(): string {
   );
   fs.writeFileSync(
     path.join(cwd, "AGENTS.md"),
-    "<!-- TRELLIS:START -->\nmanaged\n<!-- TRELLIS:END -->\n",
+    agentsMdContent,
   );
   return cwd;
 }
@@ -27,6 +28,24 @@ afterEach(() => {
 });
 
 describe("doctor", () => {
+  it.each([
+    [".trellis/workflow.md", "# Four phases\n"],
+    [".claude/hooks/inject-workflow-state.py", "# stage injector\n"],
+    [".codex/hooks/inject-subagent-context.py", "# stage injector\n"],
+    ["AGENTS.md", "<!-- TRELLIS:START -->\nRead workflow.md\n<!-- TRELLIS:END -->\n"],
+    ["AGENTS.md", "<!-- TRELLIS:START -->\nRead workflow.md\n"],
+  ])("routes legacy %s to migration instead of init", (relative, content) => {
+    const cwd = makeProject();
+    fs.rmSync(path.join(cwd, ".trellis/scripts/add_session.py"));
+    const file = path.join(cwd, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, content);
+    const report = buildDoctorReport(cwd);
+    expect(report.ok).toBe(false);
+    expect(report.checks[0].detail).toContain("mini-trellis migrate --dry-run");
+    expect(JSON.stringify(report)).not.toMatch(/run (?:mini-trellis )?init/);
+  });
+
   it.each(["{", "null", '{"schema":99,"last_status":"ok"}'])(
     "does not report malformed hook metadata as a successful delivery (%s)",
     (metadata) => {

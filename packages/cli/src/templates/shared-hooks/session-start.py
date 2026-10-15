@@ -592,6 +592,8 @@ def _main_impl():
 
     spec_index_paths = _collect_spec_index_paths(trellis_dir, allowed_pkgs)
     source = hook_input.get("source") if isinstance(hook_input.get("source"), str) else ""
+    platform = _detect_platform(hook_input)
+    remember_command = "$mini-trellis-remember" if platform == "codex" else "/mini-trellis:remember"
 
     output.write("""<session-context>
 mini-trellis SessionStart context. Orient from journal, spec, and research.
@@ -616,7 +618,7 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
         "only for missing context. Do not repeat a sufficient lookup.\n"
         "Research lives in `.trellis/research/`; durable rules belong in `.trellis/spec/`.\n"
         "Record a confirmed decision, a rejected approach worth not retrying, or a useful "
-        "handoff with `/mini-trellis:remember` or "
+        f"handoff with `{remember_command}` or "
         "`python3 ./.trellis/scripts/add_session.py`. The remember command has the write "
         "steps. Do not record every turn, and do not create a git commit unless the user asks.\n"
     )
@@ -626,7 +628,7 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
             "This SessionStart follows compact. Details missing from the summary may "
             "still be in local session history: use `mini-trellis mem recall <query>`, "
             "then `mini-trellis mem read <ref>` for the original turns. Record durable "
-            "decisions that were not saved yet with `/mini-trellis:remember`.\n"
+            f"decisions that were not saved yet with `{remember_command}`.\n"
         )
     output.write("</guidelines>\n\n")
 
@@ -643,7 +645,6 @@ Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. R
             + tail
         )
 
-    platform = _detect_platform(hook_input)
     content_hash = hashlib.sha256(context_text.encode("utf-8")).hexdigest()[:24]
 
     # Kiro (CLI trellis agent agentSpawn) adds a hook's stdout directly to the

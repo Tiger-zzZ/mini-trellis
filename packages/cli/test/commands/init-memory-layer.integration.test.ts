@@ -249,7 +249,7 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
   it("merges existing instructions and host JSON without dropping user settings", async () => {
     fs.writeFileSync(
       path.join(tmpDir, "AGENTS.md"),
-      "# Project rules\n\n<!-- TRELLIS:START -->\nold managed block\n<!-- TRELLIS:END -->\n",
+      "# Project rules\n\n" + fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf8"),
     );
     fs.writeFileSync(
       path.join(tmpDir, ".claude/settings.json"),

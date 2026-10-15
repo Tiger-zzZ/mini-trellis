@@ -4,6 +4,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -107,6 +108,12 @@ describe("platform template maps", () => {
 });
 
 describe("mem help", () => {
+  it("lists unified recall/read in top-level help mem", () => {
+    const text = execFileSync(process.execPath, [join(ROOT, "bin/mini-trellis.js"), "help", "mem"], { encoding: "utf8" });
+    expect(text).toMatch(/recall\|read\|list\|search/);
+    expect(text).toContain("project documents");
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });

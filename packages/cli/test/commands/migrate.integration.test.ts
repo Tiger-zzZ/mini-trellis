@@ -18,8 +18,8 @@ vi.mock("inquirer", () => ({
 
 import inquirer from "inquirer";
 
-import { init } from "../../src/commands/init.js";
-import { migrate, collectTrellisResidue } from "../../src/commands/migrate.js";
+import { init, type InitOptions } from "../../src/commands/init.js";
+import { migrate, collectTrellisResidue, buildMigratePlan } from "../../src/commands/migrate.js";
 import { buildTasksConvergePlan } from "../../src/commands/migrate-tasks.js";
 import { setWriteMode } from "../../src/utils/file-writer.js";
 import { resetResolvedPythonCommand } from "../../src/configurators/shared.js";
@@ -212,11 +212,20 @@ describe("migrate", () => {
       expect(exists(tmpDir, ".claude/hooks/statusline.py")).toBe(true);
       expect(exists(tmpDir, ".trellis/tasks/01-old/task.json")).toBe(true);
       expect(exists(tmpDir, ".trellis/research/01-old")).toBe(false);
+      expect(vi.mocked(console.log).mock.calls.at(-1)?.[0]).toContain(
+        "After reviewing this plan, run: mini-trellis migrate",
+      );
     });
   });
 
   it("removes the Trellis surface and keeps the memory data", async () => {
+    const plan = buildMigratePlan(tmpDir);
+    const removed = plan.deletions.length + (plan.dropsVersion ? 1 : 0);
     await migrate({ yes: true });
+
+    const output = vi.mocked(console.log).mock.calls.map((c) => String(c[0])).join("\n");
+    expect(output).toContain(`Will be deleted (${removed}):`);
+    expect(output).toContain(`${removed} Trellis path(s) removed`);
 
     expect(collectTrellisResidue(tmpDir)).toEqual([]);
     expect(exists(tmpDir, ".trellis/.version")).toBe(false);
@@ -388,6 +397,10 @@ describe("migrate", () => {
     const before = snapshot(tmpDir);
     await migrate({ dryRun: true });
     expect(snapshot(tmpDir)).toEqual(before);
+    const preview = vi.mocked(console.log).mock.calls.map((c) => String(c[0])).join("\n");
+    expect(preview).toContain("keeping unrelated user hooks and environment variables");
+    expect(preview).toContain("replace bundled scripts; keep other files");
+    expect(preview).not.toContain("Will be overwritten");
 
     await migrate({ yes: true });
 
@@ -822,7 +835,7 @@ describe("migrate", () => {
   });
 });
 
-describe("init warning", () => {
+describe("legacy init guard", () => {
   let tmpDir: string;
 
   beforeEach(() => {
@@ -848,18 +861,53 @@ describe("init warning", () => {
     return log.mock.calls.map((c) => String(c[0])).join("\n");
   }
 
-  it("warns and points at migrate when Trellis residue is present", async () => {
-    plant(tmpDir, ".claude/commands/trellis/finish-work.md");
-    plant(tmpDir, ".claude/skills/trellis-brainstorm/SKILL.md");
-    const text = await runInit();
+  it.each([
+    [".trellis/workflow.md", "# Four phases\n"],
+    [".claude/hooks/inject-workflow-state.py", "# injector\n"],
+    [".codex/hooks/inject-subagent-context.py", "# injector\n"],
+    ["AGENTS.md", "<!-- TRELLIS:START -->\nRead workflow.md\n<!-- TRELLIS:END -->\n"],
+    [".claude/settings.json", '{"hooks":{"UserPromptSubmit":[{"hooks":[{"command":"python3 .claude/hooks/inject-workflow-state.py"}]}]}}'],
+  ])("blocks every init mode without writing when %s is legacy", async (relative, body) => {
+    plant(tmpDir, relative, body);
+    plant(tmpDir, ".claude/hooks/session-start.py", "print('OLD START')\n");
+    const before = snapshot(tmpDir);
+    const log = vi.spyOn(console, "log").mockImplementation(noop);
+    const modes: InitOptions[] = [
+      { yes: true },
+      { yes: true, claude: true },
+      { yes: true, claude: true, force: true },
+      { yes: true, codex: true, skipExisting: true },
+    ];
+    for (const options of modes) {
+      await expect(init(options)).rejects.toThrow("mini-trellis migrate --dry-run");
+      expect(snapshot(tmpDir)).toEqual(before);
+    }
+    expect(log.mock.calls.flat().join("\n")).not.toMatch(/Already initialized|mini-trellis initialized/);
+  });
 
-    expect(text).toMatch(/still has \d+ Trellis path/);
-    expect(text).toContain("mini-trellis migrate --dry-run");
-    expect(text).toMatch(/new project/);
+  it.each(["workflow", "managed block"])("migrates old SessionStart with only a legacy %s", async (shape) => {
+    if (shape === "workflow") plant(tmpDir, ".trellis/workflow.md");
+    else plant(tmpDir, "AGENTS.md", "<!-- TRELLIS:START -->\nRead workflow.md\n<!-- TRELLIS:END -->\n\nHouse rules\n");
+    plant(tmpDir, ".claude/hooks/session-start.py", "print('OLD START')\n");
+    plant(tmpDir, ".claude/settings.json", JSON.stringify({
+      env: { USER_KEEP: "1" },
+      hooks: { SessionStart: [{ hooks: [{ type: "command", command: "python3 .claude/hooks/session-start.py" }] }] },
+    }));
+    vi.spyOn(console, "log").mockImplementation(noop);
+    await migrate({ yes: true });
+    expect(fs.readFileSync(path.join(tmpDir, ".claude/hooks/session-start.py"), "utf8")).not.toContain("OLD START");
+    expect(fs.readFileSync(path.join(tmpDir, ".claude/settings.json"), "utf8")).toContain("USER_KEEP");
+    expect(exists(tmpDir, ".trellis/workflow.md")).toBe(false);
+    if (shape === "managed block") {
+      expect(fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf8")).toContain("House rules");
+    }
   });
 
   it("stays quiet on a clean project", async () => {
     const text = await runInit();
     expect(text).not.toMatch(/Trellis path/);
+    expect(text.trim().split("\n").at(-1)).toContain("mini-trellis mem recall");
+    await init({ yes: true, codex: true });
+    expect(exists(tmpDir, ".codex/hooks/session-start.py")).toBe(true);
   });
 });

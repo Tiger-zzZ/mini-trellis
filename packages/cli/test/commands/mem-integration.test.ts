@@ -676,6 +676,15 @@ describe("runMem subcommand integration", () => {
     expect(joined).toMatch(/\d+ hit\(s\)/);
   });
 
+  it("search stays conversation-only while recall can find project notes", () => {
+    seedProjectDocs();
+    runMem(["search", "double-charge", "--cwd", projectCwd, "--json"]);
+    expect(JSON.parse(logs.join("\n"))).toEqual([]);
+    logs.length = 0;
+    runMem(["recall", "double-charge", "--cwd", projectCwd, "--json"]);
+    expect(JSON.parse(logs.join("\n")).hits.some((hit: { path?: string }) => hit.path === "docs/billing.md")).toBe(true);
+  });
+
   it("recall --json: emits {hits,totalHits,incomplete,warnings}", () => {
     seedProjectDocs();
     runMem(["recall", "double-charge", "--cwd", projectCwd, "--json"]);

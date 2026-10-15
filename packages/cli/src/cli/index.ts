@@ -136,13 +136,13 @@ program
 program
   .command("mem")
   .description(
-    "Search/recall AI conversation history (run 'mini-trellis mem help' for subcommands)",
+    "Recall project documents and AI conversation history (run 'mini-trellis mem help' for subcommands)",
   )
   .allowUnknownOption(true)
   .helpOption(false)
   .argument(
     "[args...]",
-    "subcommand and arguments (list|search|context|extract|projects|help)",
+    "subcommand and arguments (recall|read|list|search|context|extract|projects|help)",
   )
   .action((args: string[] = []) => {
     try {
