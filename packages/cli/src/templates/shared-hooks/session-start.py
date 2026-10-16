@@ -164,6 +164,229 @@ def _format_git_state(repo_root: Path) -> str:
     return f"Git: branch {branch}; {dirty_text}."
 
 
+# Structural path segments ignored when scoring git→knowledge cues.
+_CUE_GENERIC_SEGMENTS = frozenset(
+    {
+        "src",
+        "lib",
+        "libs",
+        "test",
+        "tests",
+        "dist",
+        "build",
+        "node_modules",
+        "packages",
+        "package",
+        "app",
+        "apps",
+        "bin",
+        "cmd",
+        "pkg",
+        "internal",
+        "vendor",
+        "third_party",
+        "deps",
+        "docs",
+        "doc",
+        "common",
+        "utils",
+        "util",
+        "types",
+        "type",
+        "index",
+        "main",
+        "mod",
+        "templates",
+        "shared-hooks",
+        "extensions",
+        "plugins",
+        "scripts",
+        "trellis",
+        ".trellis",
+        "spec",
+        "research",
+        "workspace",
+        "archive",
+        "markdown",
+        "md",
+        "ts",
+        "tsx",
+        "js",
+        "jsx",
+        "mjs",
+        "cjs",
+        "py",
+        "css",
+        "json",
+        "yaml",
+        "yml",
+        "toml",
+        "txt",
+        "cli",
+        "core",
+    }
+)
+_CUE_MAX_PATHS = 2
+_CUE_MAX_CHARS = 160  # incremental characters vs clean baseline, including leading newline
+# Paths that appear while the hook itself runs; never use them for knowledge cues.
+_CUE_NOISE_PARTS = frozenset(
+    {
+        "__pycache__",
+        ".runtime",
+        "node_modules",
+        ".git",
+    }
+)
+
+
+def _parse_porcelain_paths(porcelain: str) -> list[str]:
+    """Extract repo-relative POSIX paths from `git status --porcelain` text."""
+    paths: list[str] = []
+    for raw in porcelain.splitlines():
+        line = raw.rstrip("\n")
+        if not line.strip() or len(line) < 4:
+            continue
+        # XY<space>path  or  XY<space>old -> new
+        rest = line[3:]
+        if " -> " in rest:
+            rest = rest.split(" -> ", 1)[1]
+        if len(rest) >= 2 and rest[0] == '"' and rest[-1] == '"':
+            rest = rest[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+        # Untracked directories may appear as `?? dir/`; keep the slash so callers
+        # can expand or ignore them. Prefer `-uall` so files are listed instead.
+        paths.append(rest.replace("\\", "/"))
+    return paths
+
+
+def _is_cue_noise_path(rel_path: str) -> bool:
+    parts = rel_path.replace("\\", "/").split("/")
+    if any(p in _CUE_NOISE_PARTS for p in parts):
+        return True
+    name = parts[-1] if parts else ""
+    return name.endswith((".pyc", ".pyo", ".tmp"))
+
+
+def _path_token(part: str) -> str:
+    """Lowercase path segment token; strip file extensions, keep `.trellis`-style names."""
+    if "." not in part:
+        return part.lower()
+    # Leading-dot directory names (`.trellis`) are not file extensions.
+    if part.startswith(".") and part.rfind(".") == 0:
+        return part.lower()
+    stem = Path(part).stem
+    return (stem or part).lower()
+
+
+def _cue_segments(rel_path: str) -> set[str]:
+    """Meaningful path segments for overlap scoring (lowercase, generics dropped)."""
+    segments: set[str] = set()
+    for part in rel_path.replace("\\", "/").split("/"):
+        if not part or part in {".", ".."}:
+            continue
+        token = _path_token(part)
+        if token and token not in _CUE_GENERIC_SEGMENTS and len(token) > 1:
+            segments.add(token)
+    return segments
+
+
+def _list_knowledge_cue_paths(trellis_dir: Path) -> list[str]:
+    """List `.trellis/spec|research` markdown paths eligible for startup cues.
+
+    Paths only — never reads file bodies. Skips archive/, README, and hidden names.
+    """
+    found: list[str] = []
+    for kind in ("spec", "research"):
+        root = trellis_dir / kind
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*")):
+            if not path.is_file():
+                continue
+            if path.suffix.lower() != ".md":
+                continue
+            try:
+                rel = path.relative_to(trellis_dir.parent).as_posix()
+            except ValueError:
+                continue
+            parts = rel.split("/")
+            # Allow the `.trellis` root; skip other hidden path segments.
+            if any(p.startswith(".") and p != ".trellis" for p in parts):
+                continue
+            if "archive" in parts:
+                continue
+            if path.name.lower() == "readme.md":
+                continue
+            found.append(rel)
+    return found
+
+
+def _score_knowledge_cue(knowledge_rel: str, dirty_paths: list[str]) -> int:
+    """Score one knowledge path against dirty worktree paths via segment overlap."""
+    know_segs = _cue_segments(knowledge_rel)
+    if not know_segs:
+        return 0
+    best = 0
+    for dirty in dirty_paths:
+        dirty_norm = dirty.rstrip("/")
+        if dirty_norm == knowledge_rel:
+            return 1000
+        # Editing any file under a knowledge topic directory still cues the note.
+        if knowledge_rel.endswith(".md"):
+            parent = knowledge_rel.rsplit("/", 1)[0] + "/"
+            if dirty_norm.startswith(parent.rstrip("/")) and parent.startswith(".trellis/"):
+                if dirty_norm == parent.rstrip("/") or dirty.startswith(parent):
+                    best = max(best, 500)
+        overlap = know_segs & _cue_segments(dirty_norm)
+        if overlap:
+            best = max(best, len(overlap))
+    return best
+
+
+def _format_git_path_cue(repo_root: Path, trellis_dir: Path) -> str | None:
+    """One-line cue naming 1–2 knowledge paths that overlap dirty git paths.
+
+    Returns None when the worktree is clean or no knowledge path matches.
+    Incremental size (leading newline + line) is capped at _CUE_MAX_CHARS.
+    """
+    # -uall lists individual untracked files (not just `?? dir/`), which we need
+    # for path-segment overlap against source files inside new directories.
+    porcelain = _run_git(repo_root, ["status", "--porcelain", "-uall"])
+    if not porcelain.strip():
+        return None
+    dirty_paths = [
+        p for p in _parse_porcelain_paths(porcelain) if not _is_cue_noise_path(p)
+    ]
+    if not dirty_paths:
+        return None
+
+    knowledge = _list_knowledge_cue_paths(trellis_dir)
+    if not knowledge:
+        return None
+
+    ranked: list[tuple[int, str]] = []
+    for rel in knowledge:
+        score = _score_knowledge_cue(rel, dirty_paths)
+        if score > 0:
+            ranked.append((score, rel))
+    if not ranked:
+        return None
+
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+    chosen = [rel for _, rel in ranked[:_CUE_MAX_PATHS]]
+
+    def render(paths: list[str]) -> str:
+        return "Cue: " + ", ".join(paths)
+
+    line = render(chosen)
+    # Include the join newline that _build_compact_current_state will add.
+    while chosen and len(line) + 1 > _CUE_MAX_CHARS:
+        chosen = chosen[: len(chosen) - 1]
+        if not chosen:
+            return None
+        line = render(chosen)
+    return line
+
+
 def _detect_platform(input_data: dict) -> str | None:
     if isinstance(input_data.get("cursor_version"), str):
         return "cursor"
@@ -515,6 +738,10 @@ def _build_compact_current_state(
         lines.append(f"Spec indexes: {len(spec_index_paths)} available.")
 
     lines.append("Research: use `mini-trellis mem recall <query>` when relevant.")
+
+    cue = _format_git_path_cue(repo_root, trellis_dir)
+    if cue:
+        lines.append(cue)
 
     return "\n".join(lines)
 

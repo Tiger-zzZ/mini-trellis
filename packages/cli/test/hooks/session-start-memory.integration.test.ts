@@ -70,12 +70,14 @@ function stampMemorySkeleton(tmp: string): void {
 /** A migrated task directory: one topic, not one note per file inside it. */
 const CONVERGED_TOPIC = "09-11-pipeline-outage-meter-flow-impact";
 
-function assertMemoryPayload(text: string): void {
+function assertMemoryPayload(text: string, opts?: { allowCuePaths?: boolean }): void {
   expect(text).toContain("mini-trellis mem recall");
   expect(text).toContain("mini-trellis mem read");
   expect(text).toContain("mini-trellis mem recall <query>");
-  expect(text).not.toContain(".trellis/research/hot-topic.md");
-  expect(text).not.toContain(`.trellis/research/${CONVERGED_TOPIC}/`);
+  if (!opts?.allowCuePaths) {
+    expect(text).not.toContain(".trellis/research/hot-topic.md");
+    expect(text).not.toContain(`.trellis/research/${CONVERGED_TOPIC}/`);
+  }
   expect(text).not.toContain("<first-reply-notice>");
   expect(text).not.toContain("Research notes:");
   expect(text).not.toContain("workflow.md");
@@ -83,6 +85,35 @@ function assertMemoryPayload(text: string): void {
   expect(text).not.toContain("finish-work");
   expect(text).not.toContain("trellis-brainstorm");
   expect(text).toMatch(/mini-trellis mem/);
+}
+
+/** Init a clean git worktree so porcelain is empty (committed fixture files). */
+function initCleanGit(dir: string): void {
+  execFileSync("git", ["init"], { cwd: dir, stdio: "ignore" });
+  execFileSync("git", ["config", "user.email", "test@example.com"], {
+    cwd: dir,
+    stdio: "ignore",
+  });
+  execFileSync("git", ["config", "user.name", "test"], {
+    cwd: dir,
+    stdio: "ignore",
+  });
+  // Hook imports create __pycache__; runtime status writes .trellis/.runtime.
+  fs.writeFileSync(
+    path.join(dir, ".gitignore"),
+    ["__pycache__/", "*.pyc", ".trellis/.runtime/", "node_modules/", ""].join(
+      "\n",
+    ),
+  );
+  execFileSync("git", ["add", "-A"], { cwd: dir, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", "fixture"], {
+    cwd: dir,
+    stdio: "ignore",
+  });
+}
+
+function cueLines(text: string): string[] {
+  return text.split(/\r?\n/).filter((line) => line.startsWith("Cue: "));
 }
 
 describe.skipIf(!hasPython())("session-start memory contract", () => {
@@ -403,5 +434,164 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
       expect(text).toContain("Journal: .trellis/workspace/tester/journal-2.md");
       expect(text).not.toContain("initialized_at=");
     },
+  );
+
+  /** Copy SessionStart hook assets and commit so later hook() calls stay clean. */
+  function commitHookAssets(host = "claude"): void {
+    const file = path.join(tmpDir, `.${host}/hooks/session-start.py`);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.copyFileSync(SHARED_HOOK, file);
+    fs.writeFileSync(
+      path.join(
+        tmpDir,
+        `.${host}/${host === "codex" ? "hooks" : "settings"}.json`,
+      ),
+      "{}",
+    );
+    execFileSync("git", ["add", "-A"], { cwd: tmpDir, stdio: "ignore" });
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "user.name=test",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "hook-assets",
+      ],
+      { cwd: tmpDir, stdio: "ignore" },
+    );
+  }
+
+  it(
+    "adds one cue line of at most 160 incremental characters when a dirty path matches knowledge",
+    () => {
+      initCleanGit(tmpDir);
+      commitHookAssets();
+      const cleanText = hook("claude", "cue-clean").text;
+      expect(cueLines(cleanText)).toEqual([]);
+      expect(cleanText).toMatch(/Git: branch .+; clean\./);
+      // Documented clean default-init baseline; must not grow when the cue is absent.
+      // 0/100/1000 research-topic constancy remains covered by the existing no-git test.
+      expect(cleanText.length).toBeLessThanOrEqual(1167);
+
+      fs.mkdirSync(path.join(tmpDir, "src", "hot-topic"), { recursive: true });
+      fs.writeFileSync(
+        path.join(tmpDir, "src", "hot-topic", "handler.ts"),
+        "export {}\n",
+      );
+      const dirtyText = hook("claude", "cue-dirty").text;
+      assertMemoryPayload(dirtyText, { allowCuePaths: true });
+      const cues = cueLines(dirtyText);
+      expect(cues).toHaveLength(1);
+      expect(cues[0]).toMatch(/^Cue: /);
+      expect(cues[0]).toContain(".trellis/research/hot-topic.md");
+      const named = cues[0].slice("Cue: ".length).split(", ");
+      expect(named.length).toBeGreaterThanOrEqual(1);
+      expect(named.length).toBeLessThanOrEqual(2);
+      const cueIncremental = cues[0].length + 1;
+      expect(cueIncremental).toBeLessThanOrEqual(160);
+      // Strip git-status wording and the cue line: remainder matches clean payload.
+      const stripGitAndCue = (text: string) =>
+        text
+          .replace(/Git: branch .+; (?:clean|dirty \d+ paths)\./, "Git: STATUS.")
+          .replace(/\nCue: .+\n/, "\n");
+      expect(stripGitAndCue(dirtyText)).toBe(stripGitAndCue(cleanText));
+    },
+    30_000,
+  );
+
+  it(
+    "omits the cue when dirty paths do not match spec or research",
+    () => {
+      initCleanGit(tmpDir);
+      commitHookAssets();
+      const cleanText = hook("claude", "unrelated-clean").text;
+      fs.mkdirSync(path.join(tmpDir, "src"), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, "src", "unrelated.ts"), "export {}\n");
+      const dirtyText = hook("claude", "unrelated-dirty").text;
+      expect(cueLines(dirtyText)).toEqual([]);
+      expect(dirtyText).toMatch(/dirty \d+ paths/);
+      // Only the existing git-status wording may change — no cue line.
+      const normalizeGit = (text: string) =>
+        text.replace(
+          /Git: branch .+; (?:clean|dirty \d+ paths)\./,
+          "Git: STATUS.",
+        );
+      expect(normalizeGit(dirtyText)).toBe(normalizeGit(cleanText));
+    },
+    30_000,
+  );
+
+  it(
+    "OpenCode and Pi include the same path cue when git status is dirty",
+    () => {
+      initCleanGit(tmpDir);
+      fs.mkdirSync(path.join(tmpDir, ".trellis", "spec", "hot-topic"), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        path.join(tmpDir, ".trellis", "spec", "hot-topic", "index.md"),
+        "# Hot topic contract\n",
+      );
+      execFileSync("git", ["add", "-A"], { cwd: tmpDir, stdio: "ignore" });
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "user.email=test@example.com",
+          "-c",
+          "user.name=test",
+          "commit",
+          "-m",
+          "spec",
+        ],
+        { cwd: tmpDir, stdio: "ignore" },
+      );
+      fs.mkdirSync(path.join(tmpDir, "packages", "app", "hot-topic"), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        path.join(tmpDir, "packages", "app", "hot-topic", "service.ts"),
+        "export {}\n",
+      );
+
+      const openCode = buildSessionContext({ directory: tmpDir });
+      assertMemoryPayload(openCode, { allowCuePaths: true });
+      const openCues = cueLines(openCode);
+      expect(openCues).toHaveLength(1);
+      expect(openCues[0].length + 1).toBeLessThanOrEqual(160);
+      expect(openCues[0]).toMatch(/\.trellis\/(spec|research)\/hot-topic/);
+
+      const source = fs.readFileSync(
+        path.join(
+          CLI_ROOT,
+          "src/templates/pi/extensions/mini-trellis/index.ts.txt",
+        ),
+        "utf-8",
+      );
+      const code = transpileModule(source, {
+        compilerOptions: { module: ModuleKind.ESNext },
+      }).outputText;
+      const piText = execFileSync(process.execPath, ["--input-type=module"], {
+        cwd: tmpDir,
+        encoding: "utf-8",
+        env: { ...process.env, TRELLIS_SUBAGENT_CHILD: "0" },
+        input: `
+        const { default: extension } = await import(${JSON.stringify(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`)});
+        const handlers = {};
+        extension({ on(name, handler) { handlers[name] = handler; } });
+        process.stdout.write(handlers.before_agent_start({ systemPrompt: "existing" }).systemPrompt);
+      `,
+      });
+      assertMemoryPayload(piText, { allowCuePaths: true });
+      const piCues = cueLines(piText);
+      expect(piCues).toHaveLength(1);
+      expect(piCues[0]).toBe(openCues[0]);
+      expect(piCues[0].length + 1).toBeLessThanOrEqual(160);
+    },
+    30_000,
   );
 });
