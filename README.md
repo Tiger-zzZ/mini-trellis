@@ -9,6 +9,7 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#working-with-project-memory">How it works</a> ·
+  <a href="./docs/using.md">During a change</a> ·
   <a href="#context-overhead">Context overhead</a> ·
   <a href="#migrating-from-trellis">Migration</a> ·
   <a href="./README_CN.md">简体中文</a>
@@ -81,6 +82,8 @@ The agent saves these findings as project notes, ready to consult and update in 
 The Markdown files can be reviewed, edited and versioned in Git. Check your ignore rules if you want to share them with the team. Original conversations remain in the agent's own local store.
 
 ### During a session
+
+[During a change](./docs/using.md) walks through one callback fix: look it up, write the decision down, run `remember`, and look it up again next session.
 
 At startup, the configured hook supplies knowledge locations and recording guidance. The agent can read the relevant notes while working and search history when a previous decision matters.
 
