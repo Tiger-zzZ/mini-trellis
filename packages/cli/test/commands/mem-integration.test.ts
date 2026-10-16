@@ -357,6 +357,72 @@ describe("runMem subcommand integration", () => {
       /__exit__:2/,
     );
     expect(errs.join("\n")).toMatch(/session not found/);
+    expect(errs.join("\n")).toMatch(
+      /session-history-missing|no readable history/,
+    );
+  });
+
+  it("context without grep shows the pre-compact limit, not the opening", () => {
+    const id = "compact-cli-session-0001";
+    writeJsonl(nodePath.join(projectDir, `${id}.jsonl`), [
+      {
+        type: "user",
+        cwd: projectCwd,
+        timestamp: "2026-04-15T10:00:00Z",
+        message: { role: "user", content: "opening greeting alpha" },
+      },
+      {
+        type: "user",
+        cwd: projectCwd,
+        timestamp: "2026-04-15T10:01:00Z",
+        message: { role: "user", content: "filler one" },
+      },
+      {
+        type: "user",
+        cwd: projectCwd,
+        timestamp: "2026-04-15T10:02:00Z",
+        message: { role: "user", content: "filler two" },
+      },
+      {
+        type: "user",
+        cwd: projectCwd,
+        timestamp: "2026-04-15T10:03:00Z",
+        message: { role: "user", content: "filler three" },
+      },
+      {
+        type: "user",
+        cwd: projectCwd,
+        timestamp: "2026-04-15T10:04:00Z",
+        message: {
+          role: "user",
+          content: "The provider allows at most two retries.",
+        },
+      },
+      {
+        type: "user",
+        cwd: projectCwd,
+        isCompactSummary: true,
+        timestamp: "2026-04-15T11:00:00Z",
+        message: {
+          role: "user",
+          content: "summary mentioned retries in general",
+        },
+      },
+    ]);
+    runMem([
+      "context",
+      id,
+      "--cwd",
+      projectCwd,
+      "--turns",
+      "3",
+      "--around",
+      "0",
+    ]);
+    const text = logs.join("\n");
+    expect(text).toContain("before the latest compaction boundary");
+    expect(text).toContain("at most two retries");
+    expect(text).not.toContain("opening greeting alpha");
   });
 
   // ---------- extract ----------
@@ -682,7 +748,11 @@ describe("runMem subcommand integration", () => {
     expect(JSON.parse(logs.join("\n"))).toEqual([]);
     logs.length = 0;
     runMem(["recall", "double-charge", "--cwd", projectCwd, "--json"]);
-    expect(JSON.parse(logs.join("\n")).hits.some((hit: { path?: string }) => hit.path === "docs/billing.md")).toBe(true);
+    expect(
+      JSON.parse(logs.join("\n")).hits.some(
+        (hit: { path?: string }) => hit.path === "docs/billing.md",
+      ),
+    ).toBe(true);
   });
 
   it("recall --json: emits {hits,totalHits,incomplete,warnings}", () => {

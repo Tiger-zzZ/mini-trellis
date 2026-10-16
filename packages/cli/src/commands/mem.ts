@@ -386,7 +386,8 @@ function cmdRead(argv: Argv): void {
 function cmdContext(argv: Argv): void {
   // Drill-down step 2 in the search workflow: `search <kw>` picks a session,
   // then `context <id> --grep <kw>` returns top-N hit turns with surrounding
-  // context, token-budgeted for AI consumption. Without --grep: first N turns.
+  // context, token-budgeted for AI consumption. Without --grep: turns just
+  // before the latest compaction boundary, or the session opening if none.
   const id = argv.positional[0];
   if (!id)
     die("usage: context <session-id> [--grep KW] [--turns N] [--around M]");
@@ -435,6 +436,7 @@ function cmdContext(argv: Argv): void {
           total_turns: result.totalTurns,
           total_hit_turns: result.totalHitTurns,
           merged_children: result.mergedChildren,
+          anchor: result.anchor,
           turns: result.turns.map((t) => ({
             idx: t.idx,
             role: t.role,
@@ -461,6 +463,10 @@ function cmdContext(argv: Argv): void {
   if (grep)
     console.log(
       `# query: "${grep}"  hit_turns=${result.totalHitTurns}  showing top ${shown}`,
+    );
+  else if (result.anchor === "before-compaction")
+    console.log(
+      `# no grep — showing turns before the latest compaction boundary (${result.turns.length} of ${result.totalTurns})`,
     );
   else
     console.log(

@@ -42,6 +42,7 @@ export type {
   MemSearchMatch,
   MemSearchResult,
   MemContextTurn,
+  MemContextAnchor,
   MemContextResult,
   BrainstormWindow,
   MemDialogueGroup,

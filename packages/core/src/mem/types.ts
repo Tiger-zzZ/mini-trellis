@@ -103,6 +103,9 @@ export interface MemContextTurn {
   isHit: boolean;
 }
 
+/** Where a no-query context window was anchored. `query` means `--grep` ranked hits. */
+export type MemContextAnchor = "opening" | "before-compaction" | "query";
+
 export interface MemContextResult {
   session: MemSessionInfo;
   query?: string;
@@ -111,6 +114,11 @@ export interface MemContextResult {
   mergedChildren: number;
   budgetUsed: number;
   maxChars: number;
+  /**
+   * `before-compaction` is the turns immediately before the latest compaction
+   * boundary. `opening` is the start of a session that has no boundary.
+   */
+  anchor: MemContextAnchor;
   turns: MemContextTurn[];
   warnings: MemWarning[];
 }

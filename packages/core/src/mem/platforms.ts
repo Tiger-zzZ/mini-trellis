@@ -60,14 +60,14 @@ export interface MemPlatformAdapter {
 export const MEM_PLATFORMS: Record<MemSourceKind, MemPlatformAdapter> = {
   claude: {
     phaseSupported: true,
-    list: (f) => claudeListSessions(f),
+    list: (f, warnings) => claudeListSessions(f, warnings),
     extract: (s) => claudeExtractDialogue(s),
     search: (s, kw) => claudeSearch(s, kw),
     collect: (s) => collectClaudeTurnsAndEvents(s),
   },
   codex: {
     phaseSupported: true,
-    list: (f) => codexListSessions(f),
+    list: (f, warnings) => codexListSessions(f, warnings),
     extract: (s, warnings) => codexExtractDialogue(s, warnings),
     search: (s, kw) => codexSearch(s, kw),
     collect: (s, warnings) => collectCodexTurnsAndEvents(s, warnings),

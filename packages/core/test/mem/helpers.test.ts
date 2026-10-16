@@ -319,6 +319,54 @@ describe("selectContextTurns", () => {
     expect(hit?.text).toContain("velocity budget");
     expect(hit?.text.length).toBeLessThan(text.length);
   });
+
+  it("without a query, reads the turns before the latest compaction boundary", () => {
+    const turns = [
+      { role: "user" as const, text: "opening greeting alpha" },
+      { role: "user" as const, text: "filler one" },
+      { role: "user" as const, text: "filler two" },
+      {
+        role: "user" as const,
+        text: "The provider allows at most two retries.",
+      },
+      {
+        role: "user" as const,
+        kind: "marker" as const,
+        text: "[compaction boundary] first summary",
+      },
+      { role: "user" as const, text: "button color only" },
+      { role: "assistant" as const, text: "padding after the first compact" },
+      {
+        role: "user" as const,
+        kind: "marker" as const,
+        text: "[compaction boundary] second summary about layout",
+      },
+    ];
+    const selected = selectContextTurns(turns, undefined, 3, 0, 6000);
+    const text = selected.turns.map((turn) => turn.text).join("\n");
+    expect(selected.anchor).toBe("before-compaction");
+    expect(text).toContain("at most two retries");
+    expect(text).toContain("button color only");
+    expect(text).not.toContain("opening greeting alpha");
+    expect(text).not.toContain("second summary about layout");
+  });
+
+  it("without a query or a boundary, still returns the session opening", () => {
+    const selected = selectContextTurns(
+      [
+        { role: "user", text: "opening greeting alpha" },
+        { role: "assistant", text: "later detail" },
+      ],
+      undefined,
+      1,
+      0,
+      6000,
+    );
+    expect(selected.anchor).toBe("opening");
+    expect(selected.turns.map((turn) => turn.text)).toEqual([
+      "opening greeting alpha",
+    ]);
+  });
 });
 
 // =============================================================================

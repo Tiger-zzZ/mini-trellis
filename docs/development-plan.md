@@ -607,6 +607,37 @@ OpenCode 和 Pi 不经过共享 Python hook。第一包若只改共享 hook，�
 - F2 停在上面的审阅结论。F5 只确认分支还在；关联是否可靠、会不会误提示，都没有看。
 - Cursor 与 DeepSeek Harness 没有开始。
 
+### F4 记录
+
+2026-10-16，分支 `feat/precise-session-recovery`，基线 `origin/main` `65595858`。这一包只做精确会话恢复，没有并入 `mem recent`，也没有改 PR #3、#4、#5。
+
+**这次落地的行为**
+
+- 共享 `session-start.py` 在 `source == compact` 时，只把宿主 stdin 里的 `session_id`、`sessionId` 或 `sessionID` 写进恢复句，并给出 `mini-trellis mem context <id>`。空字符串或字段缺失时仍是原来的 “local session history”，不猜最近一场。Codex 继续用 `$mini-trellis-remember`，其他走共享 hook 的宿主继续用 `/mini-trellis:remember`。
+- 不带 `--grep` 的 `mem context` 取最近一次压缩边界之前的轮次，预算仍是 `--turns` / `--around` / `--max-chars`。没有边界时仍从会话开头读。连续 compact 时会越过较早的边界标记，把预算用在最新边界之前的发言上。边界存在但边界前没有轮次时，警告 `pre-compact-history-missing`，不把摘要当成原始限制。
+- `findSessionById` 的精确 id 仍可命中。截断 id 只在当前项目内、且只命中一场时才做前缀匹配；另一项目的相似 id 不会被绑上。没有项目范围时不做前缀匹配。同一项目里前缀命中多场则报 `ambiguous-session-prefix`，不挑最近一场。
+- Claude 与 Codex 的会话文件不可读时给出 `session-history-unreadable`，扫描继续，不把别的会话顶上。id 在本机没有可读历史时，`mem context` 报 `session-history-missing`。
+
+**这包没有改完的宿主**
+
+OpenCode 和 Pi 不经过共享 Python hook。OpenCode 的注入发生在 `messages.transform`，现有路径拿不到 `source=compact`。Pi 的 `context` 事件仍是空函数，`before_agent_start` 也没有宿主会话 id。这两边的启动文案仍不点名当前会话。不能用 Claude Code 或 Codex 的结果代替。
+
+**自动化覆盖了什么**
+
+- A08 的离线部分：夹具里的具体限制写在压缩边界前，开头是另一句话；无查询的 context 读到限制，不读开头。
+- A09 的离线部分：两次边界时，限制仍在最新边界之前的预算里；同一会话连续两次 compact hook 都会再次交付整段提示，启动去重不会把第二次收成空输出。Claude 模板的 SessionStart matcher 仍是 startup、clear、compact，没有 resume。
+- 同项目多场、另一项目的相似前缀、身份缺失、历史文件不存在、Claude/Codex 文件不可读，都有夹具。
+
+**仍未验证**
+
+- 没有在 Claude Code 或 Codex 上重跑真实 compact、resume 紧接 compact、连续 compact。上面的夹具不是真宿主事件。
+- 没有拿真实 compact 事件核对 hook 字段与适配器里的会话 id 是不是同一串。
+- 没有观察 compact 当下历史文件是否已经落盘。
+- A02、A04、A10 没有在这包的新夹具里重跑。A10 的换宿主共享笔记和本机历史范围都没有真实交互。
+- A09 的 Claude resume 发不发得出来，没有在宿主上确认。发不出就保持未验证，这包没有给 Claude 模板加 resume matcher。
+- OpenCode、Pi 的精确会话定位没有做。
+- F3、F5、Cursor、DeepSeek Harness 这包没有开始。F5 还没有「相关任务用对、无关任务没有变吵」的对照，所以继续关闭。
+
 ### 9.1 建议顺序
 
 | 阶段 | 工作内容 | 交付结果 |

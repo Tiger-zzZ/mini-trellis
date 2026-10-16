@@ -4,6 +4,7 @@
  * `searchMemSessions`, and `extractMemDialogue` entry points.
  */
 
+import { sameProject } from "./filter.js";
 import { MEM_PLATFORMS } from "./platforms.js";
 import { buildBrainstormWindows } from "./phase.js";
 import { relevanceScore, searchInDialogue } from "./search.js";
@@ -153,15 +154,36 @@ function searchSessionWithChildren(
   return searchInDialogue(merged, kw);
 }
 
-/** Resolve a session by exact id or id prefix, scanning every project. */
+/**
+ * Resolve a session by exact id. A truncated id may prefix-match only when
+ * that prefix is unique inside `f.cwd`. It never prefix-matches a session in
+ * another project, and with no project scope only an exact id matches.
+ */
 export function findSessionById(
   id: string,
   f: MemFilter,
   warnings: MemWarning[] = [],
 ): MemSessionInfo | undefined {
-  const wide: MemFilter = { ...f, cwd: undefined, limit: WIDE_LIMIT };
-  const all = listAll(wide, warnings);
-  return all.find((s) => s.id === id) ?? all.find((s) => s.id.startsWith(id));
+  const needle = id.trim();
+  if (!needle) return undefined;
+  const all = listAll({ ...f, cwd: undefined, limit: WIDE_LIMIT }, warnings);
+  const exact = all.find((s) => s.id === needle);
+  if (exact) return exact;
+  if (!f.cwd) return undefined;
+
+  const prefixed = all.filter(
+    (s) => s.id.startsWith(needle) && sameProject(s.cwd, f.cwd),
+  );
+  if (prefixed.length === 1) return prefixed[0];
+  if (prefixed.length > 1) {
+    warnings.push({
+      code: "ambiguous-session-prefix",
+      message:
+        `session id prefix "${needle}" matches ${prefixed.length} sessions ` +
+        "in this project; use the full id.",
+    });
+  }
+  return undefined;
 }
 
 interface PhaseSlice {

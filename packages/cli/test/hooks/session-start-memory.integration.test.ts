@@ -99,9 +99,15 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
       ),
       "{}",
     );
-    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
-      !key.endsWith("_PROJECT_DIR") && !key.endsWith("_NON_INTERACTIVE") &&
-      !key.startsWith("TRELLIS_") && key !== "CLAUDE_ENV_FILE"));
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(
+        ([key]) =>
+          !key.endsWith("_PROJECT_DIR") &&
+          !key.endsWith("_NON_INTERACTIVE") &&
+          !key.startsWith("TRELLIS_") &&
+          key !== "CLAUDE_ENV_FILE",
+      ),
+    );
     const result = spawnSync("python3", [file], {
       cwd: tmpDir,
       encoding: "utf8",
@@ -133,8 +139,10 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
     (host) => {
       const first = hook(host, "same");
       assertMemoryPayload(first.text);
-      const remember = host === "codex" ? "$mini-trellis-remember" : "/mini-trellis:remember";
-      const other = host === "codex" ? "/mini-trellis:remember" : "$mini-trellis-remember";
+      const remember =
+        host === "codex" ? "$mini-trellis-remember" : "/mini-trellis:remember";
+      const other =
+        host === "codex" ? "/mini-trellis:remember" : "$mini-trellis-remember";
       expect(first.text).toContain(remember);
       expect(first.text).not.toContain(other);
       expect(hook(host, "same").data).toEqual({});
@@ -157,6 +165,67 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
       expect(first.text).not.toContain("follows compact");
       expect(first.text).not.toContain("read back");
       expect(first.text.length).toBeLessThan(1600);
+    },
+  );
+
+  it("compact SessionStart names the host session id and keeps the host remember command", () => {
+    for (const host of ["claude", "codex"] as const) {
+      const sessionId = "compact-session-abc123";
+      const remember =
+        host === "codex" ? "$mini-trellis-remember" : "/mini-trellis:remember";
+      const other =
+        host === "codex" ? "/mini-trellis:remember" : "$mini-trellis-remember";
+      const text = hook(host, sessionId, "compact").text;
+      assertMemoryPayload(text);
+      expect(text).toContain("follows compact");
+      expect(text).toContain(`local session ${sessionId}`);
+      expect(text).toContain(`mini-trellis mem context ${sessionId}`);
+      expect(text).toContain(remember);
+      expect(text).not.toContain(other);
+      expect(text).not.toMatch(/local session history:/);
+      const again = hook(host, sessionId, "compact");
+      expect(again.text).toBe(text);
+      expect(again.text.length).toBeGreaterThan(0);
+      expect(again.data).not.toEqual({});
+    }
+  });
+
+  it("compact SessionStart stays generic when the host sends no session id", () => {
+    const text = hook("claude", undefined, "compact").text;
+    assertMemoryPayload(text);
+    expect(text).toContain("follows compact");
+    expect(text).toContain("local session history");
+    expect(text).toContain("mini-trellis mem recall <query>");
+    expect(text).toContain("mini-trellis mem read <ref>");
+    expect(text).toContain("/mini-trellis:remember");
+    expect(text).not.toMatch(/local session (?!history\b)\S+/);
+    expect(text).not.toMatch(/mini-trellis mem context \S+/);
+
+    const blank = hook("claude", "   ", "compact").text;
+    expect(blank).toContain("local session history");
+    expect(blank).not.toMatch(/mini-trellis mem context \S+/);
+  });
+
+  it.each(["sessionId", "sessionID"])(
+    "compact SessionStart accepts the host field %s",
+    (key) => {
+      const file = path.join(tmpDir, ".claude/hooks/session-start.py");
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.copyFileSync(SHARED_HOOK, file);
+      const sessionId = "field-session-xyz";
+      const result = spawnSync("python3", [file], {
+        cwd: tmpDir,
+        encoding: "utf8",
+        input: JSON.stringify({
+          cwd: tmpDir,
+          source: "compact",
+          [key]: sessionId,
+        }),
+      });
+      expect(result.status, result.stderr).toBe(0);
+      const text =
+        JSON.parse(result.stdout).hookSpecificOutput?.additionalContext ?? "";
+      expect(text).toContain(`mini-trellis mem context ${sessionId}`);
     },
   );
 
@@ -245,7 +314,11 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
     const result = spawnSync("python3", [hookPath], {
       cwd: tmpDir,
       encoding: "utf-8",
-      input: JSON.stringify({ cwd: tmpDir, source: "startup", session_id: "codex-contract" }),
+      input: JSON.stringify({
+        cwd: tmpDir,
+        source: "startup",
+        session_id: "codex-contract",
+      }),
       env: { ...process.env, CODEX_PROJECT_DIR: tmpDir },
     });
     // The copied template is the same shared hook used by the Codex asset.
@@ -263,10 +336,18 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
   });
 
   it("OpenCode deduplicates the model payload, restores compacted context, and preserves stored user text", () => {
-    const moduleUrl = pathToFileURL(path.join(CLI_ROOT, "src/templates/opencode/plugins/session-start.js")).href;
+    const moduleUrl = pathToFileURL(
+      path.join(CLI_ROOT, "src/templates/opencode/plugins/session-start.js"),
+    ).href;
     const result = execFileSync(process.execPath, ["--input-type=module"], {
-      cwd: tmpDir, encoding: "utf8",
-      env: { ...process.env, TRELLIS_HOOKS: "1", TRELLIS_DISABLE_HOOKS: "0", OPENCODE_NON_INTERACTIVE: "0" },
+      cwd: tmpDir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        TRELLIS_HOOKS: "1",
+        TRELLIS_DISABLE_HOOKS: "0",
+        OPENCODE_NON_INTERACTIVE: "0",
+      },
       input: `
         import plugin from ${JSON.stringify(moduleUrl)};
         const handlers = await plugin({ directory: process.cwd() });
@@ -281,17 +362,29 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
       `,
     });
     const value = JSON.parse(result);
-    expect(value.original.parts).toEqual([{ type: "text", text: "User request" }]);
+    expect(value.original.parts).toEqual([
+      { type: "text", text: "User request" },
+    ]);
     expect(value.messages[0].parts).toHaveLength(2);
     expect(value.compacted[0].parts).toHaveLength(2);
     assertMemoryPayload(value.messages[0].parts[0].text);
   });
 
   it("Pi reuses present context and restores it after compaction", () => {
-    const source = fs.readFileSync(path.join(CLI_ROOT, "src/templates/pi/extensions/mini-trellis/index.ts.txt"), "utf8");
-    const code = transpileModule(source, { compilerOptions: { module: ModuleKind.ESNext } }).outputText;
+    const source = fs.readFileSync(
+      path.join(
+        CLI_ROOT,
+        "src/templates/pi/extensions/mini-trellis/index.ts.txt",
+      ),
+      "utf8",
+    );
+    const code = transpileModule(source, {
+      compilerOptions: { module: ModuleKind.ESNext },
+    }).outputText;
     const result = execFileSync(process.execPath, ["--input-type=module"], {
-      cwd: tmpDir, encoding: "utf8", env: { ...process.env, TRELLIS_SUBAGENT_CHILD: "0" },
+      cwd: tmpDir,
+      encoding: "utf8",
+      env: { ...process.env, TRELLIS_SUBAGENT_CHILD: "0" },
       input: `
         const { default: extension } = await import(${JSON.stringify(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`)});
         const handlers = {};

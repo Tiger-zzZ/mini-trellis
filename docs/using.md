@@ -47,6 +47,6 @@ Update the existing spec, add the provider doc link to the research note, then r
 mini-trellis mem recall "callback idempotency"
 ```
 
-Read the convention and the rejected approach, then edit. After `/compact`, the earlier turns remain in the local session. `mem recall` can find them, and `mem read` expands the one you need.
+Read the convention and the rejected approach, then edit. After `/compact`, the SessionStart hint names the session id when the host sent one. `mini-trellis mem context <id>` then reads the turns just before the latest compaction boundary. `mem recall` still searches project notes, and `mem read` expands a `session:v1` ref. A missing id does not attach a different session.
 
 When a durable rule changes, say which one it replaces. Update the spec, and point the old research note at the new file.

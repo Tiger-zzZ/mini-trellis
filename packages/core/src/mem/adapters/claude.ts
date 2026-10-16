@@ -27,6 +27,7 @@ import type {
   DialogueTurn,
   MemFilter,
   MemSessionInfo,
+  MemWarning,
   SearchHit,
   TaskPyEvent,
 } from "../types.js";
@@ -66,7 +67,23 @@ interface ClaudeIndex {
 
 // ---------- list ----------
 
-export function claudeListSessions(f: MemFilter): MemSessionInfo[] {
+function warnUnreadableSession(
+  warnings: MemWarning[],
+  id: string,
+  filePath: string,
+  error: unknown,
+): void {
+  const message = error instanceof Error ? error.message : String(error);
+  warnings.push({
+    code: "session-history-unreadable",
+    message: `cannot read session ${id} (${filePath}): ${message}`,
+  });
+}
+
+export function claudeListSessions(
+  f: MemFilter,
+  warnings: MemWarning[] = [],
+): MemSessionInfo[] {
   if (!fs.existsSync(CLAUDE_PROJECTS)) return [];
   const out: MemSessionInfo[] = [];
   const allDirs = (): string[] =>
@@ -102,42 +119,47 @@ export function claudeListSessions(f: MemFilter): MemSessionInfo[] {
       if (!e.isFile() || !e.name.endsWith(".jsonl")) continue;
       const filePath = path.join(dir, e.name);
       const id = e.name.replace(/\.jsonl$/, "");
-      const idx = indexById.get(id);
-      let cwd: string | undefined = idx?.cwd;
-      let created: string | undefined = idx?.created;
-      const title: string | undefined = idx?.title;
+      try {
+        fs.accessSync(filePath, fs.constants.R_OK);
+        const idx = indexById.get(id);
+        let cwd: string | undefined = idx?.cwd;
+        let created: string | undefined = idx?.created;
+        const title: string | undefined = idx?.title;
 
-      if (!cwd || !created) {
-        const evt = findInJsonl<ClaudeEvent>(
+        if (!cwd || !created) {
+          const evt = findInJsonl<ClaudeEvent>(
+            filePath,
+            (o) => typeof o.cwd === "string",
+            100,
+          );
+          cwd = cwd ?? evt?.cwd;
+          created =
+            created ??
+            evt?.timestamp ??
+            readJsonlFirst<ClaudeEvent>(filePath)?.timestamp;
+        }
+
+        const stat = fs.statSync(filePath);
+        const updated = stat.mtime.toISOString();
+        // Interval overlap: cross-day sessions that started before --since but
+        // were still active inside the window must survive.
+        if (!inRangeOverlap(created, updated, f)) continue;
+        // Under --cwd scoping a session with no recoverable cwd is dropped, same
+        // as every other adapter: `sameProject(undefined, target)` is false.
+        if (f.cwd && !sameProject(cwd, f.cwd)) continue;
+
+        out.push({
+          platform: "claude",
+          id,
+          title,
+          cwd,
+          created,
+          updated,
           filePath,
-          (o) => typeof o.cwd === "string",
-          100,
-        );
-        cwd = cwd ?? evt?.cwd;
-        created =
-          created ??
-          evt?.timestamp ??
-          readJsonlFirst<ClaudeEvent>(filePath)?.timestamp;
+        });
+      } catch (error) {
+        warnUnreadableSession(warnings, id, filePath, error);
       }
-
-      const stat = fs.statSync(filePath);
-      const updated = stat.mtime.toISOString();
-      // Interval overlap: cross-day sessions that started before --since but
-      // were still active inside the window must survive.
-      if (!inRangeOverlap(created, updated, f)) continue;
-      // Under --cwd scoping a session with no recoverable cwd is dropped, same
-      // as every other adapter: `sameProject(undefined, target)` is false.
-      if (f.cwd && !sameProject(cwd, f.cwd)) continue;
-
-      out.push({
-        platform: "claude",
-        id,
-        title,
-        cwd,
-        created,
-        updated,
-        filePath,
-      });
     }
   }
   return out;

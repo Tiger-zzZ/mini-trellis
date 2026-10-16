@@ -17,6 +17,7 @@ import {
 import type {
   DialogueRole,
   DialogueTurn,
+  MemContextAnchor,
   MemContextResult,
   MemContextTurn,
   MemWarning,
@@ -27,6 +28,33 @@ interface SelectedContext {
   turns: MemContextTurn[];
   totalHitTurns: number;
   budgetUsed: number;
+  anchor: MemContextAnchor;
+}
+
+function latestCompactionBoundary(
+  turns: readonly DialogueTurn[],
+): number | undefined {
+  for (let i = turns.length - 1; i >= 0; i--) {
+    if (turns[i]?.kind === "marker") return i;
+  }
+  return undefined;
+}
+
+/** Spoken turns immediately before the latest compaction boundary, walking
+ * back across earlier boundaries until `nTurns` are collected. */
+function turnsBeforeCompaction(
+  turns: readonly DialogueTurn[],
+  nTurns: number,
+): number[] {
+  const boundary = latestCompactionBoundary(turns);
+  if (boundary === undefined) return [];
+  const spoken: number[] = [];
+  for (let i = boundary - 1; i >= 0 && spoken.length < nTurns; i--) {
+    if (turns[i]?.kind === "marker") continue;
+    spoken.push(i);
+  }
+  spoken.reverse();
+  return spoken.length > 0 ? spoken : [boundary];
 }
 
 /**
@@ -34,7 +62,9 @@ interface SelectedContext {
  * density), take the top `nTurns`, expand each by `around` turns of context,
  * then emit turns within `maxChars`. A turn longer than its share is cut
  * around the densest matched-term window, so a hit at the end of a
- * long turn survives. With no `grep`, returns the first `nTurns` turns.
+ * long turn survives. With no `grep`, a session that has a compaction
+ * boundary yields the spoken turns just before the latest boundary;
+ * otherwise it returns the first `nTurns` turns.
  */
 export function selectContextTurns(
   turns: readonly DialogueTurn[],
@@ -45,6 +75,7 @@ export function selectContextTurns(
 ): SelectedContext {
   let hitIndices: number[] = [];
   let totalHitTurns = 0;
+  let anchor: MemContextAnchor = "opening";
 
   if (grep) {
     const tokens = grep.toLowerCase().split(/\s+/).filter(Boolean);
@@ -77,6 +108,10 @@ export function selectContextTurns(
       return a.idx - b.idx;
     });
     hitIndices = ranked.slice(0, nTurns).map((r) => r.idx);
+    anchor = "query";
+  } else if (latestCompactionBoundary(turns) !== undefined) {
+    hitIndices = turnsBeforeCompaction(turns, nTurns);
+    anchor = "before-compaction";
   } else {
     for (let i = 0; i < Math.min(nTurns, turns.length); i++) hitIndices.push(i);
   }
@@ -126,18 +161,44 @@ export function selectContextTurns(
   }
   out.sort((a, b) => a.idx - b.idx);
 
-  return { turns: out, totalHitTurns, budgetUsed: used };
+  return { turns: out, totalHitTurns, budgetUsed: used, anchor };
+}
+
+function sessionFileUnreadable(
+  warnings: readonly MemWarning[],
+  id: string,
+): boolean {
+  const prefix = `cannot read session ${id} (`;
+  return warnings.some(
+    (warning) =>
+      warning.code === "session-history-unreadable" &&
+      warning.message.startsWith(prefix),
+  );
 }
 
 /** Drill into a single session: top-N hit turns plus surrounding context,
- * char-budgeted. With no `grep`, returns the session opening. */
+ * char-budgeted. With no `grep`, read up to the latest compaction boundary
+ * instead of the session opening. */
 export function readMemContext(
   options: ReadMemContextOptions,
 ): MemContextResult {
   const f = resolveFilter(options.filter);
   const warnings: MemWarning[] = [];
   const s = findSessionById(options.sessionId, f, warnings);
-  if (!s) throw new MemSessionNotFoundError(options.sessionId, warnings);
+  if (!s) {
+    const ambiguous = warnings.some(
+      (warning) => warning.code === "ambiguous-session-prefix",
+    );
+    if (!ambiguous && !sessionFileUnreadable(warnings, options.sessionId)) {
+      warnings.push({
+        code: "session-history-missing",
+        message:
+          `session ${options.sessionId} has no readable history in this ` +
+          "environment. It may not have been written yet. Do not bind a different session.",
+      });
+    }
+    throw new MemSessionNotFoundError(options.sessionId, warnings);
+  }
 
   const grep = typeof options.grep === "string" ? options.grep : undefined;
   const nTurns = options.turns ?? 3;
@@ -157,6 +218,22 @@ export function readMemContext(
   }
 
   const selected = selectContextTurns(turns, grep, nTurns, around, maxChars);
+  if (!grep && selected.anchor === "before-compaction") {
+    const boundary = latestCompactionBoundary(turns);
+    let spokenBefore = 0;
+    if (boundary !== undefined) {
+      for (let i = 0; i < boundary; i++) {
+        if (turns[i]?.kind !== "marker") spokenBefore++;
+      }
+    }
+    if (spokenBefore === 0) {
+      warnings.push({
+        code: "pre-compact-history-missing",
+        message:
+          "A compaction boundary is present, but no turns before it are in this file. The history may not have been written yet, or this host did not retain pre-compact replies.",
+      });
+    }
+  }
 
   return {
     session: s,
@@ -166,6 +243,7 @@ export function readMemContext(
     mergedChildren,
     budgetUsed: selected.budgetUsed,
     maxChars,
+    anchor: selected.anchor,
     turns: selected.turns,
     warnings,
   };
