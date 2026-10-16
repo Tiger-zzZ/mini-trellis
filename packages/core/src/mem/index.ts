@@ -24,6 +24,8 @@ export { discoverDocs, resolveProjectRoot } from "./docs.js";
 
 export { recallMem, readMemRefs } from "./recall.js";
 
+export { parseDocLineage, resolveSupersededBy } from "./lineage.js";
+
 export { listMemProjects } from "./projects.js";
 
 export { MEM_SOURCE_KINDS } from "./types.js";
@@ -61,4 +63,7 @@ export type {
   RecallRead,
   RecallReadResult,
   ReadMemRefsOptions,
+  LineageFault,
 } from "./types.js";
+
+export type { DocLineage } from "./lineage.js";

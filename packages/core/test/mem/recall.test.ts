@@ -13,6 +13,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { discoverDocs } from "../../src/mem/docs.js";
 import { excerptAround, queryTerms } from "../../src/mem/lexical.js";
+import {
+  parseDocLineage,
+  resolveSupersededBy,
+} from "../../src/mem/lineage.js";
 import { MEM_PLATFORMS } from "../../src/mem/platforms.js";
 import { readMemRefs, recallMem } from "../../src/mem/recall.js";
 
@@ -244,6 +248,328 @@ describe("recallMem", () => {
     );
     const result = recallMem({ query: "release cadence", cwd: root });
     expect(result.hits[0]?.status).toBe("archived");
+  });
+
+  it("marks a note with superseded_by as superseded and ranks active notes ahead at equal coverage", () => {
+    write(
+      ".trellis/research/new-cadence.md",
+      "# Cadence\n\nThe release cadence is biweekly.\n",
+    );
+    write(
+      ".trellis/research/old-cadence.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/new-cadence.md\n---\n\n# Cadence\n\nThe release cadence is biweekly.\n",
+    );
+    const newer = new Date("2026-10-16T00:00:00Z");
+    const older = new Date("2020-01-01T00:00:00Z");
+    fs.utimesSync(
+      path.join(root, ".trellis/research/old-cadence.md"),
+      newer,
+      newer,
+    );
+    fs.utimesSync(
+      path.join(root, ".trellis/research/new-cadence.md"),
+      older,
+      older,
+    );
+    const result = recallMem({
+      cwd: root,
+      query: "release cadence biweekly",
+      limit: 2,
+    });
+    expect(result.hits[0]?.path).toBe(".trellis/research/new-cadence.md");
+    expect(result.hits[0]?.status).toBeUndefined();
+    expect(result.hits[1]?.path).toBe(".trellis/research/old-cadence.md");
+    expect(result.hits[1]?.status).toBe("superseded");
+    expect(result.hits[1]?.supersededBy).toBe(
+      ".trellis/research/new-cadence.md",
+    );
+  });
+
+  it("returns the note text plus a successor hint on mem read without expanding the successor body", () => {
+    write(
+      ".trellis/research/successor.md",
+      "# Successor\n\nSUCCESSOR_BODY_ONLY\n",
+    );
+    write(
+      ".trellis/research/old.md",
+      "---\nsuperseded_by: .trellis/research/successor.md\n---\n\n# Old\n\nOLD_NOTE_BODY needle\n",
+    );
+    const ref =
+      recallMem({ cwd: root, query: "OLD_NOTE_BODY needle" }).hits[0]?.ref ??
+      "";
+    const read = readMemRefs({ cwd: root, refs: [ref] });
+    expect(read.reads[0]?.text).toContain("OLD_NOTE_BODY");
+    expect(read.reads[0]?.status).toBe("superseded");
+    expect(read.reads[0]?.supersededBy).toBe(".trellis/research/successor.md");
+    expect(read.reads[0]?.text).not.toContain("SUCCESSOR_BODY_ONLY");
+  });
+
+  it("includes one successor excerpt when the new note uses different words", () => {
+    write(
+      ".trellis/research/new-cap.md",
+      "# Cap\n\nThe provider cap is two attempts.\n",
+    );
+    write(
+      ".trellis/research/old-cap.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/new-cap.md\n---\n\n# Cap\n\nCallback retries at most three.\n",
+    );
+    const hit = recallMem({
+      cwd: root,
+      query: "callback retries three",
+    }).hits[0];
+    expect(hit?.path).toBe(".trellis/research/old-cap.md");
+    expect(hit?.status).toBe("superseded");
+    expect(hit?.successorExcerpt).toContain("cap is two attempts");
+    expect(hit?.excerpt).not.toContain("cap is two attempts");
+  });
+
+  it("does not treat another topic's newer note as the successor", () => {
+    write(
+      ".trellis/research/new-cap.md",
+      "# Cap\n\nThe provider cap is two attempts.\n",
+    );
+    write(
+      ".trellis/research/old-cap.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/new-cap.md\n---\n\n# Cap\n\nCallback retries at most three.\n",
+    );
+    write(
+      ".trellis/research/deploy.md",
+      "# Deploy\n\ncallback retries three times in the deploy script\n",
+    );
+    const newer = new Date("2026-10-16T00:00:00Z");
+    fs.utimesSync(path.join(root, ".trellis/research/deploy.md"), newer, newer);
+    const result = recallMem({
+      cwd: root,
+      query: "callback retries three",
+      limit: 5,
+    });
+    const old = result.hits.find(
+      (hit) => hit.path === ".trellis/research/old-cap.md",
+    );
+    expect(old?.supersededBy).toBe(".trellis/research/new-cap.md");
+    expect(
+      result.hits.find((hit) => hit.path === ".trellis/research/deploy.md")
+        ?.status,
+    ).toBeUndefined();
+    expect(
+      result.hits.find((hit) => hit.path === ".trellis/research/deploy.md")
+        ?.supersededBy,
+    ).toBeUndefined();
+  });
+
+  it("ranks a declared successor ahead of the note it replaces without passing an unrelated note", () => {
+    write(
+      ".trellis/research/new-cap.md",
+      "# Cap\n\ncallback retry limit\n\nThe provider cap is two attempts.\n",
+    );
+    write(
+      ".trellis/research/old-cap.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/new-cap.md\n---\n\n# callback retry limit\n\ncallback retry limit was three\n",
+    );
+    write(
+      "docs/deploy.md",
+      "# Deploy\n\ncallback retry limit for the deploy script\n",
+    );
+    const result = recallMem({
+      cwd: root,
+      query: "callback retry limit",
+      limit: 5,
+    });
+    const paths = result.hits.map((hit) => hit.path);
+    const oldAt = paths.indexOf(".trellis/research/old-cap.md");
+    const newAt = paths.indexOf(".trellis/research/new-cap.md");
+    expect(newAt).toBeGreaterThanOrEqual(0);
+    expect(oldAt).toBeGreaterThan(newAt);
+    const deploy = result.hits.find((hit) => hit.path === "docs/deploy.md");
+    expect(deploy?.status).toBeUndefined();
+    expect(deploy?.supersededBy).toBeUndefined();
+    expect(
+      result.hits.find((hit) => hit.path === ".trellis/research/old-cap.md")
+        ?.supersededBy,
+    ).toBe(".trellis/research/new-cap.md");
+  });
+
+  it("keeps an edited section current when the note is not marked superseded", () => {
+    write(
+      ".trellis/research/callbacks.md",
+      "# Callbacks\n\n## Retry\n\nAt most two retries.\n\n## Layout\n\nSpacing stays 8px.\n",
+    );
+    const hit = recallMem({ cwd: root, query: "two retries" }).hits[0];
+    expect(hit?.status).toBeUndefined();
+    expect(hit?.supersededBy).toBeUndefined();
+    expect(hit?.lineageFault).toBeUndefined();
+  });
+
+  it("recalls unmarked markdown without a lineage migration", () => {
+    write("docs/plain.md", "Keep the ledger append-only.\n");
+    const result = recallMem({ cwd: root, query: "ledger append-only" });
+    expect(result.hits[0]?.path).toBe("docs/plain.md");
+    expect(result.hits[0]?.status).toBeUndefined();
+    const read = readMemRefs({
+      cwd: root,
+      refs: [result.hits[0]?.ref ?? ""],
+    });
+    expect(read.reads[0]?.text).toContain("append-only");
+    expect(read.reads[0]?.status).toBeUndefined();
+    expect(read.reads[0]?.changed).not.toBe(true);
+  });
+
+  it("does not mark a note superseded because a source file changed", () => {
+    write(".trellis/research/rule.md", "# Rule\n\nRetries at most two.\n");
+    write("src/pay.ts", "export const n = 1\n");
+    expect(
+      recallMem({ cwd: root, query: "retries at most two" }).hits[0]?.status,
+    ).toBeUndefined();
+    write("src/pay.ts", "export const n = 2\n");
+    expect(
+      recallMem({ cwd: root, query: "retries at most two" }).hits[0]?.status,
+    ).toBeUndefined();
+  });
+
+  it("reports changed and superseded together when a marked note's bytes change", () => {
+    write(
+      ".trellis/research/successor.md",
+      "# Successor\n\nSUCCESSOR_BODY_ONLY\n",
+    );
+    write(
+      ".trellis/research/old.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/successor.md\n---\n\n# Old\n\nOLD_NEEDLE alpha\n",
+    );
+    const ref = recallMem({ cwd: root, query: "OLD_NEEDLE alpha" }).hits[0]?.ref;
+    write(
+      ".trellis/research/old.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/successor.md\n---\n\n# Old\n\nOLD_NEEDLE beta\n",
+    );
+    const read = readMemRefs({ cwd: root, refs: ref ? [ref] : [] });
+    expect(read.reads[0]?.changed).toBe(true);
+    expect(read.reads[0]?.status).toBe("superseded");
+    expect(read.reads[0]?.supersededBy).toBe(".trellis/research/successor.md");
+    expect(read.reads[0]?.text).toBe("");
+  });
+
+  it("stops on a self target and on a two-note cycle without picking a winner", () => {
+    write(
+      ".trellis/research/self.md",
+      "---\nsuperseded_by: .trellis/research/self.md\n---\n\n# Self\n\nself needle stays current\n",
+    );
+    const self = recallMem({ cwd: root, query: "self needle" }).hits[0];
+    expect(self?.status).toBeUndefined();
+    expect(self?.supersededBy).toBeUndefined();
+    expect(self?.lineageFault).toBe("self");
+
+    write(
+      ".trellis/research/loop-a.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/loop-b.md\n---\n\n# A\n\nloop needle alpha\n",
+    );
+    write(
+      ".trellis/research/loop-b.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/loop-a.md\n---\n\n# B\n\nloop needle beta\n",
+    );
+    const loop = recallMem({ cwd: root, query: "loop needle alpha" }).hits[0];
+    expect(loop?.path).toBe(".trellis/research/loop-a.md");
+    expect(loop?.status).toBe("superseded");
+    expect(loop?.supersededBy).toBe(".trellis/research/loop-b.md");
+    expect(loop?.lineageFault).toBe("cycle");
+    expect(loop?.successorExcerpt).toBeUndefined();
+  });
+
+  it("follows one successor hop and does not inline the grandchild", () => {
+    write(
+      ".trellis/research/grandchild.md",
+      "# Grandchild\n\nGRANDCHILD_ONLY\n",
+    );
+    write(
+      ".trellis/research/child.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/grandchild.md\n---\n\n# Child\n\nCAP_TWO_ATTEMPTS\n",
+    );
+    write(
+      ".trellis/research/parent.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/child.md\n---\n\n# Parent\n\nOLD_THREE_RETRIES\n",
+    );
+    const hit = recallMem({ cwd: root, query: "OLD_THREE_RETRIES" }).hits[0];
+    expect(hit?.supersededBy).toBe(".trellis/research/child.md");
+    expect(hit?.successorExcerpt).toContain("CAP_TWO_ATTEMPTS");
+    expect(hit?.successorExcerpt).not.toContain("GRANDCHILD_ONLY");
+    expect(JSON.stringify(hit)).not.toContain("GRANDCHILD_ONLY");
+  });
+
+  it("leaves dialogue and journal identity unmarked when a note is superseded", () => {
+    write(
+      ".trellis/research/new-cap.md",
+      "# Cap\n\nThe provider cap is two attempts.\n",
+    );
+    write(
+      ".trellis/research/old-cap.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/new-cap.md\n---\n\n# Cap\n\nCallback retries at most three.\n",
+    );
+    write(
+      ".trellis/workspace/tester/journal-1.md",
+      "# Journal\n\nCallback retries at most three.\n",
+    );
+    vi.mocked(MEM_PLATFORMS.claude.list).mockReturnValue([
+      {
+        id: "old-dialogue",
+        platform: "claude",
+        cwd: root,
+        filePath: "synthetic",
+      },
+    ]);
+    vi.spyOn(MEM_PLATFORMS.claude, "extract").mockReturnValue([
+      { role: "assistant", text: "Callback retries at most three." },
+    ]);
+    const result = recallMem({
+      cwd: root,
+      query: "callback retries three",
+      limit: 6,
+    });
+    const dialogue = result.hits.find((hit) => hit.sessionId === "old-dialogue");
+    const journal = result.hits.find((hit) =>
+      hit.path?.endsWith("journal-1.md"),
+    );
+    expect(dialogue?.status).toBeUndefined();
+    expect(dialogue?.supersededBy).toBeUndefined();
+    expect(journal?.status).toBeUndefined();
+    expect(journal?.supersededBy).toBeUndefined();
+    expect(
+      result.hits.find((hit) => hit.path === ".trellis/research/old-cap.md")
+        ?.status,
+    ).toBe("superseded");
+  });
+
+  it("accepts a heading/preamble lineage mark without YAML front matter", () => {
+    write(".trellis/research/next.md", "# Next\n\nactive needle body\n");
+    write(
+      ".trellis/research/prior.md",
+      "# Superseded\nstatus: superseded\nsuperseded_by: .trellis/research/next.md\n\n# Prior\n\nprior needle body\n",
+    );
+    const hit = recallMem({ cwd: root, query: "prior needle" }).hits[0];
+    expect(hit?.status).toBe("superseded");
+    expect(hit?.supersededBy).toBe(".trellis/research/next.md");
+  });
+
+  it("ignores a missing or escaping superseded_by path without crashing", () => {
+    write(
+      ".trellis/research/orphan.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/does-not-exist.md\n---\n\n# Orphan\n\norphan needle\n",
+    );
+    write(
+      ".trellis/research/escape.md",
+      "---\nsuperseded_by: ../../etc/passwd\n---\n\n# Escape\n\nescape needle\n",
+    );
+    const orphan = recallMem({ cwd: root, query: "orphan needle" });
+    expect(orphan.hits[0]?.status).toBe("superseded");
+    expect(orphan.hits[0]?.supersededBy).toBeUndefined();
+    expect(orphan.hits[0]?.lineageFault).toBe("missing-target");
+    const escape = recallMem({ cwd: root, query: "escape needle" });
+    expect(escape.hits[0]?.status).toBeUndefined();
+    expect(escape.hits[0]?.supersededBy).toBeUndefined();
+    expect(escape.hits[0]?.lineageFault).toBe("escapes-project");
+    expect(resolveSupersededBy(root, "../secret.md")).toBeUndefined();
+    expect(resolveSupersededBy(root, "/etc/passwd")).toBeUndefined();
+    expect(
+      parseDocLineage("---\nsuperseded_by: ../outside.md\n---\n", root)
+        .superseded,
+    ).toBe(false);
   });
 
   it("marks a partial overlap as weak and prefers full coverage", () => {

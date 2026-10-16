@@ -53,4 +53,4 @@ mini-trellis mem recall "回调 幂等"
 
 先看到约定和被否决的做法，再改代码。如果上一轮做过 `/compact`，启动提示会写上宿主送来的会话 id。`mini-trellis mem context <id>` 读的是最近一次压缩边界之前的轮次。`mem recall` 仍用来查项目笔记，`mem read` 展开 `session:v1` 引用。没有 id 时不会改绑到另一场会话。
 
-长期规则有变时，说明哪一条被替代，让 Agent 改 spec，并在旧研究笔记里写上新笔记的路径。
+整篇笔记被替换时，在旧笔记里写上 `status: superseded` 和 `superseded_by`，指向新笔记的路径。只改一个章节时，改那一节，不要把整篇标成过时。召回可以带上后继的一小段摘录；`mem read` 只给出路径，不贴后继正文。目标缺失、越界、指向自己或成环时会标明，不会把它当成现行结论。

@@ -16,6 +16,7 @@
 - Deliver a short memory entry and the active journal path; do not enumerate research topics or inject their bodies.
 - Retrieve relevant rules and research on demand with `mini-trellis mem recall "<query>"`. Use `mini-trellis mem read "<ref>"` only when excerpts lack necessary context or conditions.
 - Archived research remains searchable and is marked archived; it is not injected at startup.
+- A note can declare successor lineage with front matter or a short preamble mark (`status: superseded` and/or `superseded_by: <repo-relative.md>`). Recall ranks the declared successor ahead of that note and can include one short excerpt of the successor when its wording differs. `mem read` shows the successor path only, not its body. A missing, escaping, self, or cyclic target is reported and not followed. Changing one section does not mark the whole note historical, and a newer mtime does not.
 - After compact, restore the short entry and remember any confirmed conclusions that have not been saved.
 
 ## Remember
@@ -34,4 +35,11 @@ python3 ./.trellis/scripts/add_session.py \
 
 Use the actual topic path; omit `--topic` for a handoff without a topic. The script writes journal/index and a relative topic link; it does not edit the topic. Verify the files before reporting completion. Skip ordinary changes and unconfirmed ideas. New notes follow the discussion language; updates keep the original document's language.
 
-Promote durable boundaries into `.trellis/spec/` and link them from the matching `index.md`. Cold research can move into `.trellis/research/archive/`.
+Promote durable boundaries into `.trellis/spec/` and link them from the matching `index.md`. Cold research can move into `.trellis/research/archive/`. When a whole note is replaced, leave a superseded mark on the old note pointing at the new path instead of deleting history:
+
+```markdown
+---
+status: superseded
+superseded_by: .trellis/research/new-topic.md
+---
+```

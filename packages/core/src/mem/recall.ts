@@ -9,12 +9,14 @@ import {
   type DocDiscovery,
 } from "./docs.js";
 import { excerptAround, matchTerms, queryTerms, windowAt } from "./lexical.js";
+import { parseDocLineage } from "./lineage.js";
 import { MEM_PLATFORMS } from "./platforms.js";
 import { listAll, resolveFilter, WIDE_LIMIT } from "./sessions.js";
 import type {
   DialogueTurn,
   MemWarning,
   ReadMemRefsOptions,
+  LineageFault,
   RecallHit,
   RecallMemOptions,
   RecallRead,
@@ -23,6 +25,7 @@ import type {
 } from "./types.js";
 
 const EXCERPT_CHARS = 400;
+const SUCCESSOR_EXCERPT_CHARS = 240;
 const MAX_QUERY_CHARS = 2000;
 const MAX_REFS = 30;
 
@@ -98,6 +101,41 @@ function headingBefore(text: string, index: number): string | undefined {
   return heading;
 }
 
+/** Effective notes outrank archived / superseded ones at equal coverage. */
+function inactiveRank(hit: RecallHit): number {
+  return hit.status === "archived" || hit.status === "superseded" ? 1 : 0;
+}
+
+/** One hop: a declared successor ranks immediately before the note it replaces.
+ * A higher-coverage unrelated note stays above that pair. Cycles are not lifted. */
+function liftDeclaredSuccessors(hits: RecallHit[]): RecallHit[] {
+  const out = [...hits];
+  for (let i = out.length - 1; i >= 0; i--) {
+    const hit = out[i];
+    if (!hit?.supersededBy || hit.lineageFault === "cycle") continue;
+    const successorAt = out.findIndex((item) => item.path === hit.supersededBy);
+    if (successorAt > i) {
+      const [successor] = out.splice(successorAt, 1);
+      if (successor) out.splice(i, 0, successor);
+    }
+  }
+  return out;
+}
+
+function boundedSuccessorExcerpt(text: string | undefined): string | undefined {
+  if (!text) return undefined;
+  let body = text;
+  if (body.startsWith("---")) {
+    const end = body.indexOf("\n---", 3);
+    if (end !== -1) body = body.slice(end + 4);
+  }
+  const flat = body.replace(/\s+/g, " ").trim();
+  if (!flat) return undefined;
+  return flat.length <= SUCCESSOR_EXCERPT_CHARS
+    ? flat
+    : flat.slice(0, SUCCESSOR_EXCERPT_CHARS);
+}
+
 /** Limit the serialized evidence records, including refs and source metadata. */
 function select(
   candidates: Candidate[],
@@ -110,8 +148,7 @@ function select(
       b.titleCoverage - a.titleCoverage ||
       b.pathCoverage - a.pathCoverage ||
       b.derivedCoverage - a.derivedCoverage ||
-      (a.hit.status === "archived" ? 1 : 0) -
-        (b.hit.status === "archived" ? 1 : 0) ||
+      inactiveRank(a.hit) - inactiveRank(b.hit) ||
       (b.hit.sourceTime ?? "").localeCompare(a.hit.sourceTime ?? ""),
   );
   const hits: RecallHit[] = [];
@@ -237,16 +274,47 @@ export function recallMem(options: RecallMemOptions): RecallResult {
         hit.section, ref.hash, window.anchorStart, window.anchorEnd]),
     });
   };
+  const docTexts = new Map<string, string>();
   for (const doc of discovery.docs) {
     const text = readDocText(discovery.root, doc.filePath, warnings);
     if (text === undefined) continue;
+    docTexts.set(doc.relPath, text);
+    const lineage = parseDocLineage(text, discovery.root, doc.relPath);
+    let lineageFault: LineageFault | undefined = lineage.fault;
+    let successorExcerpt: string | undefined;
+    if (lineage.supersededBy) {
+      const cached = docTexts.get(lineage.supersededBy);
+      const successorText =
+        cached ??
+        readDocText(
+          discovery.root,
+          path.join(discovery.root, lineage.supersededBy),
+          warnings,
+        );
+      if (successorText !== undefined)
+        docTexts.set(lineage.supersededBy, successorText);
+      const successorLineage = successorText
+        ? parseDocLineage(successorText, discovery.root, lineage.supersededBy)
+        : undefined;
+      if (successorLineage?.supersededBy === doc.relPath) lineageFault = "cycle";
+      if (lineageFault !== "cycle")
+        successorExcerpt = boundedSuccessorExcerpt(successorText);
+    }
+    const status = lineage.superseded
+      ? ("superseded" as const)
+      : doc.archived
+        ? ("archived" as const)
+        : undefined;
     add(
       text,
       {
         sourceKind: "doc",
         title: doc.relPath,
         path: doc.relPath,
-        ...(doc.archived ? { status: "archived" as const } : {}),
+        ...(status ? { status } : {}),
+        ...(lineage.supersededBy ? { supersededBy: lineage.supersededBy } : {}),
+        ...(successorExcerpt ? { successorExcerpt } : {}),
+        ...(lineageFault ? { lineageFault } : {}),
       },
       { kind: "doc", path: doc.relPath, hash: fingerprint(text) },
     );
@@ -291,6 +359,7 @@ export function recallMem(options: RecallMemOptions): RecallResult {
   const strong = candidates.filter((c) => c.hit.strength === "strong");
   const pool = strong.length ? strong : candidates;
   const selected = select(pool, limit, maxChars);
+  selected.hits = liftDeclaredSuccessors(selected.hits);
   return {
     ...selected,
     totalHits: pool.length,
@@ -367,6 +436,12 @@ function readDoc(
   }
   const text = readDocText(discovery.root, real, warnings);
   if (text === undefined) return undefined;
+  const lineage = parseDocLineage(text, discovery.root, evidence.path);
+  const lineageFields = {
+    ...(lineage.superseded ? { status: "superseded" as const } : {}),
+    ...(lineage.supersededBy ? { supersededBy: lineage.supersededBy } : {}),
+    ...(lineage.fault ? { lineageFault: lineage.fault } : {}),
+  };
   if (fingerprint(text) !== evidence.hash) {
     warnings.push({
       code: "ref-changed",
@@ -378,6 +453,7 @@ function readDoc(
       path: evidence.path,
       text: "",
       changed: true,
+      ...lineageFields,
     };
   }
   if (evidence.end > text.length) {
@@ -396,6 +472,7 @@ function readDoc(
     text: w.excerpt,
     changed: false,
     truncated: w.truncated,
+    ...lineageFields,
   };
 }
 

@@ -732,6 +732,41 @@ describe("runMem subcommand integration", () => {
     );
   }
 
+  it("recall/read: surfaces superseded lineage without expanding the successor", () => {
+    nodeFs.mkdirSync(nodePath.join(projectCwd, ".trellis", "research"), {
+      recursive: true,
+    });
+    nodeFs.writeFileSync(
+      nodePath.join(projectCwd, ".trellis", "research", "new-topic.md"),
+      "# New topic\n\nSUCCESSOR_ONLY lineage needle\n",
+    );
+    nodeFs.writeFileSync(
+      nodePath.join(projectCwd, ".trellis", "research", "old-topic.md"),
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/new-topic.md\n---\n\n# Old topic\n\nlineage needle OLD_ONLY\n",
+    );
+    runMem(["recall", "lineage needle", "--cwd", projectCwd, "--limit", "2"]);
+    const recalled = logs.join("\n");
+    expect(recalled).toContain(".trellis/research/new-topic.md");
+    expect(recalled).toContain("superseded → .trellis/research/new-topic.md");
+    expect(recalled.indexOf("new-topic.md")).toBeLessThan(
+      recalled.indexOf("old-topic.md"),
+    );
+    logs.length = 0;
+    runMem(["recall", "OLD_ONLY", "--cwd", projectCwd, "--json"]);
+    const parsed = JSON.parse(logs.join("\n")) as {
+      hits: { ref: string; status?: string; supersededBy?: string }[];
+    };
+    const old = parsed.hits[0];
+    expect(old?.status).toBe("superseded");
+    expect(old?.supersededBy).toBe(".trellis/research/new-topic.md");
+    logs.length = 0;
+    runMem(["read", old?.ref ?? "", "--cwd", projectCwd]);
+    const readOut = logs.join("\n");
+    expect(readOut).toContain("superseded by: .trellis/research/new-topic.md");
+    expect(readOut).toContain("OLD_ONLY");
+    expect(readOut).not.toContain("SUCCESSOR_ONLY");
+  });
+
   it("recall: finds a project document with a doc ref", () => {
     seedProjectDocs();
     runMem(["recall", "idempotency", "--cwd", projectCwd]);

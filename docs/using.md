@@ -49,4 +49,4 @@ mini-trellis mem recall "callback idempotency"
 
 Read the convention and the rejected approach, then edit. After `/compact`, the SessionStart hint names the session id when the host sent one. `mini-trellis mem context <id>` then reads the turns just before the latest compaction boundary. `mem recall` still searches project notes, and `mem read` expands a `session:v1` ref. A missing id does not attach a different session.
 
-When a durable rule changes, say which one it replaces. Update the spec, and point the old research note at the new file.
+When a whole note is replaced, mark the old one `status: superseded` and set `superseded_by` to the new note's path. A single changed section stays in the same note. Recall can show a short excerpt of that successor; `mem read` shows the path and does not paste the successor body. A missing, escaping, self, or cyclic target is reported and is not treated as the current rule.
