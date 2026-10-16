@@ -6,7 +6,7 @@ import chalk from "chalk";
 import figlet from "figlet";
 import inquirer from "inquirer";
 import { createWorkflowStructure } from "../configurators/workflow.js";
-import { collectTrellisResidue } from "./migrate.js";
+import { needsTrellisMigration } from "./migrate.js";
 import {
   getInitToolChoices,
   resolveCliFlag,
@@ -410,37 +410,12 @@ async function handleReinit(
   return true;
 }
 
-/**
- * Trellis and mini-trellis share `.trellis/`, so a project can carry both
- * instruction surfaces at once: Trellis's skills, commands, and agents stay
- * discoverable beside mini-trellis's, and init skips files that already exist
- * (including `.claude/hooks/session-start.py`, which then stays Trellis's and
- * silently never runs mini-trellis's SessionStart). Say so instead of letting
- * the user assume the switch was clean.
- */
-function warnIfTrellisResidue(cwd: string): void {
-  const residue = collectTrellisResidue(cwd);
-  if (residue.length === 0) return;
-
-  console.log(
-    chalk.yellow.bold(
-      `⚠ This project still has ${residue.length} Trellis path(s) installed.`,
-    ),
-  );
-  console.log(
-    chalk.yellow(
-      "  Files that already exist are skipped, so mini-trellis shares this\n" +
-        "  project with Trellis rather than replacing it.",
-    ),
-  );
+function printRecallHint(): void {
   console.log(
     chalk.gray(
-      "  Already using Trellis here? Keeping the two apart is the safer path:\n" +
-        "  point mini-trellis at a new project instead.\n" +
-        "  If you do want to switch this one, run: mini-trellis migrate --dry-run",
+      "  Recall project knowledge with: mini-trellis mem recall <query>\n",
     ),
   );
-  console.log();
 }
 
 export async function init(options: InitOptions): Promise<void> {
@@ -450,13 +425,16 @@ export async function init(options: InitOptions): Promise<void> {
   }
 
   const cwd = process.cwd();
+  if (needsTrellisMigration(cwd)) {
+    throw new Error(
+      "Trellis workflow detected; run mini-trellis migrate --dry-run before initializing.",
+    );
+  }
   const isFirstInit = !fs.existsSync(path.join(cwd, DIR_NAMES.WORKFLOW));
 
   const banner = figlet.textSync("mini-trellis", { font: "Standard" });
   console.log(chalk.cyan(`\n${banner.trimEnd()}`));
   console.log(chalk.gray("\n   Memory layer: spec, research, journal, mem\n"));
-
-  warnIfTrellisResidue(cwd);
 
   let writeMode: WriteMode = "ask";
   if (options.force) {
@@ -499,7 +477,10 @@ export async function init(options: InitOptions): Promise<void> {
       developerName,
       pythonCmd,
     );
-    if (reinitDone) return;
+    if (reinitDone) {
+      printRecallHint();
+      return;
+    }
   }
 
   if (!developerName && !options.yes) {
@@ -584,7 +565,5 @@ export async function init(options: InitOptions): Promise<void> {
       "  Record sessions with /mini-trellis:remember (or $mini-trellis-remember on Codex).",
     ),
   );
-  console.log(
-    chalk.gray("  Search past dialogue with: mini-trellis mem search <kw>\n"),
-  );
+  printRecallHint();
 }

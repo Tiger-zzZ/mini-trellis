@@ -38,7 +38,10 @@ import {
   homedirGuardMessage,
   homedirBypassEnabled,
 } from "../utils/cwd-guard.js";
-import { configurePlatform } from "../configurators/index.js";
+import {
+  configurePlatform,
+  getConfiguredPlatforms,
+} from "../configurators/index.js";
 import {
   scrubCodexConfigToml,
   scrubHooksJson,
@@ -126,12 +129,7 @@ const FIXED_DELETIONS = [
 const REWRITES = [`${DIR_NAMES.WORKFLOW}/config.yaml`, `${PATHS.SCRIPTS}/`];
 
 /** Residue that survives the migration on purpose; printed after the run. */
-const PRESERVED = [
-  `${PATHS.SPEC}/`,
-  `${RESEARCH_REL}/`,
-  `${PATHS.WORKSPACE}/`,
-  `${PATHS.SCRIPTS}/common/`,
-];
+const PRESERVED = [`${PATHS.SPEC}/`, `${RESEARCH_REL}/`, `${PATHS.WORKSPACE}/`];
 
 export function collectTrellisResidue(cwd: string): string[] {
   const found: string[] = [];
@@ -218,12 +216,44 @@ export function legacyHostPlatforms(cwd: string): AITool[] {
   return [...ids].sort();
 }
 
+function hasLegacyManagedBlock(cwd: string): boolean {
+  const agents = readText(path.join(cwd, FILE_NAMES.AGENTS)) ?? "";
+  const start = agents.indexOf(TRELLIS_BLOCK_START);
+  if (start < 0) return false;
+  const end = agents.indexOf(TRELLIS_BLOCK_END, start);
+  const block = agents.slice(start, end < 0 ? undefined : end);
+  // Both products use these markers. Only mini-trellis's own block is safe
+  // for incremental init (for example, adding Codex after Claude Code).
+  return (
+    end < 0 ||
+    !/^# mini-trellis\r?$/m.test(block) ||
+    !block.includes("Managed by mini-trellis.")
+  );
+}
+
+export function needsTrellisMigration(cwd: string): boolean {
+  return (
+    collectTrellisResidue(cwd).length > 0 ||
+    legacyHostPlatforms(cwd).length > 0 ||
+    hasLegacyManagedBlock(cwd)
+  );
+}
+
 export function buildMigratePlan(cwd: string): MigratePlan {
   const deletions = collectTrellisResidue(cwd);
   const reconfigure = new Set<AITool>([
     ...platformsToReconfigure(cwd, deletions),
     ...legacyHostPlatforms(cwd),
   ]);
+  // A workflow or old instruction block can remain without inject-* files.
+  // Replace installed SessionStart assets too, rather than keeping old hooks.
+  if (
+    deletions.length > 0 ||
+    reconfigure.size > 0 ||
+    hasLegacyManagedBlock(cwd)
+  ) {
+    for (const id of getConfiguredPlatforms(cwd)) reconfigure.add(id);
+  }
   return {
     deletions,
     reconfigure: [...reconfigure].sort(),
@@ -357,18 +387,23 @@ function renderPlan(
     console.log();
   }
 
-  console.log(chalk.yellow.bold("Will be overwritten:"));
+  console.log(chalk.yellow.bold("Framework files to replace:"));
   for (const p of plan.rewrites) {
     console.log(
       `  ${chalk.yellow("~")} ${p}  ${chalk.gray(
-        "(re-apply any local edits after migrating)",
+        p.endsWith("/")
+          ? "(replace bundled scripts; keep other files)"
+          : "(replace this file; re-apply local edits after migrating)",
       )}`,
     );
+  }
+  if (plan.reconfigure.length > 0 || plan.rewritesAgents) {
+    console.log(chalk.yellow.bold("Host integrations to update:"));
   }
   for (const id of plan.reconfigure) {
     console.log(
       `  ${chalk.yellow("~")} ${AI_TOOLS[id].configDir}/  ${chalk.gray(
-        `(rewrite ${AI_TOOLS[id].name} hooks, settings, and mini-trellis skills)`,
+        `(replace Trellis assets for ${AI_TOOLS[id].name}; merge configuration, keeping unrelated user hooks and environment variables)`,
       )}`,
     );
   }
@@ -489,7 +524,8 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
   if (
     plan.deletions.length === 0 &&
     converge.tasks.length === 0 &&
-    plan.reconfigure.length === 0
+    plan.reconfigure.length === 0 &&
+    !hasLegacyManagedBlock(cwd)
   ) {
     console.log(
       chalk.gray("No Trellis installation detected — nothing to migrate."),
@@ -523,6 +559,9 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
 
   if (options.dryRun) {
     console.log(chalk.gray("Dry run — no files were modified."));
+    console.log(
+      chalk.gray("After reviewing this plan, run: mini-trellis migrate"),
+    );
     return;
   }
 
@@ -564,12 +603,12 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
   console.log();
   console.log(
     chalk.green(
-      `Migrated to mini-trellis: ${plan.deletions.length} Trellis path(s) ` +
+      `Migrated to mini-trellis: ${plan.deletions.length + (plan.dropsVersion ? 1 : 0)} Trellis path(s) ` +
         `removed, ${
           plan.reconfigure.length +
           plan.rewrites.length +
           (plan.rewritesAgents ? 1 : 0)
-        } surface(s) rewritten.`,
+        } surface(s) updated.`,
     ),
   );
   if (report.moved > 0) {

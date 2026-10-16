@@ -133,6 +133,10 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
     (host) => {
       const first = hook(host, "same");
       assertMemoryPayload(first.text);
+      const remember = host === "codex" ? "$mini-trellis-remember" : "/mini-trellis:remember";
+      const other = host === "codex" ? "/mini-trellis:remember" : "$mini-trellis-remember";
+      expect(first.text).toContain(remember);
+      expect(first.text).not.toContain(other);
       expect(hook(host, "same").data).toEqual({});
       const platform = host === "claude" ? "claude-code" : host;
       const runtime = buildDoctorReport(tmpDir).checks.find(
@@ -145,6 +149,8 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
       for (const source of ["compact", "clear", "resume"]) {
         const text = hook(host, "same", source).text;
         assertMemoryPayload(text);
+        expect(text).toContain(remember);
+        expect(text).not.toContain(other);
         if (source === "compact") expect(text).toContain("follows compact");
         else expect(text).not.toContain("follows compact");
       }
@@ -252,6 +258,8 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
   it("OpenCode session-utils matches the same listing contract", () => {
     const text = buildSessionContext({ directory: tmpDir });
     assertMemoryPayload(text);
+    expect(text).toContain("/mini-trellis:remember");
+    expect(text).not.toContain("$mini-trellis-remember");
   });
 
   it("OpenCode deduplicates the model payload, restores compacted context, and preserves stored user text", () => {
@@ -296,6 +304,9 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
     const value = JSON.parse(result);
     expect(value.repeated).toBe(value.first);
     assertMemoryPayload(value.compacted);
+    expect(value.first).toContain("/mini-trellis-remember");
+    expect(value.compacted).toContain("/mini-trellis-remember");
+    expect(value.compacted).not.toContain("/mini-trellis:remember");
     expect(value.compacted.startsWith("compacted")).toBe(true);
   });
 

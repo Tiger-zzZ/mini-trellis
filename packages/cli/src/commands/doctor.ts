@@ -3,6 +3,7 @@ import path from "node:path";
 import chalk from "chalk";
 import { AI_TOOLS, type AITool } from "../types/ai-tools.js";
 import { getConfiguredPlatforms } from "../configurators/index.js";
+import { needsTrellisMigration } from "./migrate.js";
 
 export type DoctorLevel = "ok" | "warn" | "error" | "unknown";
 
@@ -89,6 +90,20 @@ const TRIGGER_MARKERS: Record<AITool, [string, string]> = {
 };
 
 export function buildDoctorReport(cwd: string): DoctorReport {
+  if (needsTrellisMigration(cwd)) {
+    return {
+      ok: false,
+      checks: [
+        {
+          level: "error",
+          name: "legacy-trellis",
+          detail:
+            "Trellis workflow detected; run mini-trellis migrate --dry-run",
+        },
+      ],
+      platforms: [...getConfiguredPlatforms(cwd)],
+    };
+  }
   const checks: DoctorCheck[] = [];
   const exists = (relative: string): boolean =>
     fs.existsSync(path.join(cwd, relative));
