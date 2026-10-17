@@ -514,6 +514,50 @@ describe("readMemContext", () => {
     expect(text).not.toContain("opening greeting alpha");
   });
 
+  it("keeps the last short limit when an earlier reply is longer than the budget", () => {
+    const id = "compact-long-reply-session";
+    writeJsonl(nodePath.join(projectDir, `${id}.jsonl`), [
+      claudeUser(projectCwd, "x".repeat(8000)),
+      claudeUser(projectCwd, "y".repeat(8000)),
+      claudeUser(projectCwd, "The provider allows at most two retries."),
+      claudeBoundary(projectCwd, "summary mentioned retries in general"),
+    ]);
+    const result = readMemContext({
+      sessionId: id,
+      filter: { cwd: projectCwd, platform: "claude" },
+      turns: 3,
+      around: 1,
+      maxChars: 500,
+    });
+    const text = result.turns.map((turn) => turn.text).join("\n");
+    expect(result.anchor).toBe("before-compaction");
+    expect(text).toContain("at most two retries");
+    expect(text).not.toContain("summary mentioned retries");
+  });
+
+  it("does not bind the same full id on another platform", () => {
+    const id = "platform-scoped-session-0001";
+    writeJsonl(nodePath.join(projectDir, `${id}.jsonl`), [
+      claudeUser(projectCwd, "claude limit two"),
+    ]);
+    expect(() =>
+      readMemContext({
+        sessionId: id,
+        filter: { cwd: projectCwd, platform: "codex" },
+      }),
+    ).toThrow(MemSessionNotFoundError);
+    const claude = readMemContext({
+      sessionId: id,
+      filter: { cwd: projectCwd, platform: "claude" },
+      turns: 1,
+      around: 0,
+    });
+    expect(claude.session.platform).toBe("claude");
+    expect(claude.turns.map((turn) => turn.text).join("\n")).toContain(
+      "claude limit two",
+    );
+  });
+
   it("keeps a limit that sits before an earlier boundary when the latest segment is short", () => {
     const id = "compact-twice-session-0002";
     writeJsonl(nodePath.join(projectDir, `${id}.jsonl`), [
@@ -607,13 +651,21 @@ describe("readMemContext", () => {
       }),
     ).toThrow(MemSessionNotFoundError);
 
-    const exactOther = readMemContext({
+    expect(() =>
+      readMemContext({
+        sessionId: otherId,
+        filter: { cwd: projectCwd, platform: "claude" },
+        turns: 1,
+        around: 0,
+      }),
+    ).toThrow(MemSessionNotFoundError);
+    const globalExact = readMemContext({
       sessionId: otherId,
-      filter: { cwd: projectCwd, platform: "claude" },
+      filter: { platform: "claude" },
       turns: 1,
       around: 0,
     });
-    expect(exactOther.session.id).toBe(otherId);
+    expect(globalExact.session.id).toBe(otherId);
   });
 
   it("refuses an ambiguous truncated id inside one project", () => {

@@ -641,10 +641,15 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
     if source == "compact":
         session_id = _session_id_from_hook(hook_input)
         if session_id:
+            platform_flag = (
+                f" --platform {platform}"
+                if platform in {"claude", "codex", "opencode", "pi"}
+                else ""
+            )
             output.write(
                 "This SessionStart follows compact. Details missing from the summary may "
                 f"still be in local session {session_id}: use "
-                f"`mini-trellis mem context {session_id}`, or "
+                f"`mini-trellis mem context {session_id}{platform_flag}` from this project, or "
                 "`mini-trellis mem recall <query>` then `mini-trellis mem read <ref>`. "
                 "Record durable decisions that were not saved yet with "
                 f"`{remember_command}`.\n"

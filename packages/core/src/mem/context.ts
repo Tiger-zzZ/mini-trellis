@@ -57,6 +57,37 @@ function turnsBeforeCompaction(
   return spoken.length > 0 ? spoken : [boundary];
 }
 
+/** Reserve a share for every selected pre-compact turn, latest first, then
+ * give leftover to those latest turns. An earlier long reply cannot spend
+ * the budget that the last short limit needs. */
+function preCompactCaps(
+  indices: readonly number[],
+  turns: readonly DialogueTurn[],
+  maxChars: number,
+): Map<number, number> {
+  const caps = new Map<number, number>();
+  if (!indices.length || maxChars < 1) return caps;
+  const share = Math.max(1, Math.floor(maxChars / indices.length));
+  let used = 0;
+  for (let k = indices.length - 1; k >= 0; k--) {
+    const idx = indices[k] ?? 0;
+    const len = turns[idx]?.text.length ?? 0;
+    const take = Math.min(len, share, Math.max(0, maxChars - used));
+    caps.set(idx, take);
+    used += take;
+  }
+  for (let k = indices.length - 1; k >= 0 && used < maxChars; k--) {
+    const idx = indices[k] ?? 0;
+    const len = turns[idx]?.text.length ?? 0;
+    const have = caps.get(idx) ?? 0;
+    const extra = Math.min(Math.max(0, len - have), maxChars - used);
+    if (extra < 1) continue;
+    caps.set(idx, have + extra);
+    used += extra;
+  }
+  return caps;
+}
+
 /**
  * Pure selection: rank turns against `grep` (user-role first, then hit
  * density), take the top `nTurns`, expand each by `around` turns of context,
@@ -135,17 +166,26 @@ export function selectContextTurns(
     .sort(
       (a, b) => (turns[a]?.text.length ?? 0) - (turns[b]?.text.length ?? 0),
     );
-  const priority = [...hitIndices, ...neighbors];
+  const reserved =
+    anchor === "before-compaction"
+      ? preCompactCaps(hitIndices, turns, maxChars)
+      : undefined;
+  const priority = reserved
+    ? [...hitIndices].reverse().concat(neighbors)
+    : [...hitIndices, ...neighbors];
   const out: MemContextTurn[] = [];
   let used = 0;
   for (const i of priority) {
     const t = turns[i];
     if (!t || used >= maxChars) continue;
     const available = Math.max(0, maxChars - used);
+    const reservedCap = reserved?.get(i);
     const cap =
-      hitSet.has(i) && neighbors.length
-        ? Math.min(available, Math.max(1, Math.floor(maxChars / 2)))
-        : available;
+      reservedCap !== undefined
+        ? Math.min(available, reservedCap)
+        : hitSet.has(i) && neighbors.length
+          ? Math.min(available, Math.max(1, Math.floor(maxChars / 2)))
+          : available;
     const tokens = (grep ?? "")
       .normalize("NFKC")
       .toLowerCase()
@@ -187,7 +227,9 @@ export function readMemContext(
   const s = findSessionById(options.sessionId, f, warnings);
   if (!s) {
     const ambiguous = warnings.some(
-      (warning) => warning.code === "ambiguous-session-prefix",
+      (warning) =>
+        warning.code === "ambiguous-session-prefix" ||
+        warning.code === "ambiguous-session-id",
     );
     if (!ambiguous && !sessionFileUnreadable(warnings, options.sessionId)) {
       warnings.push({

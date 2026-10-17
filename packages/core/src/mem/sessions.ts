@@ -155,9 +155,10 @@ function searchSessionWithChildren(
 }
 
 /**
- * Resolve a session by exact id. A truncated id may prefix-match only when
- * that prefix is unique inside `f.cwd`. It never prefix-matches a session in
- * another project, and with no project scope only an exact id matches.
+ * Resolve a session by project, platform, and full id. A truncated id may
+ * prefix-match only when that prefix is unique inside `f.cwd`. It never
+ * matches a session in another project. With no project scope only an exact
+ * id matches, and more than one exact id in scope is left unresolved.
  */
 export function findSessionById(
   id: string,
@@ -167,8 +168,19 @@ export function findSessionById(
   const needle = id.trim();
   if (!needle) return undefined;
   const all = listAll({ ...f, cwd: undefined, limit: WIDE_LIMIT }, warnings);
-  const exact = all.find((s) => s.id === needle);
-  if (exact) return exact;
+  const exact = all.filter(
+    (s) => s.id === needle && (!f.cwd || sameProject(s.cwd, f.cwd)),
+  );
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1) {
+    warnings.push({
+      code: "ambiguous-session-id",
+      message:
+        `session id "${needle}" matches ${exact.length} sessions in this ` +
+        "scope; pass the platform and use the full id.",
+    });
+    return undefined;
+  }
   if (!f.cwd) return undefined;
 
   const prefixed = all.filter(

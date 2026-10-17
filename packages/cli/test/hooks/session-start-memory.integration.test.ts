@@ -179,7 +179,15 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
       assertMemoryPayload(text);
       expect(text).toContain("follows compact");
       expect(text).toContain(`local session ${sessionId}`);
-      expect(text).toContain(`mini-trellis mem context ${sessionId}`);
+      expect(text).toContain(
+        `mini-trellis mem context ${sessionId} --platform ${host}`,
+      );
+      const resumed = hook(host, sessionId, "resume");
+      expect(resumed.text).not.toContain(`mem context ${sessionId}`);
+      const afterResume = hook(host, sessionId, "compact");
+      expect(afterResume.text).toContain(
+        `mini-trellis mem context ${sessionId} --platform ${host}`,
+      );
       expect(text).toContain(remember);
       expect(text).not.toContain(other);
       expect(text).not.toMatch(/local session history:/);

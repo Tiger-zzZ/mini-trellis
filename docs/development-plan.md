@@ -674,6 +674,21 @@ OpenCode 和 Pi 不经过共享 Python hook。OpenCode 的注入发生在 `messa
 
 真实宿主上的 A05、A06 这步没有跑。
 
+### F4 补记
+
+2026-10-17，仍在 `feat/precise-session-recovery`。上一笔精确恢复有两个缺口：默认 `mem context` 按时间从前往后分字符预算，压缩边界前两段长回复会把最后一条短限制挤出 6000 字窗口；完整会话 id 在带了项目目录时仍能命中另一个项目的同名会话。
+
+这次的行为：
+
+- 不带查询的 context 仍读最近一次 compact 前的有限轮次。预算先按轮次均分，从最靠近边界的一轮开始留，剩下的再给较早的长回复。最后一条短限制还在结果里。
+- 定位同时看项目、平台和完整会话 id。当前项目里的完整 id 不会绑到另一个项目。平台不一致时单独找不到，不改绑。同一范围内完整 id 命中多场时记 `ambiguous-session-id`，不挑最近一场。没有项目范围时，完整 id 仍可精确命中。
+- compact 提示在 Claude 与 Codex 上写成 `mini-trellis mem context <id> --platform <claude|codex>`，并说明在当前项目里执行。没有 id 时仍是通用的 recall/read，不猜会话。resume 之后再 compact，仍点名同一场。
+- 没有身份、历史未落盘（`session-history-missing`）、文件不可读（`session-history-unreadable`）继续分开说明。
+
+OpenCode 和 Pi 这包仍没有精确会话恢复。OpenCode 的注入不经过 `source=compact`，Pi 的 `context` 事件仍是空函数。没有把 Claude 或 Codex 的结果算到这两边上。
+
+真实宿主上的连续 compact、resume 后再 compact、以及历史是否已经落盘，这步没有跑。没有新增 `mem recent`。
+
 ### 9.1 建议顺序
 
 | 阶段 | 工作内容 | 交付结果 |

@@ -351,6 +351,29 @@ describe("selectContextTurns", () => {
     expect(text).not.toContain("second summary about layout");
   });
 
+  it("keeps the last short limit when an earlier reply exceeds the budget", () => {
+    const selected = selectContextTurns(
+      [
+        { role: "assistant", text: "x".repeat(8000) },
+        { role: "assistant", text: "y".repeat(8000) },
+        { role: "user", text: "The provider allows at most two retries." },
+        {
+          role: "user",
+          kind: "marker",
+          text: "[compaction boundary] summary mentioned retries in general",
+        },
+      ],
+      undefined,
+      3,
+      1,
+      500,
+    );
+    const text = selected.turns.map((turn) => turn.text).join("\n");
+    expect(selected.anchor).toBe("before-compaction");
+    expect(text).toContain("at most two retries");
+    expect(text).not.toContain("summary mentioned retries");
+  });
+
   it("without a query or a boundary, still returns the session opening", () => {
     const selected = selectContextTurns(
       [
