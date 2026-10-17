@@ -9,7 +9,7 @@ import {
   type DocDiscovery,
 } from "./docs.js";
 import { excerptAround, matchTerms, queryTerms, windowAt } from "./lexical.js";
-import { parseDocLineage } from "./lineage.js";
+import { parseDocLineage, parseLineageMarks } from "./lineage.js";
 import { MEM_PLATFORMS } from "./platforms.js";
 import { listAll, resolveFilter, WIDE_LIMIT } from "./sessions.js";
 import type {
@@ -26,6 +26,7 @@ import type {
 
 const EXCERPT_CHARS = 400;
 const SUCCESSOR_EXCERPT_CHARS = 240;
+const MAX_LINEAGE_HOPS = 8;
 const MAX_QUERY_CHARS = 2000;
 const MAX_REFS = 30;
 
@@ -106,8 +107,9 @@ function inactiveRank(hit: RecallHit): number {
   return hit.status === "archived" || hit.status === "superseded" ? 1 : 0;
 }
 
-/** One hop: a declared successor ranks immediately before the note it replaces.
- * A higher-coverage unrelated note stays above that pair. Cycles are not lifted. */
+/** The last current note in a declared chain ranks immediately before the note
+ * it replaces. A higher-coverage unrelated note stays above that pair.
+ * Cycles are not lifted. */
 function liftDeclaredSuccessors(hits: RecallHit[]): RecallHit[] {
   const out = [...hits];
   for (let i = out.length - 1; i >= 0; i--) {
@@ -134,6 +136,98 @@ function boundedSuccessorExcerpt(text: string | undefined): string | undefined {
   return flat.length <= SUCCESSOR_EXCERPT_CHARS
     ? flat
     : flat.slice(0, SUCCESSOR_EXCERPT_CHARS);
+}
+
+interface FollowedLineage {
+  superseded: boolean;
+  supersededBy?: string;
+  fault?: LineageFault;
+  successorExcerpt?: string;
+}
+
+/** A successor is readable only when ordinary discovery already accepted it. */
+function successorInSources(discovery: DocDiscovery, rel: string): boolean {
+  return discovery.docs.some((doc) => doc.relPath === rel);
+}
+
+function readScopedDoc(
+  discovery: DocDiscovery,
+  rel: string,
+  docTexts: Map<string, string>,
+  warnings: MemWarning[],
+): string | undefined {
+  const cached = docTexts.get(rel);
+  if (cached !== undefined) return cached;
+  const doc = discovery.docs.find((item) => item.relPath === rel);
+  if (!doc) return undefined;
+  const text = readDocText(discovery.root, doc.filePath, warnings);
+  if (text !== undefined) docTexts.set(rel, text);
+  return text;
+}
+
+/**
+ * Walk a declared chain to the last note that does not point further.
+ * Every hop stays inside the documents discovery already accepted, so Git
+ * ignore, knowledge-dir exceptions, and file safety match ordinary reads.
+ * A cycle or a chain longer than the hop cap does not pick an intermediate
+ * note as the current rule.
+ */
+function followLineage(
+  text: string,
+  rel: string,
+  discovery: DocDiscovery,
+  docTexts: Map<string, string>,
+  warnings: MemWarning[],
+): FollowedLineage {
+  const start = parseDocLineage(text, discovery.root, rel);
+  if (start.fault || !start.supersededBy) {
+    return {
+      superseded: start.superseded,
+      ...(start.fault ? { fault: start.fault } : {}),
+    };
+  }
+  if (!successorInSources(discovery, start.supersededBy)) {
+    return {
+      superseded: parseLineageMarks(text).statusSuperseded,
+      fault: "missing-target",
+    };
+  }
+  const seen = new Set<string>([rel]);
+  const direct = start.supersededBy;
+  let nextRel = start.supersededBy;
+  for (let hop = 0; hop < MAX_LINEAGE_HOPS; hop++) {
+    if (seen.has(nextRel)) {
+      return { superseded: true, supersededBy: direct, fault: "cycle" };
+    }
+    seen.add(nextRel);
+    const successorText = readScopedDoc(discovery, nextRel, docTexts, warnings);
+    if (successorText === undefined) {
+      return { superseded: true, fault: "missing-target" };
+    }
+    const next = parseDocLineage(successorText, discovery.root, nextRel);
+    if (
+      next.fault === "self" ||
+      next.fault === "escapes-project" ||
+      next.fault === "missing-target"
+    ) {
+      return { superseded: true, fault: next.fault };
+    }
+    if (next.supersededBy && !successorInSources(discovery, next.supersededBy)) {
+      return { superseded: true, fault: "missing-target" };
+    }
+    if (!next.supersededBy) {
+      return {
+        superseded: true,
+        supersededBy: nextRel,
+        successorExcerpt: boundedSuccessorExcerpt(successorText),
+      };
+    }
+    if (seen.has(next.supersededBy)) {
+      return { superseded: true, supersededBy: direct, fault: "cycle" };
+    }
+    nextRel = next.supersededBy;
+  }
+  return { superseded: true, fault: "bounded" };
 }
 
 /** Limit the serialized evidence records, including refs and source metadata. */
@@ -279,27 +373,13 @@ export function recallMem(options: RecallMemOptions): RecallResult {
     const text = readDocText(discovery.root, doc.filePath, warnings);
     if (text === undefined) continue;
     docTexts.set(doc.relPath, text);
-    const lineage = parseDocLineage(text, discovery.root, doc.relPath);
-    let lineageFault: LineageFault | undefined = lineage.fault;
-    let successorExcerpt: string | undefined;
-    if (lineage.supersededBy) {
-      const cached = docTexts.get(lineage.supersededBy);
-      const successorText =
-        cached ??
-        readDocText(
-          discovery.root,
-          path.join(discovery.root, lineage.supersededBy),
-          warnings,
-        );
-      if (successorText !== undefined)
-        docTexts.set(lineage.supersededBy, successorText);
-      const successorLineage = successorText
-        ? parseDocLineage(successorText, discovery.root, lineage.supersededBy)
-        : undefined;
-      if (successorLineage?.supersededBy === doc.relPath) lineageFault = "cycle";
-      if (lineageFault !== "cycle")
-        successorExcerpt = boundedSuccessorExcerpt(successorText);
-    }
+    const lineage = followLineage(
+      text,
+      doc.relPath,
+      discovery,
+      docTexts,
+      warnings,
+    );
     const status = lineage.superseded
       ? ("superseded" as const)
       : doc.archived
@@ -313,8 +393,10 @@ export function recallMem(options: RecallMemOptions): RecallResult {
         path: doc.relPath,
         ...(status ? { status } : {}),
         ...(lineage.supersededBy ? { supersededBy: lineage.supersededBy } : {}),
-        ...(successorExcerpt ? { successorExcerpt } : {}),
-        ...(lineageFault ? { lineageFault } : {}),
+        ...(lineage.successorExcerpt
+          ? { successorExcerpt: lineage.successorExcerpt }
+          : {}),
+        ...(lineage.fault ? { lineageFault: lineage.fault } : {}),
       },
       { kind: "doc", path: doc.relPath, hash: fingerprint(text) },
     );
@@ -436,7 +518,13 @@ function readDoc(
   }
   const text = readDocText(discovery.root, real, warnings);
   if (text === undefined) return undefined;
-  const lineage = parseDocLineage(text, discovery.root, evidence.path);
+  const lineage = followLineage(
+    text,
+    evidence.path ?? "",
+    discovery,
+    new Map(),
+    warnings,
+  );
   const lineageFields = {
     ...(lineage.superseded ? { status: "superseded" as const } : {}),
     ...(lineage.supersededBy ? { supersededBy: lineage.supersededBy } : {}),

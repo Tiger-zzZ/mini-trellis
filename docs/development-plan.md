@@ -661,6 +661,19 @@ OpenCode 和 Pi 不经过共享 Python hook。OpenCode 的注入发生在 `messa
 - Cursor 与 DeepSeek Harness 没有开始。DeepSeek 仍未区分是 Harness 自身，还是某个宿主在调用 DeepSeek 模型。
 - 这包没有复现到新的安装、迁移或写入阻塞。召回和 `mem` 集成夹具已通过。不把更早的验收记成这一包的真宿主通过。
 
+### F2 来源范围记录
+
+2026-10-17，仍在 `feat/precise-session-recovery`。上一笔 `37349676` 会把 `superseded_by` 读到普通文档来源之外：`allowedDocPath` 放行项目内任意 Markdown，召回再用这个路径去读。夹具里 `src/hidden-rule.md` 和被 Git 忽略的 `docs/ignored-rule.md` 都会进 `successorExcerpt`。同一笔只走一跳，A→B→C 时把 B 当成最终规则。front matter 里缩进的 `status` / `superseded_by` 会改掉整篇笔记。
+
+这次的行为：
+
+- 后继必须已经出现在普通文档发现结果里。来源仍是 `.trellis/spec|research|workspace`、根上的 `README*.md` / `AGENTS.md` / `CLAUDE.md`、`docs/` 与 `doc/`，以及从这些文档伸出的一层相对链接。`.trellis` 这三个目录被 Git 忽略时仍可读。其余被忽略的普通文件、`node_modules` 一类排除目录、密钥文件名和项目外符号链接，不会因为写在 `superseded_by` 里就被读。
+- 替代链最多走 8 跳，停在最后一篇不再指向后继的笔记。A→B→C 时，recall 的摘录和 `mem read` 的 `supersededBy` 都是 C。超过 8 跳记 `lineageFault: bounded`，不把中间一篇说成现行规则。
+- 目标缺失、越界、自指、循环仍分别给出原来的 `lineageFault`。循环不选胜者。
+- 缩进的嵌套键不算整篇标记。mtime、只改一个章节、旁边源文件变化，仍不改整篇有效状态。
+
+真实宿主上的 A05、A06 这步没有跑。
+
 ### 9.1 建议顺序
 
 | 阶段 | 工作内容 | 交付结果 |

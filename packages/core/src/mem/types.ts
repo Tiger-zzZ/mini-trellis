@@ -229,7 +229,8 @@ export type LineageFault =
   | "missing-target"
   | "escapes-project"
   | "self"
-  | "cycle";
+  | "cycle"
+  | "bounded";
 
 /**
  * One recall hit. The same shape covers a document section and a dialogue
@@ -263,7 +264,7 @@ export interface RecallHit {
    * allowed in-project Markdown file. The successor body is not copied here.
    */
   supersededBy?: string;
-  /** Bounded text of the direct successor, one hop only. */
+  /** Bounded text of the last current note in the declared chain. */
   successorExcerpt?: string;
   /** Set when the declared target cannot be followed. */
   lineageFault?: LineageFault;

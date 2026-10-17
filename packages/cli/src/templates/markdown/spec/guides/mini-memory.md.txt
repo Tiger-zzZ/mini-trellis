@@ -16,7 +16,7 @@
 - Deliver a short memory entry and the active journal path; do not enumerate research topics or inject their bodies.
 - Retrieve relevant rules and research on demand with `mini-trellis mem recall "<query>"`. Use `mini-trellis mem read "<ref>"` only when excerpts lack necessary context or conditions.
 - Archived research remains searchable and is marked archived; it is not injected at startup.
-- A note can declare successor lineage with front matter or a short preamble mark (`status: superseded` and/or `superseded_by: <repo-relative.md>`). Recall ranks the declared successor ahead of that note and can include one short excerpt of the successor when its wording differs. `mem read` shows the successor path only, not its body. A missing, escaping, self, or cyclic target is reported and not followed. Changing one section does not mark the whole note historical, and a newer mtime does not.
+- A note can declare successor lineage with front matter or a short preamble mark (`status: superseded` and/or `superseded_by: <repo-relative.md>`). A short chain is followed to the last current note inside the same document sources; recall can include one short excerpt of that note, and `mem read` shows the same path without its body. A missing, escaping, self, cyclic, or too-long target is reported and not treated as the current rule. Nested metadata, one edited section, a newer mtime, or a nearby source edit does not mark the whole note historical.
 - After compact, restore the short entry and remember any confirmed conclusions that have not been saved.
 
 ## Remember

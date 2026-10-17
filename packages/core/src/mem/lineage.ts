@@ -68,6 +68,8 @@ const STATUS_RE = /^(#{1,6}\s+)?status:\s*(.+)$/i;
 const SUPERSEDED_BY_RE = /^(#{1,6}\s+)?superseded_by:\s*(.+)$/i;
 
 function applyLine(mark: RawMark, line: string): void {
+  // Nested keys stay inside their parent. They do not retarget the whole note.
+  if (/^\s/.test(line)) return;
   const trimmed = line.trim();
   if (!trimmed) return;
   const status = STATUS_RE.exec(trimmed);

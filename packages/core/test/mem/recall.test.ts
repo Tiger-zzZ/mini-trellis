@@ -473,7 +473,116 @@ describe("recallMem", () => {
     expect(loop?.successorExcerpt).toBeUndefined();
   });
 
-  it("follows one successor hop and does not inline the grandchild", () => {
+  it("does not read a successor outside the document source scope or a gitignored ordinary file", () => {
+    write("src/hidden-rule.md", "# Hidden\n\nFINAL_RULE two attempts\n");
+    write(".gitignore", "docs/ignored-rule.md\n");
+    write("docs/ignored-rule.md", "# Ignored\n\nIGNORED_RULE two attempts\n");
+    write(
+      ".trellis/research/out-of-scope.md",
+      "---\nstatus: superseded\nsuperseded_by: src/hidden-rule.md\n---\n\n# Old\n\nSOURCE_SCOPE_NEEDLE three\n",
+    );
+    write(
+      ".trellis/research/gitignored.md",
+      "---\nstatus: superseded\nsuperseded_by: docs/ignored-rule.md\n---\n\n# Old\n\nGITIGNORE_NEEDLE three\n",
+    );
+    const outside = recallMem({ cwd: root, query: "SOURCE_SCOPE_NEEDLE" });
+    const ignored = recallMem({ cwd: root, query: "GITIGNORE_NEEDLE" });
+    expect(JSON.stringify(outside.hits[0])).not.toContain("FINAL_RULE");
+    expect(outside.hits[0]?.supersededBy).toBeUndefined();
+    expect(outside.hits[0]?.lineageFault).toBe("missing-target");
+    expect(JSON.stringify(ignored.hits[0])).not.toContain("IGNORED_RULE");
+    expect(ignored.hits[0]?.supersededBy).toBeUndefined();
+    expect(ignored.hits[0]?.lineageFault).toBe("missing-target");
+    const outsideRead = readMemRefs({
+      cwd: root,
+      refs: outside.hits[0]?.ref ? [outside.hits[0].ref] : [],
+    });
+    expect(outsideRead.reads[0]?.supersededBy).toBe(
+      outside.hits[0]?.supersededBy,
+    );
+    expect(outsideRead.reads[0]?.lineageFault).toBe(
+      outside.hits[0]?.lineageFault,
+    );
+    expect(outsideRead.reads[0]?.text ?? "").not.toContain("FINAL_RULE");
+  });
+
+  it("still follows a gitignored successor inside .trellis spec, research, or workspace", () => {
+    write(".gitignore", ".trellis/\n");
+    write(
+      ".trellis/research/kept.md",
+      "# Kept\n\nKEPT_RULE two attempts\n",
+    );
+    write(
+      ".trellis/research/old.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/kept.md\n---\n\n# Old\n\nKEPT_SCOPE_NEEDLE three\n",
+    );
+    const hit = recallMem({ cwd: root, query: "KEPT_SCOPE_NEEDLE" }).hits[0];
+    expect(hit?.supersededBy).toBe(".trellis/research/kept.md");
+    expect(hit?.successorExcerpt).toContain("KEPT_RULE");
+    expect(hit?.lineageFault).toBeUndefined();
+  });
+
+  it("walks a replacement chain to the last current note for recall and read", () => {
+    write(
+      ".trellis/research/current.md",
+      "# Current\n\nFINAL_CURRENT two attempts\n",
+    );
+    write(
+      ".trellis/research/middle.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/current.md\n---\n\n# Middle\n\nMIDDLE_RULE still three\n",
+    );
+    write(
+      ".trellis/research/parent.md",
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/middle.md\n---\n\n# Parent\n\nCHAIN_NEEDLE three\n",
+    );
+    const hit = recallMem({ cwd: root, query: "CHAIN_NEEDLE" }).hits[0];
+    const read = readMemRefs({
+      cwd: root,
+      refs: hit?.ref ? [hit.ref] : [],
+    });
+    expect(hit?.supersededBy).toBe(".trellis/research/current.md");
+    expect(hit?.successorExcerpt).toContain("FINAL_CURRENT");
+    expect(hit?.successorExcerpt).not.toContain("MIDDLE_RULE");
+    expect(read.reads[0]?.supersededBy).toBe(hit?.supersededBy);
+    expect(read.reads[0]?.lineageFault).toBe(hit?.lineageFault);
+    expect(read.reads[0]?.status).toBe("superseded");
+    expect(read.reads[0]?.text).not.toContain("FINAL_CURRENT");
+    expect(read.reads[0]?.text).toContain("CHAIN_NEEDLE");
+  });
+
+  it("does not let nested front matter change the whole note", () => {
+    write(".trellis/research/other.md", "# Other\n\nNESTED_TARGET\n");
+    write(
+      ".trellis/research/current.md",
+      "---\ntitle: cap\nmeta:\n  status: superseded\n  superseded_by: .trellis/research/other.md\n---\n\n# Cap\n\nNESTED_META_NEEDLE three\n",
+    );
+    const hit = recallMem({ cwd: root, query: "NESTED_META_NEEDLE" }).hits[0];
+    expect(hit?.status).toBeUndefined();
+    expect(hit?.supersededBy).toBeUndefined();
+    expect(hit?.lineageFault).toBeUndefined();
+    expect(JSON.stringify(hit)).not.toContain("NESTED_TARGET");
+  });
+
+  it("stops a chain that exceeds the hop cap without naming an intermediate as current", () => {
+    let previous = ".trellis/research/end.md";
+    write(previous, "# End\n\nFAR_RULE\n");
+    for (let i = 8; i >= 0; i--) {
+      const rel = `.trellis/research/hop-${i}.md`;
+      write(
+        rel,
+        `---\nstatus: superseded\nsuperseded_by: ${previous}\n---\n\n# Hop ${i}\n\nHOP_${i}_BODY\n`,
+      );
+      previous = rel;
+    }
+    const hit = recallMem({ cwd: root, query: "HOP_0_BODY" }).hits[0];
+    expect(hit?.status).toBe("superseded");
+    expect(hit?.supersededBy).toBeUndefined();
+    expect(hit?.successorExcerpt).toBeUndefined();
+    expect(hit?.lineageFault).toBe("bounded");
+    expect(JSON.stringify(hit)).not.toContain("FAR_RULE");
+  });
+
+  it("does not stop on the intermediate note when that note points further", () => {
     write(
       ".trellis/research/grandchild.md",
       "# Grandchild\n\nGRANDCHILD_ONLY\n",
@@ -487,10 +596,15 @@ describe("recallMem", () => {
       "---\nstatus: superseded\nsuperseded_by: .trellis/research/child.md\n---\n\n# Parent\n\nOLD_THREE_RETRIES\n",
     );
     const hit = recallMem({ cwd: root, query: "OLD_THREE_RETRIES" }).hits[0];
-    expect(hit?.supersededBy).toBe(".trellis/research/child.md");
-    expect(hit?.successorExcerpt).toContain("CAP_TWO_ATTEMPTS");
-    expect(hit?.successorExcerpt).not.toContain("GRANDCHILD_ONLY");
-    expect(JSON.stringify(hit)).not.toContain("GRANDCHILD_ONLY");
+    const read = readMemRefs({
+      cwd: root,
+      refs: hit?.ref ? [hit.ref] : [],
+    });
+    expect(hit?.supersededBy).toBe(".trellis/research/grandchild.md");
+    expect(hit?.successorExcerpt).toContain("GRANDCHILD_ONLY");
+    expect(hit?.successorExcerpt).not.toContain("CAP_TWO_ATTEMPTS");
+    expect(read.reads[0]?.supersededBy).toBe(hit?.supersededBy);
+    expect(read.reads[0]?.lineageFault).toBe(hit?.lineageFault);
   });
 
   it("leaves dialogue and journal identity unmarked when a note is superseded", () => {
