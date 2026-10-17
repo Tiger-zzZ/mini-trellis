@@ -550,6 +550,107 @@ describe("recallMem", () => {
     expect(read.reads[0]?.text).toContain("CHAIN_NEEDLE");
   });
 
+  it("ranks a status-only superseded note after the current note with the same words", () => {
+    write(
+      ".trellis/research/current.md",
+      "# Cap\n\ncallback retry limit is two\n",
+    );
+    write(
+      ".trellis/research/old.md",
+      "---\nstatus: superseded\n---\n\n# Cap\n\ncallback retry limit is two\n",
+    );
+    const newer = new Date("2026-10-16T00:00:00Z");
+    fs.utimesSync(path.join(root, ".trellis/research/old.md"), newer, newer);
+    const result = recallMem({
+      cwd: root,
+      query: "callback retry limit",
+      limit: 2,
+    });
+    expect(result.hits[0]?.path).toBe(".trellis/research/current.md");
+    expect(result.hits[0]?.status).toBeUndefined();
+    expect(result.hits[1]?.status).toBe("superseded");
+    expect(result.hits[1]?.supersededBy).toBeUndefined();
+    expect(result.hits[1]?.lineageFault).toBeUndefined();
+  });
+
+  it("follows a successor reached by one in-repo link and ignores a gitignored or excluded one", () => {
+    write("notes/visible.md", "# Visible\n\nLINKED_VISIBLE two attempts\n");
+    write("docs/index.md", "[rule](../notes/visible.md)\n");
+    write(
+      ".trellis/research/linked.md",
+      "---\nstatus: superseded\nsuperseded_by: notes/visible.md\n---\n\n# Old\n\nLINKED_NEEDLE three\n",
+    );
+    const linked = recallMem({ cwd: root, query: "LINKED_NEEDLE" }).hits[0];
+    const linkedRead = readMemRefs({
+      cwd: root,
+      refs: linked?.ref ? [linked.ref] : [],
+    });
+    expect(linked?.supersededBy).toBe("notes/visible.md");
+    expect(linked?.successorExcerpt).toContain("LINKED_VISIBLE");
+    expect(linkedRead.reads[0]?.supersededBy).toBe(linked?.supersededBy);
+    expect(linkedRead.reads[0]?.lineageFault).toBe(linked?.lineageFault);
+
+    write(".gitignore", "notes/hidden.md\n");
+    write("notes/hidden.md", "# Hidden\n\nLINKED_HIDDEN\n");
+    write("docs/index.md", "[hidden](../notes/hidden.md)\n");
+    write(
+      ".trellis/research/ignored-link.md",
+      "---\nstatus: superseded\nsuperseded_by: notes/hidden.md\n---\n\n# Old\n\nHIDDEN_LINK_NEEDLE three\n",
+    );
+    write(
+      "node_modules/pkg/README.md",
+      "# Dep\n\nNODE_MODULES_RULE\n",
+    );
+    write(
+      ".trellis/research/excluded.md",
+      "---\nstatus: superseded\nsuperseded_by: node_modules/pkg/README.md\n---\n\n# Old\n\nEXCLUDED_NEEDLE three\n",
+    );
+    const hidden = recallMem({ cwd: root, query: "HIDDEN_LINK_NEEDLE" });
+    const excluded = recallMem({ cwd: root, query: "EXCLUDED_NEEDLE" });
+    expect(hidden.hits[0]?.lineageFault).toBe("missing-target");
+    expect(hidden.hits[0]?.supersededBy).toBeUndefined();
+    expect(JSON.stringify(hidden.hits[0])).not.toContain("LINKED_HIDDEN");
+    expect(excluded.hits[0]?.lineageFault).toBe("missing-target");
+    expect(JSON.stringify(excluded.hits[0])).not.toContain("NODE_MODULES_RULE");
+    for (const hit of [hidden.hits[0], excluded.hits[0]]) {
+      const read = readMemRefs({
+        cwd: root,
+        refs: hit?.ref ? [hit.ref] : [],
+      });
+      expect(read.reads[0]?.lineageFault).toBe(hit?.lineageFault);
+      expect(read.reads[0]?.supersededBy).toBe(hit?.supersededBy);
+    }
+  });
+
+  it("reports the same fault for an external symlink on recall and read", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "recall-lineage-"));
+    try {
+      fs.writeFileSync(path.join(outside, "note.md"), "OUTSIDE_SECRET\n");
+      fs.mkdirSync(path.join(root, "docs"), { recursive: true });
+      fs.symlinkSync(
+        path.join(outside, "note.md"),
+        path.join(root, "docs/alias.md"),
+      );
+      write(
+        ".trellis/research/alias.md",
+        "---\nstatus: superseded\nsuperseded_by: docs/alias.md\n---\n\n# Old\n\nALIAS_NEEDLE three\n",
+      );
+      const hit = recallMem({ cwd: root, query: "ALIAS_NEEDLE" }).hits[0];
+      const read = readMemRefs({
+        cwd: root,
+        refs: hit?.ref ? [hit.ref] : [],
+      });
+      expect(hit?.lineageFault).toBe("missing-target");
+      expect(hit?.supersededBy).toBeUndefined();
+      expect(JSON.stringify(hit)).not.toContain("OUTSIDE_SECRET");
+      expect(read.reads[0]?.lineageFault).toBe(hit?.lineageFault);
+      expect(read.reads[0]?.supersededBy).toBeUndefined();
+      expect(read.reads[0]?.text ?? "").not.toContain("OUTSIDE_SECRET");
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
   it("does not let nested front matter change the whole note", () => {
     write(".trellis/research/other.md", "# Other\n\nNESTED_TARGET\n");
     write(

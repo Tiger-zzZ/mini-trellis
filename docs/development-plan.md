@@ -689,6 +689,14 @@ OpenCode 和 Pi 这包仍没有精确会话恢复。OpenCode 的注入不经过 
 
 真实宿主上的连续 compact、resume 后再 compact、以及历史是否已经落盘，这步没有跑。没有新增 `mem recent`。
 
+### F2 测试补记
+
+2026-10-17。排序、替代状态、忽略规则和坏链接补了这些夹具，没有改召回行为：
+
+- 只有 `status: superseded`、没有后继路径的笔记，即使用词相同且 mtime 更新，仍排在现行笔记后面。
+- 从已发现文档伸出的一层仓库内链接可以当后继。被 Git 忽略的普通文件、`node_modules` 和指向项目外的符号链接不能。recall 与 `mem read` 的 `lineageFault` 和 `supersededBy` 一致。
+- CLI 文本对缺失目标和被排除路径都打印 `lineage missing-target`，不带上被排除文件的正文。
+
 ### 9.1 建议顺序
 
 | 阶段 | 工作内容 | 交付结果 |

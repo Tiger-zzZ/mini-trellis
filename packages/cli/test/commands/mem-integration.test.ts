@@ -767,6 +767,47 @@ describe("runMem subcommand integration", () => {
     expect(readOut).not.toContain("SUCCESSOR_ONLY");
   });
 
+  it("recall/read: agree on a bad successor and do not follow an excluded path", () => {
+    const research = nodePath.join(projectCwd, ".trellis", "research");
+    nodeFs.mkdirSync(research, { recursive: true });
+    nodeFs.mkdirSync(nodePath.join(projectCwd, "node_modules", "pkg"), {
+      recursive: true,
+    });
+    nodeFs.writeFileSync(
+      nodePath.join(projectCwd, "node_modules", "pkg", "README.md"),
+      "# Dep\n\nNODE_MODULES_RULE\n",
+    );
+    nodeFs.writeFileSync(
+      nodePath.join(research, "broken.md"),
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/missing.md\n---\n\n# Broken\n\nBROKEN_NEEDLE\n",
+    );
+    nodeFs.writeFileSync(
+      nodePath.join(research, "excluded.md"),
+      "---\nstatus: superseded\nsuperseded_by: node_modules/pkg/README.md\n---\n\n# Excluded\n\nEXCLUDED_NEEDLE\n",
+    );
+    runMem(["recall", "BROKEN_NEEDLE", "--cwd", projectCwd]);
+    const broken = logs.join("\n");
+    expect(broken).toContain("lineage missing-target");
+    expect(broken).not.toContain("superseded →");
+    logs.length = 0;
+    runMem(["recall", "BROKEN_NEEDLE", "--cwd", projectCwd, "--json"]);
+    const parsed = JSON.parse(logs.join("\n")) as {
+      hits: { ref: string; lineageFault?: string; supersededBy?: string }[];
+    };
+    expect(parsed.hits[0]?.lineageFault).toBe("missing-target");
+    expect(parsed.hits[0]?.supersededBy).toBeUndefined();
+    logs.length = 0;
+    runMem(["read", parsed.hits[0]?.ref ?? "", "--cwd", projectCwd]);
+    const readOut = logs.join("\n");
+    expect(readOut).toContain("lineage missing-target");
+    expect(readOut).toContain("BROKEN_NEEDLE");
+    logs.length = 0;
+    runMem(["recall", "EXCLUDED_NEEDLE", "--cwd", projectCwd]);
+    const excluded = logs.join("\n");
+    expect(excluded).toContain("lineage missing-target");
+    expect(excluded).not.toContain("NODE_MODULES_RULE");
+  });
+
   it("recall: finds a project document with a doc ref", () => {
     seedProjectDocs();
     runMem(["recall", "idempotency", "--cwd", projectCwd]);
