@@ -701,6 +701,18 @@ OpenCode 和 Pi 这包仍没有精确会话恢复。OpenCode 的注入不经过 
 
 2026-10-17。`docs/using.md` 和 `docs/using_CN.md` 按当前 CLI 重写，覆盖从零安装、从 Trellis 迁移、平时记录和召回、整篇替换、compact 后定位，以及 `mini-trellis doctor` 的检查项。compact 命令写成 `mini-trellis mem context <session-id> --platform claude|codex`。两份说明都写了 OpenCode 和 Pi 还没有精确会话恢复。没有把 v0.2.1 的真宿主验收写进这两份说明。
 
+### 检查与真宿主
+
+2026-10-17，在 `feat/precise-session-recovery` 上跑过：
+
+- `pnpm test`：core 262 通过、1 跳过，CLI 240 通过。
+- `pnpm lint`：core 与 CLI 的 eslint 都通过。
+- `pnpm typecheck`：core 构建后 CLI `tsc --noEmit` 通过。
+- `pnpm --filter mini-trellis lint:py`：basedpyright 0 error。34 条 warning 是既有脚本里未使用的导入，不是这次改的 `session-start.py`。
+- `pnpm build` 通过。`npm pack --dry-run` 里 CLI 包有 `dist/templates/shared-hooks/session-start.py`，core 包有 `dist/mem/lineage.js`、`context.js`、`sessions.js`、`recall.js`。没有发布。
+
+Claude Code 和 Codex 的命令都在本机。`claude -p` 和 `codex exec` 都不能发起一次真实的 `/compact`。这一轮没有打开交互会话，所以下面的循环没有做，Claude Code 和 Codex 各三次都没有：记录一个决定、新会话召回、同主题更新、真实 compact 后找回预先设定的具体限制、再追问旧方案为什么被替代，也没有核对那几次的实际文件。A02、A04、A05、A06、A08、A09、A10 在这包上仍是未验证。不能用 v0.2.1 的旧验收代替。OpenCode 和 Pi 的精确会话恢复没有实现。
+
 ### 9.1 建议顺序
 
 | 阶段 | 工作内容 | 交付结果 |
