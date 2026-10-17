@@ -697,6 +697,10 @@ OpenCode 和 Pi 这包仍没有精确会话恢复。OpenCode 的注入不经过 
 - 从已发现文档伸出的一层仓库内链接可以当后继。被 Git 忽略的普通文件、`node_modules` 和指向项目外的符号链接不能。recall 与 `mem read` 的 `lineageFault` 和 `supersededBy` 一致。
 - CLI 文本对缺失目标和被排除路径都打印 `lineage missing-target`，不带上被排除文件的正文。
 
+### 使用说明
+
+2026-10-17。`docs/using.md` 和 `docs/using_CN.md` 按当前 CLI 重写，覆盖从零安装、从 Trellis 迁移、平时记录和召回、整篇替换、compact 后定位，以及 `mini-trellis doctor` 的检查项。compact 命令写成 `mini-trellis mem context <session-id> --platform claude|codex`。两份说明都写了 OpenCode 和 Pi 还没有精确会话恢复。没有把 v0.2.1 的真宿主验收写进这两份说明。
+
 ### 9.1 建议顺序
 
 | 阶段 | 工作内容 | 交付结果 |

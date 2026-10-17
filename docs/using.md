@@ -1,6 +1,24 @@
 # Using it while you code
 
-This is one callback-handler change: when to look something up, and when to write it down. Run the commands from the project root. The record command is `/mini-trellis:remember` in Claude Code and OpenCode, `$mini-trellis-remember` in Codex, and `/mini-trellis-remember` in Pi.
+Commands run from the project root. The record command is `/mini-trellis:remember` in Claude Code and OpenCode, `$mini-trellis-remember` in Codex, and `/mini-trellis-remember` in Pi.
+
+## Install on a new project
+
+```bash
+npm install -g mini-trellis
+mini-trellis init -u your-name --claude
+```
+
+Pass only the tools you use: `--claude`, `--codex`, `--opencode`, `--pi`. Add `-y` to skip prompts. Init writes `.trellis/` and the host files. It does not create a Git commit.
+
+## Move a Trellis project over
+
+```bash
+mini-trellis migrate --dry-run
+mini-trellis migrate
+```
+
+`--dry-run` lists the changes and does not write. The migration replaces the Trellis instruction surface, rewrites mini-trellis scripts, and folds `.trellis/tasks/` into research. `.trellis/spec/`, `research/`, and `workspace/` stay. `-y` skips the prompts and archives task files under `<topic>/legacy/`.
 
 ## Look it up before editing
 
@@ -14,7 +32,15 @@ Each hit is a short excerpt with a path and a `ref`. Edit from the excerpt when 
 mini-trellis mem read "<ref>"
 ```
 
-For conversations only, run `mini-trellis mem search "callback retries"`, then `mini-trellis mem context <session-id>` with a returned session ID.
+`mem search` searches conversations only. `mem list` shows sessions for this project. JSON output keeps the full session id; the text list shortens it.
+
+```bash
+mini-trellis mem search "callback retries"
+mini-trellis mem list --platform claude
+mini-trellis mem context <session-id> --platform claude
+```
+
+`--platform` is `claude`, `codex`, `opencode`, `pi`, or `all`. Without `--global`, list and context stay in this project. A full id from another project is not used. If the same full id matches more than one session in scope, the command does not pick one.
 
 If nothing matches, change the code. You do not create a task first.
 
@@ -39,14 +65,48 @@ Deduplicating before the ledger was tried and broke reconciliation. Label that r
 Update the existing spec, add the provider doc link to the research note, then run remember.
 ```
 
-`remember` updates the topic, then links it from the journal. A new install writes the files and does not create a Git commit.
+`remember` updates the topic, then links it from the journal.
 
-## The next session
+## When a decision changes
 
-```bash
-mini-trellis mem recall "callback idempotency"
+Edit the section when only that section changed. When a whole note is replaced, leave the old note in place and point it at the new one:
+
+```markdown
+---
+status: superseded
+superseded_by: .trellis/research/new-topic.md
+---
 ```
 
-Read the convention and the rejected approach, then edit. After `/compact`, the SessionStart hint names the session id when the host sent one. `mini-trellis mem context <id>` then reads the turns just before the latest compaction boundary. `mem recall` still searches project notes, and `mem read` expands a `session:v1` ref. A missing id does not attach a different session.
+`superseded_by` is a path relative to the repository root. Recall follows a short chain to the last current note and can show a short excerpt of that note. `mem read` shows the same path and does not paste the successor body. A missing target, a path outside the project or the document sources, a self pointer, a cycle, or a chain that is too long is reported and is not treated as the current rule. A newer file time, a nearby source edit, or a nested metadata key does not mark the whole note historical.
 
-When a whole note is replaced, mark the old one `status: superseded` and set `superseded_by` to the new note's path. A single changed section stays in the same note. Recall can show a short excerpt of that successor; `mem read` shows the path and does not paste the successor body. A missing, escaping, self, or cyclic target is reported and is not treated as the current rule.
+## After compact
+
+On Claude Code and Codex, the SessionStart hint after compact names the session id the host sent. From this project, run the command it prints:
+
+```bash
+mini-trellis mem context <session-id> --platform claude
+```
+
+Use `--platform codex` under Codex. With no query, that reads a bounded window of turns before the latest compaction boundary. A long reply does not drop the last short limit in that window. `mem recall` still searches project notes, and `mem read` expands a `session:v1` ref.
+
+Three failures stay separate. No session id: the hint stays generic and does not attach another session. The history file is not on disk yet: context reports `session-history-missing`. The file cannot be read: context reports `session-history-unreadable`.
+
+OpenCode and Pi do not have this precise session recovery. Their startup text does not name the current session id. Use `mem recall` and `mem read` for notes. To inspect a local history file, use `mem list --platform opencode` or `--platform pi` and then `mem context` with the full id from that list.
+
+## When something looks wrong
+
+```bash
+mini-trellis doctor
+```
+
+`--json` prints the same checks. Doctor reports files and the last hook result it can see. It does not mean the model followed the rules.
+
+| Check | What it means |
+| --- | --- |
+| `legacy-trellis` | A Trellis workflow is still present. Run `mini-trellis migrate --dry-run`. |
+| `memory-layer` | `.trellis` or `add_session.py` is missing. Run `mini-trellis init`. |
+| `instructions` | `AGENTS.md` is missing the managed block. Run init again. |
+| `platforms` | No host hook was found. Pass `--claude`, `--codex`, `--opencode`, or `--pi`. |
+| `<host>-runtime` unknown | No real hook run is on disk yet. Start one host session. For Codex, trust the project hook first. |
+| `<host>-runtime` warn | The last hook did not finish cleanly. The detail has the status and error category. |
