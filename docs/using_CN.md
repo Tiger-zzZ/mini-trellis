@@ -94,7 +94,7 @@ Codex 用 `--platform codex`。不加查询时，读的是最近一次压缩边�
 
 要找更早的条件，可以加 `--grep "<关键词>"` 定位原始轮次；压缩摘要不会作为关键词命中或相邻摘录返回。Codex 的 compact 提示会在下一条用户消息开始时交付。
 
-三种失败分开说。没有会话 id 时，提示保持通用，不改绑另一场。历史文件还没落盘时，context 报 `session-history-missing`。文件不可读时，报 `session-history-unreadable`。
+三种失败分开说。没有会话 id 时，提示保持通用，不改绑另一场。历史文件还没落盘时，命令警告这场会话没有可读历史，然后以 `session not found` 退出。文件不可读时，警告写明读不了这场会话。这两条警告分别是 `session-history-missing` 和 `session-history-unreadable`。
 
 OpenCode 和 Pi 还没有这种精确会话恢复。它们的启动文案不会点名当前会话 id。查笔记用 `mem recall` 和 `mem read`。要看本机历史文件时，用 `mem list --platform opencode` 或 `--platform pi`，再用列表里的完整 id 调 `mem context`。
 

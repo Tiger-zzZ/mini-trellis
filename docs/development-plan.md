@@ -752,6 +752,38 @@ Claude Code 和 Codex 的命令都在本机。`claude -p` 和 `codex exec` 都�
 
 后续接手顺序：先复核本轮未提交的小范围修复和上述证据，再决定提交与发布收口。若要求一条不中断的 Codex headless→TUI 串联记录，应从一开始使用独立进程创建新会话重跑，不要把现有分段证据改写为该路径已通过。没有必要在这一步加入 F3/F5 或新平台。
 
+### 2026-10-18 发布候选收口
+
+本节接上 2026-10-17 的验收补记。候选包已经打出，没有推送、打标签、合并或发布。
+
+**候选**
+
+- 分支 `feat/precise-session-recovery`。验包时代码提交是 `c3cddd3de56f8f54f2ce7d07400eb6d883624945`。core 与 CLI 都是 0.3.0。
+- 打包后的 CLI 依赖 `mini-trellis-core@0.3.0`，不再是 `workspace:*`。
+- `mini-trellis-core-0.3.0.tgz` SHA-256：`26e863d3697a9b5f93d9e7578d13229287e8dd6c643d1467567e7eb356979451`
+- `mini-trellis-0.3.0.tgz` SHA-256：`25ca0b3bc6edb98a827877e2ef06edf182442fe3cf63f09437d1fd688d13e299`
+- 包内 hook 模板与 `packages/cli/src/templates/shared-hooks/session-start.py` 字节一致。
+
+**这次核对了什么**
+
+- `pnpm build`、`pnpm test`、`pnpm typecheck`、`pnpm lint`、`pnpm --filter mini-trellis lint:py`、`git diff --check` 通过。测试仍是 core 267 通过、1 跳过，CLI 240 通过。Python 检查仍是 0 error、34 条既有未使用导入警告。
+- 在隔离目录安装两个本地 tarball。第三方依赖来自 registry。运行的是这份安装里的 CLI，不是全局命令、工作区或仓库里的 `node_modules`。
+- 全新 `init` 成功。安装进项目的 `.claude/hooks/session-start.py` 与候选源码一致。
+- 用已发布的 0.2.2 初始化，再换成本地 0.3.0 执行 `refresh`。没有对未发布的 0.3.0 调用 `mini-trellis upgrade`。知识文件、改过的 `config.yaml` 和额外笔记都还在。
+- `mem recall --limit 1` 只给出现行笔记。只标了替代、目标不存在时，输出 `lineage missing-target`。
+- 合成历史上，默认 `mem context` 读压缩边界之前的限制，`--grep` 命中原始轮次。压缩摘要没有进入这两次结果。找不到历史时，警告写明没有可读历史，并以 `session not found` 退出。
+- Node.js 18.17.0 运行同一份安装，`--version`、`recall --limit 1` 和默认 `context` 与上面一致。
+- 六场既有真实历史只做了回读：Claude 三场 `ORCHID-732/821/931`，Codex 三场 `LUNA-731/821/931`。每次一条 `mem context <id> --platform <host> --grep <marker> --turns 1`，命中都包含原标记。这不是新发生的原生 compact。
+
+**不挡住这次候选的未验证项**
+
+- OpenCode 和 Pi 没有精确会话恢复。
+- Claude 独立的 `SessionStart:resume` 事件仍没有可靠记录，模板没有新增 resume matcher。
+- Codex 仍是同一项目里的分段验收，不是旧 headless 会话直接进入 TUI 的单轨记录。
+- 没有做与 Trellis 的成本对照，也没有把字符数写成端到端 token 或耗时收益。
+
+这些不作为 0.3.0 候选的发布门槛。候选可以审阅。它还没有发布。
+
 ### 9.1 建议顺序
 
 | 阶段 | 工作内容 | 交付结果 |

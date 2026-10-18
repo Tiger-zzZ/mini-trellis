@@ -94,7 +94,7 @@ Use `--platform codex` under Codex. With no query, that reads a bounded window o
 
 For an older condition, add `--grep "<keyword>"` to locate the original turns. Compaction summaries are excluded from keyword hits and neighboring excerpts. On Codex, the compact hint arrives when the next user message starts.
 
-Three failures stay separate. No session id: the hint stays generic and does not attach another session. The history file is not on disk yet: context reports `session-history-missing`. The file cannot be read: context reports `session-history-unreadable`.
+Three failures stay separate. No session id: the hint stays generic and does not attach another session. The history file is not on disk yet: the command warns that this session has no readable history, then exits with `session not found`. The file cannot be read: the warning says it cannot read that session. Those two warnings are `session-history-missing` and `session-history-unreadable`.
 
 OpenCode and Pi do not have this precise session recovery. Their startup text does not name the current session id. Use `mem recall` and `mem read` for notes. To inspect a local history file, use `mem list --platform opencode` or `--platform pi` and then `mem context` with the full id from that list.
 
