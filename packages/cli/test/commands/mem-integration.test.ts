@@ -357,6 +357,72 @@ describe("runMem subcommand integration", () => {
       /__exit__:2/,
     );
     expect(errs.join("\n")).toMatch(/session not found/);
+    expect(errs.join("\n")).toMatch(
+      /session-history-missing|no readable history/,
+    );
+  });
+
+  it("context without grep shows the pre-compact limit, not the opening", () => {
+    const id = "compact-cli-session-0001";
+    writeJsonl(nodePath.join(projectDir, `${id}.jsonl`), [
+      {
+        type: "user",
+        cwd: projectCwd,
+        timestamp: "2026-04-15T10:00:00Z",
+        message: { role: "user", content: "opening greeting alpha" },
+      },
+      {
+        type: "user",
+        cwd: projectCwd,
+        timestamp: "2026-04-15T10:01:00Z",
+        message: { role: "user", content: "filler one" },
+      },
+      {
+        type: "user",
+        cwd: projectCwd,
+        timestamp: "2026-04-15T10:02:00Z",
+        message: { role: "user", content: "filler two" },
+      },
+      {
+        type: "user",
+        cwd: projectCwd,
+        timestamp: "2026-04-15T10:03:00Z",
+        message: { role: "user", content: "filler three" },
+      },
+      {
+        type: "user",
+        cwd: projectCwd,
+        timestamp: "2026-04-15T10:04:00Z",
+        message: {
+          role: "user",
+          content: "The provider allows at most two retries.",
+        },
+      },
+      {
+        type: "user",
+        cwd: projectCwd,
+        isCompactSummary: true,
+        timestamp: "2026-04-15T11:00:00Z",
+        message: {
+          role: "user",
+          content: "summary mentioned retries in general",
+        },
+      },
+    ]);
+    runMem([
+      "context",
+      id,
+      "--cwd",
+      projectCwd,
+      "--turns",
+      "3",
+      "--around",
+      "0",
+    ]);
+    const text = logs.join("\n");
+    expect(text).toContain("before the latest compaction boundary");
+    expect(text).toContain("at most two retries");
+    expect(text).not.toContain("opening greeting alpha");
   });
 
   // ---------- extract ----------
@@ -666,6 +732,82 @@ describe("runMem subcommand integration", () => {
     );
   }
 
+  it("recall/read: surfaces superseded lineage without expanding the successor", () => {
+    nodeFs.mkdirSync(nodePath.join(projectCwd, ".trellis", "research"), {
+      recursive: true,
+    });
+    nodeFs.writeFileSync(
+      nodePath.join(projectCwd, ".trellis", "research", "new-topic.md"),
+      "# New topic\n\nSUCCESSOR_ONLY lineage needle\n",
+    );
+    nodeFs.writeFileSync(
+      nodePath.join(projectCwd, ".trellis", "research", "old-topic.md"),
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/new-topic.md\n---\n\n# Old topic\n\nlineage needle OLD_ONLY\n",
+    );
+    runMem(["recall", "lineage needle", "--cwd", projectCwd, "--limit", "2"]);
+    const recalled = logs.join("\n");
+    expect(recalled).toContain(".trellis/research/new-topic.md");
+    expect(recalled).toContain("superseded → .trellis/research/new-topic.md");
+    expect(recalled.indexOf("new-topic.md")).toBeLessThan(
+      recalled.indexOf("old-topic.md"),
+    );
+    logs.length = 0;
+    runMem(["recall", "OLD_ONLY", "--cwd", projectCwd, "--json"]);
+    const parsed = JSON.parse(logs.join("\n")) as {
+      hits: { ref: string; status?: string; supersededBy?: string }[];
+    };
+    const old = parsed.hits[0];
+    expect(old?.status).toBe("superseded");
+    expect(old?.supersededBy).toBe(".trellis/research/new-topic.md");
+    logs.length = 0;
+    runMem(["read", old?.ref ?? "", "--cwd", projectCwd]);
+    const readOut = logs.join("\n");
+    expect(readOut).toContain("superseded by: .trellis/research/new-topic.md");
+    expect(readOut).toContain("OLD_ONLY");
+    expect(readOut).not.toContain("SUCCESSOR_ONLY");
+  });
+
+  it("recall/read: agree on a bad successor and do not follow an excluded path", () => {
+    const research = nodePath.join(projectCwd, ".trellis", "research");
+    nodeFs.mkdirSync(research, { recursive: true });
+    nodeFs.mkdirSync(nodePath.join(projectCwd, "node_modules", "pkg"), {
+      recursive: true,
+    });
+    nodeFs.writeFileSync(
+      nodePath.join(projectCwd, "node_modules", "pkg", "README.md"),
+      "# Dep\n\nNODE_MODULES_RULE\n",
+    );
+    nodeFs.writeFileSync(
+      nodePath.join(research, "broken.md"),
+      "---\nstatus: superseded\nsuperseded_by: .trellis/research/missing.md\n---\n\n# Broken\n\nBROKEN_NEEDLE\n",
+    );
+    nodeFs.writeFileSync(
+      nodePath.join(research, "excluded.md"),
+      "---\nstatus: superseded\nsuperseded_by: node_modules/pkg/README.md\n---\n\n# Excluded\n\nEXCLUDED_NEEDLE\n",
+    );
+    runMem(["recall", "BROKEN_NEEDLE", "--cwd", projectCwd]);
+    const broken = logs.join("\n");
+    expect(broken).toContain("lineage missing-target");
+    expect(broken).not.toContain("superseded →");
+    logs.length = 0;
+    runMem(["recall", "BROKEN_NEEDLE", "--cwd", projectCwd, "--json"]);
+    const parsed = JSON.parse(logs.join("\n")) as {
+      hits: { ref: string; lineageFault?: string; supersededBy?: string }[];
+    };
+    expect(parsed.hits[0]?.lineageFault).toBe("missing-target");
+    expect(parsed.hits[0]?.supersededBy).toBeUndefined();
+    logs.length = 0;
+    runMem(["read", parsed.hits[0]?.ref ?? "", "--cwd", projectCwd]);
+    const readOut = logs.join("\n");
+    expect(readOut).toContain("lineage missing-target");
+    expect(readOut).toContain("BROKEN_NEEDLE");
+    logs.length = 0;
+    runMem(["recall", "EXCLUDED_NEEDLE", "--cwd", projectCwd]);
+    const excluded = logs.join("\n");
+    expect(excluded).toContain("lineage missing-target");
+    expect(excluded).not.toContain("NODE_MODULES_RULE");
+  });
+
   it("recall: finds a project document with a doc ref", () => {
     seedProjectDocs();
     runMem(["recall", "idempotency", "--cwd", projectCwd]);
@@ -682,7 +824,11 @@ describe("runMem subcommand integration", () => {
     expect(JSON.parse(logs.join("\n"))).toEqual([]);
     logs.length = 0;
     runMem(["recall", "double-charge", "--cwd", projectCwd, "--json"]);
-    expect(JSON.parse(logs.join("\n")).hits.some((hit: { path?: string }) => hit.path === "docs/billing.md")).toBe(true);
+    expect(
+      JSON.parse(logs.join("\n")).hits.some(
+        (hit: { path?: string }) => hit.path === "docs/billing.md",
+      ),
+    ).toBe(true);
   });
 
   it("recall --json: emits {hits,totalHits,incomplete,warnings}", () => {

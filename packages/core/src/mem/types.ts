@@ -103,6 +103,9 @@ export interface MemContextTurn {
   isHit: boolean;
 }
 
+/** Where a no-query context window was anchored. `query` means `--grep` ranked hits. */
+export type MemContextAnchor = "opening" | "before-compaction" | "query";
+
 export interface MemContextResult {
   session: MemSessionInfo;
   query?: string;
@@ -111,6 +114,11 @@ export interface MemContextResult {
   mergedChildren: number;
   budgetUsed: number;
   maxChars: number;
+  /**
+   * `before-compaction` is the turns immediately before the latest compaction
+   * boundary. `opening` is the start of a session that has no boundary.
+   */
+  anchor: MemContextAnchor;
   turns: MemContextTurn[];
   warnings: MemWarning[];
 }
@@ -216,6 +224,14 @@ export type RecallSourceKind = MemSourceKind | "doc";
  * relaxation used when nothing matched strongly. */
 export type RecallStrength = "strong" | "weak";
 
+/** Why a declared `superseded_by` target was not treated as the current note. */
+export type LineageFault =
+  | "missing-target"
+  | "escapes-project"
+  | "self"
+  | "cycle"
+  | "bounded";
+
 /**
  * One recall hit. The same shape covers a document section and a dialogue
  * window, so a caller renders either without knowing which store it came from.
@@ -238,8 +254,20 @@ export interface RecallHit {
   /** The query terms that matched, strongest first. */
   matchedTerms: string[];
   strength: RecallStrength;
-  /** `archived` for research archive hits; otherwise omitted. */
-  status?: "archived";
+  /**
+   * `archived` for research archive / migrated legacy hits;
+   * `superseded` when a local lineage mark says so. Otherwise omitted.
+   */
+  status?: "archived" | "superseded";
+  /**
+   * Repo-relative successor when `superseded_by` resolves to a different
+   * allowed in-project Markdown file. The successor body is not copied here.
+   */
+  supersededBy?: string;
+  /** Bounded text of the last current note in the declared chain. */
+  successorExcerpt?: string;
+  /** Set when the declared target cannot be followed. */
+  lineageFault?: LineageFault;
   /** Source time when one is known. A file mtime is never used here. */
   sourceTime?: string;
 }
@@ -278,6 +306,11 @@ export interface RecallRead {
   /** Set when the source moved or changed since the ref was built. */
   changed?: boolean;
   truncated?: boolean;
+  /** Present when the document carries a superseded lineage mark. */
+  status?: "superseded";
+  /** Successor path only. Omitted when the target cannot be followed. */
+  supersededBy?: string;
+  lineageFault?: LineageFault;
 }
 
 export interface RecallReadResult {

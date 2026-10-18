@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.0 — 2026-10-18
+
+- A note can mark a whole-document replacement with `status: superseded` and `superseded_by`. Recall prefers the current note, including when `--limit 1` would otherwise keep only the older match. `mem read` shows the same successor path and does not paste the successor body.
+- A missing, out-of-scope, self, cyclic, or unfinished chain is reported. A newer file time, a section edit, or nested metadata does not mark the whole note historical.
+- After compact, Claude Code and Codex name the host session id. `mini-trellis mem context <id> --platform claude|codex` reads the turns before the latest compaction boundary. Keyword search and neighboring excerpts skip the compaction summary.
+- OpenCode and Pi still do not name the current session after compact. A standalone Claude `SessionStart:resume` event was not recorded, so the Claude matcher is unchanged.
+
+Version changes and upgrade instructions are in the [release notes](docs/releases/v0.3.0.md).
+
 ## v0.2.2 — 2026-10-14
 
 - Migration now removes Trellis hook commands, the legacy Pi extension, and the Codex `max_depth = 1` pin before writing mini-trellis host config. User hooks and custom settings stay. A second run can repair config left behind after the scripts were already deleted.

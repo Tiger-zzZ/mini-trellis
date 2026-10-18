@@ -58,6 +58,25 @@ function writeJsonl(file: string, lines: readonly unknown[]): void {
   );
 }
 
+function claudeUser(cwd: string, text: string): unknown {
+  return {
+    type: "user",
+    cwd,
+    timestamp: "2026-04-15T10:00:00Z",
+    message: { role: "user", content: text },
+  };
+}
+
+function claudeBoundary(cwd: string, summary: string): unknown {
+  return {
+    type: "user",
+    cwd,
+    isCompactSummary: true,
+    timestamp: "2026-04-15T11:00:00Z",
+    message: { role: "user", content: summary },
+  };
+}
+
 function piProjectDir(cwd: string): string {
   const safe = `--${nodePath
     .resolve(cwd)
@@ -452,6 +471,261 @@ describe("readMemContext", () => {
     expect(() =>
       readMemContext({ sessionId: "no-such-id", filter: { cwd: projectCwd } }),
     ).toThrow(MemSessionNotFoundError);
+  });
+
+  it("names a missing session instead of binding another one", () => {
+    try {
+      readMemContext({
+        sessionId: "not-written-yet",
+        filter: { cwd: projectCwd, platform: "claude" },
+      });
+      expect.fail("expected MemSessionNotFoundError");
+    } catch (error) {
+      expect(error).toBeInstanceOf(MemSessionNotFoundError);
+      expect(
+        (error as MemSessionNotFoundError).warnings.some(
+          (warning) => warning.code === "session-history-missing",
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("without a query, returns the pre-compact limit rather than the opening", () => {
+    const id = "compact-limit-session-0001";
+    writeJsonl(nodePath.join(projectDir, `${id}.jsonl`), [
+      claudeUser(projectCwd, "opening greeting alpha"),
+      claudeUser(projectCwd, "filler one"),
+      claudeUser(projectCwd, "filler two"),
+      claudeUser(projectCwd, "filler three"),
+      claudeUser(projectCwd, "The provider allows at most two retries."),
+      claudeBoundary(projectCwd, "summary mentioned retries in general"),
+      claudeUser(projectCwd, "after compact continue"),
+    ]);
+    const result = readMemContext({
+      sessionId: id,
+      filter: { cwd: projectCwd, platform: "claude" },
+      turns: 3,
+      around: 0,
+    });
+    const text = result.turns.map((turn) => turn.text).join("\n");
+    expect(result.anchor).toBe("before-compaction");
+    expect(result.session.id).toBe(id);
+    expect(text).toContain("at most two retries");
+    expect(text).not.toContain("opening greeting alpha");
+  });
+
+  it("keeps the last short limit when an earlier reply is longer than the budget", () => {
+    const id = "compact-long-reply-session";
+    writeJsonl(nodePath.join(projectDir, `${id}.jsonl`), [
+      claudeUser(projectCwd, "x".repeat(8000)),
+      claudeUser(projectCwd, "y".repeat(8000)),
+      claudeUser(projectCwd, "The provider allows at most two retries."),
+      claudeBoundary(projectCwd, "summary mentioned retries in general"),
+    ]);
+    const result = readMemContext({
+      sessionId: id,
+      filter: { cwd: projectCwd, platform: "claude" },
+      turns: 3,
+      around: 1,
+      maxChars: 500,
+    });
+    const text = result.turns.map((turn) => turn.text).join("\n");
+    expect(result.anchor).toBe("before-compaction");
+    expect(text).toContain("at most two retries");
+    expect(text).not.toContain("summary mentioned retries");
+  });
+
+  it("does not bind the same full id on another platform", () => {
+    const id = "platform-scoped-session-0001";
+    writeJsonl(nodePath.join(projectDir, `${id}.jsonl`), [
+      claudeUser(projectCwd, "claude limit two"),
+    ]);
+    expect(() =>
+      readMemContext({
+        sessionId: id,
+        filter: { cwd: projectCwd, platform: "codex" },
+      }),
+    ).toThrow(MemSessionNotFoundError);
+    const claude = readMemContext({
+      sessionId: id,
+      filter: { cwd: projectCwd, platform: "claude" },
+      turns: 1,
+      around: 0,
+    });
+    expect(claude.session.platform).toBe("claude");
+    expect(claude.turns.map((turn) => turn.text).join("\n")).toContain(
+      "claude limit two",
+    );
+  });
+
+  it("keeps a limit that sits before an earlier boundary when the latest segment is short", () => {
+    const id = "compact-twice-session-0002";
+    writeJsonl(nodePath.join(projectDir, `${id}.jsonl`), [
+      claudeUser(projectCwd, "opening greeting alpha"),
+      claudeUser(projectCwd, "filler one"),
+      claudeUser(projectCwd, "The provider allows at most two retries."),
+      claudeBoundary(projectCwd, "first summary"),
+      claudeUser(projectCwd, "button color only"),
+      claudeUser(projectCwd, "padding after the first compact"),
+      claudeBoundary(projectCwd, "second summary about layout"),
+    ]);
+    const result = readMemContext({
+      sessionId: id,
+      filter: { cwd: projectCwd, platform: "claude" },
+      turns: 3,
+      around: 0,
+    });
+    const text = result.turns.map((turn) => turn.text).join("\n");
+    expect(result.anchor).toBe("before-compaction");
+    expect(text).toContain("at most two retries");
+    expect(text).toContain("button color only");
+    expect(text).not.toContain("opening greeting alpha");
+  });
+
+  it("warns when the file has a boundary and no turns before it", () => {
+    const id = "boundary-only-session";
+    writeJsonl(nodePath.join(projectDir, `${id}.jsonl`), [
+      claudeBoundary(projectCwd, "summary without retained turns"),
+    ]);
+    const result = readMemContext({
+      sessionId: id,
+      filter: { cwd: projectCwd, platform: "claude" },
+      turns: 3,
+      around: 0,
+    });
+    expect(
+      result.warnings.some(
+        (warning) => warning.code === "pre-compact-history-missing",
+      ),
+    ).toBe(true);
+    expect(
+      result.turns.some((turn) => turn.text.includes("[compaction boundary]")),
+    ).toBe(true);
+  });
+
+  it("does not prefix-match a truncated id onto another project", () => {
+    const otherCwd = "/tmp/mem-api-other";
+    const otherDir = nodePath.join(
+      CLAUDE_PROJECTS,
+      otherCwd.replace(/[/\\:_.]/g, "-"),
+    );
+    const shared = "333333333333";
+    const localId = `${shared}-this-project-limit-two`;
+    const otherId = `${shared}-other-project-limit-nine`;
+    writeJsonl(nodePath.join(projectDir, `${localId}.jsonl`), [
+      claudeUser(projectCwd, "limit two in this project"),
+    ]);
+    writeJsonl(nodePath.join(otherDir, `${otherId}.jsonl`), [
+      claudeUser(otherCwd, "limit nine in the other project"),
+    ]);
+
+    const local = readMemContext({
+      sessionId: shared,
+      filter: { cwd: projectCwd, platform: "claude" },
+      turns: 1,
+      around: 0,
+    });
+    expect(local.session.id).toBe(localId);
+    expect(local.turns.map((turn) => turn.text).join("\n")).toContain(
+      "limit two",
+    );
+    expect(local.turns.map((turn) => turn.text).join("\n")).not.toContain(
+      "limit nine",
+    );
+
+    const foreignOnly = "444444444444";
+    writeJsonl(nodePath.join(otherDir, `${foreignOnly}-only-other.jsonl`), [
+      claudeUser(otherCwd, "foreign only nine"),
+    ]);
+    expect(() =>
+      readMemContext({
+        sessionId: foreignOnly,
+        filter: { cwd: projectCwd, platform: "claude" },
+      }),
+    ).toThrow(MemSessionNotFoundError);
+
+    expect(() =>
+      readMemContext({
+        sessionId: shared,
+        filter: { platform: "claude" },
+      }),
+    ).toThrow(MemSessionNotFoundError);
+
+    expect(() =>
+      readMemContext({
+        sessionId: otherId,
+        filter: { cwd: projectCwd, platform: "claude" },
+        turns: 1,
+        around: 0,
+      }),
+    ).toThrow(MemSessionNotFoundError);
+    const globalExact = readMemContext({
+      sessionId: otherId,
+      filter: { platform: "claude" },
+      turns: 1,
+      around: 0,
+    });
+    expect(globalExact.session.id).toBe(otherId);
+  });
+
+  it("refuses an ambiguous truncated id inside one project", () => {
+    const prefix = "555555555555";
+    writeJsonl(nodePath.join(projectDir, `${prefix}-one.jsonl`), [
+      claudeUser(projectCwd, "amb one"),
+    ]);
+    writeJsonl(nodePath.join(projectDir, `${prefix}-two.jsonl`), [
+      claudeUser(projectCwd, "amb two"),
+    ]);
+    try {
+      readMemContext({
+        sessionId: prefix,
+        filter: { cwd: projectCwd, platform: "claude" },
+      });
+      expect.fail("expected MemSessionNotFoundError");
+    } catch (error) {
+      expect(error).toBeInstanceOf(MemSessionNotFoundError);
+      expect(
+        (error as MemSessionNotFoundError).warnings.some(
+          (warning) => warning.code === "ambiguous-session-prefix",
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("reports an unreadable history file and does not bind another project", () => {
+    const otherCwd = "/tmp/mem-api-other";
+    const otherDir = nodePath.join(
+      CLAUDE_PROJECTS,
+      otherCwd.replace(/[/\\:_.]/g, "-"),
+    );
+    const prefix = "666666666666";
+    const unreadId = `${prefix}-unreadable-file`;
+    const unreadFile = nodePath.join(projectDir, `${unreadId}.jsonl`);
+    writeJsonl(unreadFile, [claudeUser(projectCwd, "secret limit")]);
+    writeJsonl(nodePath.join(otherDir, `${prefix}-other.jsonl`), [
+      claudeUser(otherCwd, "limit nine in the other project"),
+    ]);
+    nodeFs.chmodSync(unreadFile, 0);
+    try {
+      readMemContext({
+        sessionId: prefix,
+        filter: { cwd: projectCwd, platform: "claude" },
+      });
+      expect.fail("expected MemSessionNotFoundError");
+    } catch (error) {
+      expect(error).toBeInstanceOf(MemSessionNotFoundError);
+      const warnings = (error as MemSessionNotFoundError).warnings;
+      expect(
+        warnings.some(
+          (warning) => warning.code === "session-history-unreadable",
+        ),
+      ).toBe(true);
+      expect(
+        warnings.some((warning) => warning.message.includes("limit nine")),
+      ).toBe(false);
+    } finally {
+      nodeFs.chmodSync(unreadFile, 0o644);
+    }
   });
 });
 

@@ -9,12 +9,14 @@ import {
   type DocDiscovery,
 } from "./docs.js";
 import { excerptAround, matchTerms, queryTerms, windowAt } from "./lexical.js";
+import { parseDocLineage, parseLineageMarks } from "./lineage.js";
 import { MEM_PLATFORMS } from "./platforms.js";
 import { listAll, resolveFilter, WIDE_LIMIT } from "./sessions.js";
 import type {
   DialogueTurn,
   MemWarning,
   ReadMemRefsOptions,
+  LineageFault,
   RecallHit,
   RecallMemOptions,
   RecallRead,
@@ -23,6 +25,8 @@ import type {
 } from "./types.js";
 
 const EXCERPT_CHARS = 400;
+const SUCCESSOR_EXCERPT_CHARS = 240;
+const MAX_LINEAGE_HOPS = 8;
 const MAX_QUERY_CHARS = 2000;
 const MAX_REFS = 30;
 
@@ -98,6 +102,135 @@ function headingBefore(text: string, index: number): string | undefined {
   return heading;
 }
 
+/** Effective notes outrank archived / superseded ones at equal coverage. */
+function inactiveRank(hit: RecallHit): number {
+  return hit.status === "archived" || hit.status === "superseded" ? 1 : 0;
+}
+
+/** The last current note in a declared chain ranks immediately before the note
+ * it replaces. A higher-coverage unrelated note stays above that pair.
+ * Cycles are not lifted. */
+function liftDeclaredSuccessors(hits: RecallHit[]): RecallHit[] {
+  const out = [...hits];
+  for (let i = out.length - 1; i >= 0; i--) {
+    const hit = out[i];
+    if (!hit?.supersededBy || hit.lineageFault === "cycle") continue;
+    const successorAt = out.findIndex((item) => item.path === hit.supersededBy);
+    if (successorAt > i) {
+      const [successor] = out.splice(successorAt, 1);
+      if (successor) out.splice(i, 0, successor);
+    }
+  }
+  return out;
+}
+
+function boundedSuccessorExcerpt(text: string | undefined): string | undefined {
+  if (!text) return undefined;
+  let body = text;
+  if (body.startsWith("---")) {
+    const end = body.indexOf("\n---", 3);
+    if (end !== -1) body = body.slice(end + 4);
+  }
+  const flat = body.replace(/\s+/g, " ").trim();
+  if (!flat) return undefined;
+  return flat.length <= SUCCESSOR_EXCERPT_CHARS
+    ? flat
+    : flat.slice(0, SUCCESSOR_EXCERPT_CHARS);
+}
+
+interface FollowedLineage {
+  superseded: boolean;
+  supersededBy?: string;
+  fault?: LineageFault;
+  successorExcerpt?: string;
+}
+
+/** A successor is readable only when ordinary discovery already accepted it. */
+function successorInSources(discovery: DocDiscovery, rel: string): boolean {
+  return discovery.docs.some((doc) => doc.relPath === rel);
+}
+
+function readScopedDoc(
+  discovery: DocDiscovery,
+  rel: string,
+  docTexts: Map<string, string>,
+  warnings: MemWarning[],
+): string | undefined {
+  const cached = docTexts.get(rel);
+  if (cached !== undefined) return cached;
+  const doc = discovery.docs.find((item) => item.relPath === rel);
+  if (!doc) return undefined;
+  const text = readDocText(discovery.root, doc.filePath, warnings);
+  if (text !== undefined) docTexts.set(rel, text);
+  return text;
+}
+
+/**
+ * Walk a declared chain to the last note that does not point further.
+ * Every hop stays inside the documents discovery already accepted, so Git
+ * ignore, knowledge-dir exceptions, and file safety match ordinary reads.
+ * A cycle or a chain longer than the hop cap does not pick an intermediate
+ * note as the current rule.
+ */
+function followLineage(
+  text: string,
+  rel: string,
+  discovery: DocDiscovery,
+  docTexts: Map<string, string>,
+  warnings: MemWarning[],
+): FollowedLineage {
+  const start = parseDocLineage(text, discovery.root, rel);
+  if (start.fault || !start.supersededBy) {
+    return {
+      superseded: start.superseded,
+      ...(start.fault ? { fault: start.fault } : {}),
+    };
+  }
+  if (!successorInSources(discovery, start.supersededBy)) {
+    return {
+      superseded: parseLineageMarks(text).statusSuperseded,
+      fault: "missing-target",
+    };
+  }
+  const seen = new Set<string>([rel]);
+  const direct = start.supersededBy;
+  let nextRel = start.supersededBy;
+  for (let hop = 0; hop < MAX_LINEAGE_HOPS; hop++) {
+    if (seen.has(nextRel)) {
+      return { superseded: true, supersededBy: direct, fault: "cycle" };
+    }
+    seen.add(nextRel);
+    const successorText = readScopedDoc(discovery, nextRel, docTexts, warnings);
+    if (successorText === undefined) {
+      return { superseded: true, fault: "missing-target" };
+    }
+    const next = parseDocLineage(successorText, discovery.root, nextRel);
+    if (
+      next.fault === "self" ||
+      next.fault === "escapes-project" ||
+      next.fault === "missing-target"
+    ) {
+      return { superseded: true, fault: next.fault };
+    }
+    if (next.supersededBy && !successorInSources(discovery, next.supersededBy)) {
+      return { superseded: true, fault: "missing-target" };
+    }
+    if (!next.supersededBy) {
+      if (next.superseded) return { superseded: true, fault: "missing-target" };
+      return {
+        superseded: true,
+        supersededBy: nextRel,
+        successorExcerpt: boundedSuccessorExcerpt(successorText),
+      };
+    }
+    if (seen.has(next.supersededBy)) {
+      return { superseded: true, supersededBy: direct, fault: "cycle" };
+    }
+    nextRel = next.supersededBy;
+  }
+  return { superseded: true, fault: "bounded" };
+}
+
 /** Limit the serialized evidence records, including refs and source metadata. */
 function select(
   candidates: Candidate[],
@@ -110,15 +243,20 @@ function select(
       b.titleCoverage - a.titleCoverage ||
       b.pathCoverage - a.pathCoverage ||
       b.derivedCoverage - a.derivedCoverage ||
-      (a.hit.status === "archived" ? 1 : 0) -
-        (b.hit.status === "archived" ? 1 : 0) ||
+      inactiveRank(a.hit) - inactiveRank(b.hit) ||
       (b.hit.sourceTime ?? "").localeCompare(a.hit.sourceTime ?? ""),
   );
   const hits: RecallHit[] = [];
   let used = 0;
   let truncated = false;
   const emitted = new Set<string>();
-  for (const candidate of ranked) {
+  // Resolve declared priority before either result count or character budget
+  // can discard the current note. Keep the candidate's own evidence anchor.
+  const byRef = new Map(ranked.map((candidate) => [candidate.hit.ref, candidate]));
+  const ordered = liftDeclaredSuccessors(ranked.map((candidate) => candidate.hit));
+  for (const orderedHit of ordered) {
+    const candidate = byRef.get(orderedHit.ref);
+    if (!candidate) continue;
     if (emitted.has(candidate.duplicateKey)) continue;
     if (hits.length >= limit) {
       truncated = true;
@@ -237,16 +375,35 @@ export function recallMem(options: RecallMemOptions): RecallResult {
         hit.section, ref.hash, window.anchorStart, window.anchorEnd]),
     });
   };
+  const docTexts = new Map<string, string>();
   for (const doc of discovery.docs) {
     const text = readDocText(discovery.root, doc.filePath, warnings);
     if (text === undefined) continue;
+    docTexts.set(doc.relPath, text);
+    const lineage = followLineage(
+      text,
+      doc.relPath,
+      discovery,
+      docTexts,
+      warnings,
+    );
+    const status = lineage.superseded
+      ? ("superseded" as const)
+      : doc.archived
+        ? ("archived" as const)
+        : undefined;
     add(
       text,
       {
         sourceKind: "doc",
         title: doc.relPath,
         path: doc.relPath,
-        ...(doc.archived ? { status: "archived" as const } : {}),
+        ...(status ? { status } : {}),
+        ...(lineage.supersededBy ? { supersededBy: lineage.supersededBy } : {}),
+        ...(lineage.successorExcerpt
+          ? { successorExcerpt: lineage.successorExcerpt }
+          : {}),
+        ...(lineage.fault ? { lineageFault: lineage.fault } : {}),
       },
       { kind: "doc", path: doc.relPath, hash: fingerprint(text) },
     );
@@ -289,7 +446,12 @@ export function recallMem(options: RecallMemOptions): RecallResult {
     }
   }
   const strong = candidates.filter((c) => c.hit.strength === "strong");
-  const pool = strong.length ? strong : candidates;
+  const successors = new Set(strong.filter((c) => !c.hit.lineageFault)
+    .map((c) => c.hit.supersededBy).filter(Boolean));
+  // A current rule may use fewer query terms than the note it replaces.
+  const pool = strong.length
+    ? candidates.filter((c) => c.hit.strength === "strong" || successors.has(c.hit.path))
+    : candidates;
   const selected = select(pool, limit, maxChars);
   return {
     ...selected,
@@ -367,6 +529,18 @@ function readDoc(
   }
   const text = readDocText(discovery.root, real, warnings);
   if (text === undefined) return undefined;
+  const lineage = followLineage(
+    text,
+    evidence.path ?? "",
+    discovery,
+    new Map(),
+    warnings,
+  );
+  const lineageFields = {
+    ...(lineage.superseded ? { status: "superseded" as const } : {}),
+    ...(lineage.supersededBy ? { supersededBy: lineage.supersededBy } : {}),
+    ...(lineage.fault ? { lineageFault: lineage.fault } : {}),
+  };
   if (fingerprint(text) !== evidence.hash) {
     warnings.push({
       code: "ref-changed",
@@ -378,6 +552,7 @@ function readDoc(
       path: evidence.path,
       text: "",
       changed: true,
+      ...lineageFields,
     };
   }
   if (evidence.end > text.length) {
@@ -396,6 +571,7 @@ function readDoc(
     text: w.excerpt,
     changed: false,
     truncated: w.truncated,
+    ...lineageFields,
   };
 }
 

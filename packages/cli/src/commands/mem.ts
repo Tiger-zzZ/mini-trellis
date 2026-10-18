@@ -343,11 +343,21 @@ function cmdRecall(argv: Argv): void {
       const where = hit.path
         ? `${hit.path}${hit.line ? `:${hit.line}` : ""}`
         : `${hit.sourceKind}:${hit.sessionId}`;
+      const lineage =
+        hit.status === "superseded"
+          ? hit.supersededBy
+            ? `  superseded → ${hit.supersededBy}`
+            : "  superseded"
+          : hit.status
+            ? `  ${hit.status}`
+            : "";
+      const fault = hit.lineageFault ? `  lineage ${hit.lineageFault}` : "";
       lines.push(
-        `\n[${hit.sourceKind}] ${where}${hit.section ? `  § ${hit.section}` : ""}  ${hit.strength}${hit.status ? `  ${hit.status}` : ""}`,
-        `  ref: ${hit.ref}`,
-        `  ${hit.excerpt}`,
+        `\n[${hit.sourceKind}] ${where}${hit.section ? `  § ${hit.section}` : ""}  ${hit.strength}${lineage}${fault}`,
       );
+      if (hit.successorExcerpt)
+        lines.push(`  successor: ${hit.successorExcerpt}`);
+      lines.push(`  ref: ${hit.ref}`, `  ${hit.excerpt}`);
     }
     lines.push(
       `\n${value.hits.length} hit(s)${value.totalHits > value.hits.length ? ` of ${value.totalHits}` : ""}`,
@@ -374,11 +384,23 @@ function cmdRead(argv: Argv): void {
   printMemoryResult(result, result.reads, maxChars, (value) => {
     if (argv.flags.json) return JSON.stringify(value);
     const lines = value.truncated ? ["(read output truncated by budget)"] : [];
-    for (const read of value.reads)
+    for (const read of value.reads) {
+      const hint =
+        read.status === "superseded"
+          ? read.supersededBy
+            ? `superseded by: ${read.supersededBy}`
+            : "superseded"
+          : undefined;
+      const fault = read.lineageFault
+        ? `lineage ${read.lineageFault}`
+        : undefined;
       lines.push(
         `\n--- ${read.ref}${read.changed ? " (changed)" : ""}`,
+        ...(hint ? [hint] : []),
+        ...(fault ? [fault] : []),
         read.text,
       );
+    }
     return lines.join("\n");
   });
 }
@@ -386,7 +408,8 @@ function cmdRead(argv: Argv): void {
 function cmdContext(argv: Argv): void {
   // Drill-down step 2 in the search workflow: `search <kw>` picks a session,
   // then `context <id> --grep <kw>` returns top-N hit turns with surrounding
-  // context, token-budgeted for AI consumption. Without --grep: first N turns.
+  // context, token-budgeted for AI consumption. Without --grep: turns just
+  // before the latest compaction boundary, or the session opening if none.
   const id = argv.positional[0];
   if (!id)
     die("usage: context <session-id> [--grep KW] [--turns N] [--around M]");
@@ -435,6 +458,7 @@ function cmdContext(argv: Argv): void {
           total_turns: result.totalTurns,
           total_hit_turns: result.totalHitTurns,
           merged_children: result.mergedChildren,
+          anchor: result.anchor,
           turns: result.turns.map((t) => ({
             idx: t.idx,
             role: t.role,
@@ -461,6 +485,10 @@ function cmdContext(argv: Argv): void {
   if (grep)
     console.log(
       `# query: "${grep}"  hit_turns=${result.totalHitTurns}  showing top ${shown}`,
+    );
+  else if (result.anchor === "before-compaction")
+    console.log(
+      `# no grep — showing turns before the latest compaction boundary (${result.turns.length} of ${result.totalTurns})`,
     );
   else
     console.log(

@@ -305,6 +305,29 @@ describe("chunkAround", () => {
 // =============================================================================
 
 describe("selectContextTurns", () => {
+  it("anchors keyword recovery in original turns instead of repetitive compact summaries", () => {
+    const original = "ORCHID-821: reject charging before validation; do not delete files.";
+    const selected = selectContextTurns([
+      { role: "user", text: original },
+      { role: "assistant", text: "Acknowledged." },
+      { role: "user", kind: "marker", text: "ORCHID-821 SUMMARY ".repeat(600) },
+    ], "ORCHID-821", 1, 2, 200);
+    expect(selected.totalHitTurns).toBe(1);
+    expect(selected.turns.find((turn) => turn.isHit)?.text).toBe(original);
+    expect(selected.turns.map((turn) => turn.text).join("\n")).not.toContain("SUMMARY");
+  });
+
+  it("does not re-inject a compaction summary as neighboring original evidence", () => {
+    const selected = selectContextTurns([
+      { role: "user", text: "ORCHID-731: do not delete files." },
+      { role: "assistant", text: "Acknowledged." },
+      { role: "user", text: "/compact" },
+      { role: "user", kind: "marker", text: "LONG_SUMMARY ".repeat(600) },
+    ], undefined, 3, 1, 6000);
+    expect(selected.turns.map((turn) => turn.text).join("\n")).toContain("ORCHID-731");
+    expect(selected.turns.map((turn) => turn.text).join("\n")).not.toContain("LONG_SUMMARY");
+  });
+
   it("keeps a hit that sits past the head of a long turn", () => {
     const pad = "ordinary detail. ".repeat(400);
     const text = `intro\n\n${pad}the decisive landing velocity budget is 200ms.`;
@@ -318,6 +341,77 @@ describe("selectContextTurns", () => {
     const hit = selected.turns.find((t) => t.isHit);
     expect(hit?.text).toContain("velocity budget");
     expect(hit?.text.length).toBeLessThan(text.length);
+  });
+
+  it("without a query, reads the turns before the latest compaction boundary", () => {
+    const turns = [
+      { role: "user" as const, text: "opening greeting alpha" },
+      { role: "user" as const, text: "filler one" },
+      { role: "user" as const, text: "filler two" },
+      {
+        role: "user" as const,
+        text: "The provider allows at most two retries.",
+      },
+      {
+        role: "user" as const,
+        kind: "marker" as const,
+        text: "[compaction boundary] first summary",
+      },
+      { role: "user" as const, text: "button color only" },
+      { role: "assistant" as const, text: "padding after the first compact" },
+      {
+        role: "user" as const,
+        kind: "marker" as const,
+        text: "[compaction boundary] second summary about layout",
+      },
+    ];
+    const selected = selectContextTurns(turns, undefined, 3, 0, 6000);
+    const text = selected.turns.map((turn) => turn.text).join("\n");
+    expect(selected.anchor).toBe("before-compaction");
+    expect(text).toContain("at most two retries");
+    expect(text).toContain("button color only");
+    expect(text).not.toContain("opening greeting alpha");
+    expect(text).not.toContain("second summary about layout");
+  });
+
+  it("keeps the last short limit when an earlier reply exceeds the budget", () => {
+    const selected = selectContextTurns(
+      [
+        { role: "assistant", text: "x".repeat(8000) },
+        { role: "assistant", text: "y".repeat(8000) },
+        { role: "user", text: "The provider allows at most two retries." },
+        {
+          role: "user",
+          kind: "marker",
+          text: "[compaction boundary] summary mentioned retries in general",
+        },
+      ],
+      undefined,
+      3,
+      1,
+      500,
+    );
+    const text = selected.turns.map((turn) => turn.text).join("\n");
+    expect(selected.anchor).toBe("before-compaction");
+    expect(text).toContain("at most two retries");
+    expect(text).not.toContain("summary mentioned retries");
+  });
+
+  it("without a query or a boundary, still returns the session opening", () => {
+    const selected = selectContextTurns(
+      [
+        { role: "user", text: "opening greeting alpha" },
+        { role: "assistant", text: "later detail" },
+      ],
+      undefined,
+      1,
+      0,
+      6000,
+    );
+    expect(selected.anchor).toBe("opening");
+    expect(selected.turns.map((turn) => turn.text)).toEqual([
+      "opening greeting alpha",
+    ]);
   });
 });
 

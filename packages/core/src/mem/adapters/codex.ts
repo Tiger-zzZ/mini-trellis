@@ -127,7 +127,10 @@ export function commandFromCodexArguments(argsRaw: unknown): string | undefined 
 
 // ---------- list ----------
 
-export function codexListSessions(f: MemFilter): MemSessionInfo[] {
+export function codexListSessions(
+  f: MemFilter,
+  warnings: MemWarning[] = [],
+): MemSessionInfo[] {
   if (!fs.existsSync(CODEX_SESSIONS)) return [];
   const out: MemSessionInfo[] = [];
   for (const file of walkDir(CODEX_SESSIONS)) {
@@ -136,30 +139,40 @@ export function codexListSessions(f: MemFilter): MemSessionInfo[] {
     const m = base.match(
       /^rollout-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})-(.+)$/,
     );
-    const tsFromName = m?.[1]
-      ? new Date(
-          m[1].replace(/T(\d{2})-(\d{2})-(\d{2})/, "T$1:$2:$3") + "Z",
-        ).toISOString()
-      : undefined;
+    try {
+      fs.accessSync(file, fs.constants.R_OK);
+      const tsFromName = m?.[1]
+        ? new Date(
+            m[1].replace(/T(\d{2})-(\d{2})-(\d{2})/, "T$1:$2:$3") + "Z",
+          ).toISOString()
+        : undefined;
 
-    const first = readJsonlFirst<CodexEvent>(file);
-    const meta = first?.payload;
-    const id = meta?.id ?? m?.[2] ?? base;
-    const cwd = meta?.cwd;
-    const created = first?.timestamp ?? tsFromName ?? "";
+      const first = readJsonlFirst<CodexEvent>(file);
+      const meta = first?.payload;
+      const id = meta?.id ?? m?.[2] ?? base;
+      const cwd = meta?.cwd;
+      const created = first?.timestamp ?? tsFromName ?? "";
 
-    if (f.cwd && !sameProject(cwd, f.cwd)) continue;
-    const updated = fs.statSync(file).mtime.toISOString();
-    if (!inRangeOverlap(created, updated, f)) continue;
+      if (f.cwd && !sameProject(cwd, f.cwd)) continue;
+      const updated = fs.statSync(file).mtime.toISOString();
+      if (!inRangeOverlap(created, updated, f)) continue;
 
-    out.push({
-      platform: "codex",
-      id,
-      cwd,
-      created,
-      updated,
-      filePath: file,
-    });
+      out.push({
+        platform: "codex",
+        id,
+        cwd,
+        created,
+        updated,
+        filePath: file,
+      });
+    } catch (error) {
+      const id = m?.[2] ?? base;
+      const message = error instanceof Error ? error.message : String(error);
+      warnings.push({
+        code: "session-history-unreadable",
+        message: `cannot read session ${id} (${file}): ${message}`,
+      });
+    }
   }
   return out;
 }

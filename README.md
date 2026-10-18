@@ -9,6 +9,7 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#working-with-project-memory">How it works</a> ·
+  <a href="./docs/using.md">During a change</a> ·
   <a href="#context-overhead">Context overhead</a> ·
   <a href="#migrating-from-trellis">Migration</a> ·
   <a href="./README_CN.md">简体中文</a>
@@ -29,7 +30,7 @@ mini-trellis adds project memory to your existing way of working. Planning, impl
 
 ## Quick start
 
-v0.2.2 streamlines the session-start entry and automatically cleans legacy workflow hooks during migration. See the [release notes](./docs/releases/v0.2.2.md).
+v0.3.0 prefers the note that replaced an older one, and Claude Code and Codex can recover the pre-compact limit for the current session. See the [release notes](./docs/releases/v0.3.0.md).
 
 Requires **Node.js ≥ 18.17**, **Python ≥ 3.9**, and Git for version control.
 
@@ -81,6 +82,8 @@ The agent saves these findings as project notes, ready to consult and update in 
 The Markdown files can be reviewed, edited and versioned in Git. Check your ignore rules if you want to share them with the team. Original conversations remain in the agent's own local store.
 
 ### During a session
+
+[During a change](./docs/using.md) walks through one callback fix: look it up, write the decision down, run `remember`, and look it up again next session.
 
 At startup, the configured hook supplies knowledge locations and recording guidance. The agent can read the relevant notes while working and search history when a previous decision matters.
 
@@ -146,6 +149,8 @@ Use `mini-trellis platforms` to inspect configured tools. To remove an installat
 A phase-gated workflow injects state or specs at session start, on every user prompt, and whenever a sub-agent starts. mini-trellis keeps only a short startup entry; prior decisions and project specs are read when needed, stay in the main session context, and are not re-injected.
 
 ![Context Breakdown and Cumulative Overhead Across a 10-Turn Task](./docs/assets/context-overhead-en.svg)
+
+The table below is the v0.2.2 character count on one fixture. It is not an end-to-end token or latency result for v0.3.0.
 
 Measured on the same repository fixture across a 10-turn backend task, where both runs load the same three backend spec files (`backend/index.md`, `error-handling.md`, `quality-guidelines.md`, 2,690 chars total) and the same research note (474 chars):
 
