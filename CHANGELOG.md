@@ -5,7 +5,7 @@
 - A note can mark a whole-document replacement with `status: superseded` and `superseded_by`. Recall prefers the current note, including when `--limit 1` would otherwise keep only the older match. `mem read` shows the same successor path and does not paste the successor body.
 - A missing, out-of-scope, self, cyclic, or unfinished chain is reported. A newer file time, a section edit, or nested metadata does not mark the whole note historical.
 - After compact, Claude Code and Codex name the host session id. `mini-trellis mem context <id> --platform claude|codex` reads the turns before the latest compaction boundary. Keyword search and neighboring excerpts skip the compaction summary.
-- OpenCode and Pi still do not name the current session after compact. A standalone Claude `SessionStart:resume` event was not recorded, so the Claude matcher is unchanged.
+- OpenCode and Pi still do not name the current session after compact.
 
 Version changes and upgrade instructions are in the [release notes](docs/releases/v0.3.0.md).
 
@@ -43,9 +43,7 @@ v0.2 makes the memory layer safer to install into an existing project and easier
 - Limits automatic context to 4,000 characters, skips duplicate OpenCode injection, and states when the model should record knowledge.
 - Keeps new installs journal-only by default and removes the project-level Codex recursion setting from the new template.
 
-The diagrams and the v0.3 direction remain in [`docs/roadmap.md`](docs/roadmap.md).
-
-Host validation: Codex CLI 0.159.2 completed a real hook-to-journal run. Claude Code 2.1.281's hook contract passes locally, while the configured proxy rejected the full API turn because its 1m context capability was unavailable; see [`docs/releases/v0.2.0.md`](docs/releases/v0.2.0.md).
+Version changes are in the [release notes](docs/releases/v0.2.0.md).
 
 ## v0.1.1 — 2026-10-04
 
