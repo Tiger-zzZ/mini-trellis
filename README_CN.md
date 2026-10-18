@@ -30,7 +30,7 @@ mini-trellis 为现有开发方式补上项目记忆，规划、实现和验收�
 
 ## 快速开始
 
-v0.2.2 进一步收窄会话启动入口，并在迁移时自动清理残留的旧工作流配置。见[版本说明](./docs/releases/v0.2.2.md)。
+v0.3.0 在查询时优先给出替换后的现行笔记，并让 Claude Code 与 Codex 在 compact 后找回这一场会话压缩前的限制。见[版本说明](./docs/releases/v0.3.0.md)。
 
 需要 **Node.js ≥ 18.17**、**Python ≥ 3.9**，以及用于版本管理的 Git。
 
@@ -149,6 +149,8 @@ Refresh 只更新受管理且未被本地修改的文件，保留知识和自定
 `Phase-Gated Workflow` 在每次会话启动、每一轮用户输入、每次派发子代理时都会注入状态或规范。mini-trellis 只保留启动时的短入口；历史结论和项目规范在需要时读取，留在主会话上下文里，不再重复注入。
 
 ![同一 10 轮开发任务下的上下文构成拆解与累计开销](./docs/assets/context-overhead-zh.svg)
+
+下表是 v0.2.2 在同一夹具上的字符数，不是 v0.3.0 的端到端 token 或耗时结果。
 
 在同一测试仓库中完成一次 10 轮后端修改任务，两边读取相同的 3 份后端规范（`backend/index.md`、`error-handling.md`、`quality-guidelines.md`，共 2,690 字符）和同一篇研究笔记（474 字符）：
 

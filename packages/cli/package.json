@@ -1,6 +1,6 @@
 {
   "name": "mini-trellis",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Minimal memory layer for AI coding agents: spec, research, journal, and cross-session recall.",
   "repository": {
     "type": "git",

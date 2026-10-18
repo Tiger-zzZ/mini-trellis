@@ -156,7 +156,7 @@ flowchart LR
 
 **用户场景**：旧文档写“回调最多重试三次”，后续明确改为“两次”。查询当前行为时应优先得到新结论；查询“为什么改成两次”时仍能找到旧方案和变更原因。
 
-**借鉴**：Comet 的来源、同主题更新和 superseded 思路。mini-trellis 采用可选的少量元数据与正常 Markdown 链接，先不复制完整的知识状态机。
+**做法**：用可选的少量元数据与正常 Markdown 链接表达整篇替代。普通笔记缺少这些字段时继续正常使用，不引入完整的知识状态机。
 
 **具体工作**：
 
@@ -280,18 +280,18 @@ flowchart LR
 
 **代码入口**：[doctor](../packages/cli/src/commands/doctor.ts)、[hook 测试](../packages/cli/test/hooks/session-start-memory.integration.test.ts)、[doctor 测试](../packages/cli/test/commands/doctor.test.ts)。本地 experiments/v0.2.1/verify-hosts.py 可参考其真实宿主验收实现。
 
-### 3.8 借鉴、复用与自行实现的分工
+### 3.8 复用与自行实现的分工
 
-| 工作包 | 可以借鉴的设计 | 继续复用的基础 | mini-trellis 需要完成的部分 |
-| --- | --- | --- | --- |
-| F1 | Comet 的同主题更新、来源与失败经验 | remember、add_session.py、现有 Markdown 与链接验证 | 按复现修正遗漏，验证语义与文件结果，保持简短记录 |
-| F2 | Comet 的替代状态，已有沿革草稿 | 文档发现、召回排序、read 与现有引用 | 可选元数据、有限关系解析、当前/历史呈现与异常处理 |
-| F3 | Comet/QMD 调研中的词法处理、预算与渐进阅读 | 现有 lexical、recall/read 和边界测试 | 用新固定案例优化匹配、窗口与实际调用路径 |
-| F4 | Trellis 的压缩历史保留与事件恢复，已有交接草稿 | 四宿主适配器、会话读取、短启动入口 | 精确身份交付、兼容的读取入口、连续场景验收 |
-| F5 | 研究中的线索触发、Trellis 路径关联，已有提示草稿 | 当前 SessionStart 与去重、项目结构 | 有界候选匹配、少量提示、误提示与收益实验 |
-| F6 | 竞品的可操作诊断和复现实验组织 | doctor、本地运行状态、已有测试 | 补足证据层次与下一步指引，保持输出准确 |
+| 工作包 | 继续复用的基础 | mini-trellis 需要完成的部分 |
+| --- | --- | --- |
+| F1 | remember、add_session.py、现有 Markdown 与链接验证 | 按复现修正遗漏，验证语义与文件结果，保持简短记录 |
+| F2 | 文档发现、召回排序、read 与现有引用 | 可选元数据、有限关系解析、当前/历史呈现与异常处理 |
+| F3 | 现有 lexical、recall/read 和边界测试 | 用新固定案例优化匹配、窗口与实际调用路径 |
+| F4 | 四宿主适配器、会话读取、短启动入口 | 精确身份交付、兼容的读取入口、连续场景验收 |
+| F5 | 当前 SessionStart 与去重、项目结构 | 有界候选匹配、少量提示、误提示与收益实验 |
+| F6 | doctor、本地运行状态、已有测试 | 补足证据层次与下一步指引，保持输出准确 |
 
-优先审阅已有草稿中的实现与测试，再决定哪些可以保留。直接复制第三方代码前核对版本、许可证和依赖；仅吸收思想时按现有模块边界实现，不为兼容上游整体架构扩大本项目职责。
+优先审阅已有草稿中的实现与测试，再决定哪些可以保留。引入第三方代码前核对版本、许可证和依赖，并按本项目已有模块边界实现。
 
 <a id="research"></a>
 ## 4. 学术与技术研究如何转成产品设计
@@ -312,9 +312,9 @@ flowchart LR
 
 在现有需求池或相应工作包里记录：来源及版本、观察到的问题、可检验假设、最小实现、可能代价、对照结果和最终取舍。优先论文原文、官方文档、源码及可复现实验，社区帖子用于发现问题和场景。
 
-可以借用成熟的测试样例和纯函数设计，保留必要出处与许可证要求。采用状态含义、上下文预算、渐进展开等思想时，用本项目已有层次落地；不因上游使用某套运行时就引入完整运行时。
+可以借用带有许可证的测试样例和纯函数，并保留必要出处。讨论和论文里形成的假设，用本项目已有层次落地；不因外部系统使用某套运行时就引入完整运行时。
 
-研究中的新模型、嵌入、后台服务、知识全自动整理等如果改变共同边界，应作为独立提案讨论，不能借“借鉴竞品”直接混入当前任务。
+研究中的新模型、嵌入、后台服务、知识全自动整理等如果改变共同边界，应作为独立提案讨论，不能未经验证直接混入当前任务。
 
 <a id="maintenance"></a>
 ## 5. 遗留问题与持续维护
@@ -713,7 +713,7 @@ OpenCode 和 Pi 这包仍没有精确会话恢复。OpenCode 的注入不经过 
 
 Claude Code 和 Codex 的命令都在本机。`claude -p` 和 `codex exec` 都不能发起一次真实的 `/compact`。这一轮没有打开交互会话，所以下面的循环没有做，Claude Code 和 Codex 各三次都没有：记录一个决定、新会话召回、同主题更新、真实 compact 后找回预先设定的具体限制、再追问旧方案为什么被替代，也没有核对那几次的实际文件。A02、A04、A05、A06、A08、A09、A10 在这包上仍是未验证。不能用 v0.2.1 的旧验收代替。OpenCode 和 Pi 的精确会话恢复没有实现。
 
-### 2026-10-17 复核与真实验收补记（未提交）
+### 2026-10-17 复核与真实验收补记
 
 本节接续上述历史记录。仍在 `feat/precise-session-recovery`，没有提交、推送、改版本号或发布。范围保持使用说明、F4、F2；没有加入 F3、F5、Cursor 或 DeepSeek Harness。
 
@@ -838,16 +838,13 @@ flowchart TD
 
 ### 11.2 外部一手资料
 
-| 来源 | 可以借鉴或验证的内容 | 引用边界 |
+| 来源 | 可以核对的内容 | 引用边界 |
 | --- | --- | --- |
-| [Comet Native Workflow](https://docs.comet.rpamis.com/en/concepts/native-workflow) | 固定目标与验收、评估质量和成本 | 其 Native/Classic 比较不能代替 mini-trellis 的测量 |
-| [Comet Project Knowledge](https://docs.comet.rpamis.com/en/plugins/project-rules) | 来源、同主题更新、失败经验、替代关系 | 本计划采用轻量子集，不复制存储、注入和完整运行时 |
-| [Trellis 0.6.14](https://docs.trytrellis.app/changelog/v0.6.14)、[0.7 beta](https://docs.trytrellis.app/changelog/v0.7.0-beta.4) | 历史读取、压缩边界、宿主与路径机制 | 结合源码核对；不恢复固定阶段与强制子代理 |
 | [Delivery, Not Storage](https://arxiv.org/abs/2607.20972) | 线索触发、事件交付、反复压缩实验 | 2026-10-16 核对题名与摘要；具体指标与实现引用前再读全文 |
 | [Cursor Hooks](https://cursor.com/docs/hooks) | 宿主事件、项目配置、本地与云端差异 | 2026-10-16 文档快照；实施时再核对 |
 | [DeepSeek 官方文档](https://api-docs.deepseek.com/)、[Harness 指南](https://deepseek-harness.github.io/deepseek-harness/en/guide/quickstart) | 产品入口、接入方向与 Preview 状态 | 尚未完成 Memory、插件及历史读取的深入验证 |
 
-Comet/Trellis 的详细架构取舍沿用 2026-10-14 本地调研快照，不能将快照版本称为永远的“最新版”。代码复用前核对实际版本与许可证。
+论文中的特定任务结果不直接转换成 mini-trellis 的通用指标。引用具体数据前，核对原文版本、实验设置与限制。
 
 ### 11.3 本地补充研究与验收材料
 
@@ -855,7 +852,7 @@ Comet/Trellis 的详细架构取舍沿用 2026-10-14 本地调研快照，不能
 
 以下路径相对包含 mini-trellis 仓库的工作区，仅作可选背景，云端执行不依赖这些文件：
 
-- research/2026-10-14-trellis-cross-session-and-star-growth/：社区问题、Comet/Trellis 架构取舍、blueprint 与需求池。
+- research/2026-10-14-trellis-cross-session-and-star-growth/：社区问题、讨论记录与需求池。
 - research/2026-10-15-linuxdo-opensource-promo/findings.md：推广环境、案例与统计口径；论坛点赞不是 GitHub star。
 - research/2026-10-03-mini-trellis-roadmap/：早期源码与实现研究，部分命令设计和版本安排已经被后续实现替代。
 - research/2026-10-09-agent-stack-landscape/：工程与评测思路；其中通用 Agent 编排方案不是本项目默认产品范围。
