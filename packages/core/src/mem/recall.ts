@@ -216,6 +216,7 @@ function followLineage(
       return { superseded: true, fault: "missing-target" };
     }
     if (!next.supersededBy) {
+      if (next.superseded) return { superseded: true, fault: "missing-target" };
       return {
         superseded: true,
         supersededBy: nextRel,
@@ -249,7 +250,13 @@ function select(
   let used = 0;
   let truncated = false;
   const emitted = new Set<string>();
-  for (const candidate of ranked) {
+  // Resolve declared priority before either result count or character budget
+  // can discard the current note. Keep the candidate's own evidence anchor.
+  const byRef = new Map(ranked.map((candidate) => [candidate.hit.ref, candidate]));
+  const ordered = liftDeclaredSuccessors(ranked.map((candidate) => candidate.hit));
+  for (const orderedHit of ordered) {
+    const candidate = byRef.get(orderedHit.ref);
+    if (!candidate) continue;
     if (emitted.has(candidate.duplicateKey)) continue;
     if (hits.length >= limit) {
       truncated = true;
@@ -439,9 +446,13 @@ export function recallMem(options: RecallMemOptions): RecallResult {
     }
   }
   const strong = candidates.filter((c) => c.hit.strength === "strong");
-  const pool = strong.length ? strong : candidates;
+  const successors = new Set(strong.filter((c) => !c.hit.lineageFault)
+    .map((c) => c.hit.supersededBy).filter(Boolean));
+  // A current rule may use fewer query terms than the note it replaces.
+  const pool = strong.length
+    ? candidates.filter((c) => c.hit.strength === "strong" || successors.has(c.hit.path))
+    : candidates;
   const selected = select(pool, limit, maxChars);
-  selected.hits = liftDeclaredSuccessors(selected.hits);
   return {
     ...selected,
     totalHits: pool.length,

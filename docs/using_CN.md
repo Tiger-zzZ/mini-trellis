@@ -13,6 +13,8 @@ mini-trellis init -u 你的名字 --claude
 
 ## 从 Trellis 迁过来
 
+迁移前请备份项目知识和自定义配置，包括被 Git 忽略的文件。迁移命令不会自动创建备份。
+
 ```bash
 mini-trellis migrate --dry-run
 mini-trellis migrate
@@ -89,6 +91,8 @@ mini-trellis mem context <session-id> --platform claude
 ```
 
 Codex 用 `--platform codex`。不加查询时，读的是最近一次压缩边界之前的有限轮次。前面的长回复不会把最后一条短限制挤掉。`mem recall` 仍用来查项目笔记，`mem read` 展开 `session:v1` 引用。
+
+要找更早的条件，可以加 `--grep "<关键词>"` 定位原始轮次；压缩摘要不会作为关键词命中或相邻摘录返回。Codex 的 compact 提示会在下一条用户消息开始时交付。
 
 三种失败分开说。没有会话 id 时，提示保持通用，不改绑另一场。历史文件还没落盘时，context 报 `session-history-missing`。文件不可读时，报 `session-history-unreadable`。
 

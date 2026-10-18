@@ -305,6 +305,29 @@ describe("chunkAround", () => {
 // =============================================================================
 
 describe("selectContextTurns", () => {
+  it("anchors keyword recovery in original turns instead of repetitive compact summaries", () => {
+    const original = "ORCHID-821: reject charging before validation; do not delete files.";
+    const selected = selectContextTurns([
+      { role: "user", text: original },
+      { role: "assistant", text: "Acknowledged." },
+      { role: "user", kind: "marker", text: "ORCHID-821 SUMMARY ".repeat(600) },
+    ], "ORCHID-821", 1, 2, 200);
+    expect(selected.totalHitTurns).toBe(1);
+    expect(selected.turns.find((turn) => turn.isHit)?.text).toBe(original);
+    expect(selected.turns.map((turn) => turn.text).join("\n")).not.toContain("SUMMARY");
+  });
+
+  it("does not re-inject a compaction summary as neighboring original evidence", () => {
+    const selected = selectContextTurns([
+      { role: "user", text: "ORCHID-731: do not delete files." },
+      { role: "assistant", text: "Acknowledged." },
+      { role: "user", text: "/compact" },
+      { role: "user", kind: "marker", text: "LONG_SUMMARY ".repeat(600) },
+    ], undefined, 3, 1, 6000);
+    expect(selected.turns.map((turn) => turn.text).join("\n")).toContain("ORCHID-731");
+    expect(selected.turns.map((turn) => turn.text).join("\n")).not.toContain("LONG_SUMMARY");
+  });
+
   it("keeps a hit that sits past the head of a long turn", () => {
     const pad = "ordinary detail. ".repeat(400);
     const text = `intro\n\n${pad}the decisive landing velocity budget is 200ms.`;

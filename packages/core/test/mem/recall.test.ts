@@ -55,6 +55,27 @@ describe("queryTerms", () => {
 });
 
 describe("recall relevance and safe dedupe", () => {
+  it.each(["callback retry limit", "callback limit"])("keeps the declared current rule before truncation: %s", (currentWords) => {
+    write("docs/old.md", "---\nsuperseded_by: docs/current.md\n---\n# callback retry limit\ncallback retry limit is three.\n");
+    write("docs/current.md", "# Policy\n" + "General introduction. ".repeat(40) + `\n${currentWords} is two.\n`);
+    const result = recallMem({ cwd: root, query: "callback retry limit", limit: 1 });
+    expect(result.hits[0]?.path).toBe("docs/current.md");
+    expect(result.hits[0]?.excerpt).toContain("is two");
+    const ref = result.hits[0]?.ref;
+    expect(readMemRefs({ cwd: root, refs: ref ? [ref] : [] }).reads[0]?.text).toContain("is two");
+  });
+
+  it("does not present a status-only superseded successor as current", () => {
+    write("docs/old.md", "---\nsuperseded_by: docs/retired.md\n---\n# needle\nold rule\n");
+    write("docs/retired.md", "---\nstatus: superseded\n---\n# Retired\nObsolete limit.\n");
+    const hit = recallMem({ cwd: root, query: "needle" }).hits[0];
+    if (!hit) throw new Error("expected old note");
+    expect(hit.lineageFault).toBe("missing-target");
+    expect(hit.supersededBy).toBeUndefined();
+    expect(hit.successorExcerpt).toBeUndefined();
+    expect(readMemRefs({ cwd: root, refs: [hit.ref] }).reads[0]?.lineageFault).toBe("missing-target");
+  });
+
   it("recalls an exact document path even when its body does not repeat the filename", () => {
     write("docs/retry_budget.md", "# Limits\nUse at most two attempts.\n");
     const result = recallMem({ cwd: root, query: "docs/retry_budget.md" });
@@ -757,7 +778,9 @@ describe("recallMem", () => {
       ".trellis/research/prior.md",
       "# Superseded\nstatus: superseded\nsuperseded_by: .trellis/research/next.md\n\n# Prior\n\nprior needle body\n",
     );
-    const hit = recallMem({ cwd: root, query: "prior needle" }).hits[0];
+    const hit = recallMem({ cwd: root, query: "prior needle" }).hits.find(
+      (item) => item.path === ".trellis/research/prior.md",
+    );
     expect(hit?.status).toBe("superseded");
     expect(hit?.supersededBy).toBe(".trellis/research/next.md");
   });

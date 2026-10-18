@@ -128,7 +128,8 @@ export function selectContextTurns(
     const ranked: { idx: number; role: DialogueRole; hits: number }[] = [];
     for (let i = 0; i < turns.length; i++) {
       const turn = turns[i];
-      if (!turn) continue;
+      // Compaction summaries repeat query terms but are not original dialogue.
+      if (!turn || turn.kind === "marker") continue;
       const h = tokens.length === 0 ? 0 : matchCount(turn.text);
       if (h > 0) ranked.push({ idx: i, role: turn.role, hits: h });
     }
@@ -162,7 +163,8 @@ export function selectContextTurns(
   // Allocate evidence first, then short neighboring qualifiers, finally render
   // in dialogue order. A long preceding turn cannot consume the hit's budget.
   const neighbors = [...display]
-    .filter((i) => !hitSet.has(i))
+    // A compact summary is a boundary, not neighboring original evidence.
+    .filter((i) => !hitSet.has(i) && turns[i]?.kind !== "marker")
     .sort(
       (a, b) => (turns[a]?.text.length ?? 0) - (turns[b]?.text.length ?? 0),
     );
