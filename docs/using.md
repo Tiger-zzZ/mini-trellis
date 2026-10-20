@@ -1,6 +1,6 @@
 # Using it while you code
 
-Commands run from the project root. The record command is `/mini-trellis:remember` in Claude Code and OpenCode, `$mini-trellis-remember` in Codex, and `/mini-trellis-remember` in Pi.
+Commands run from the project root. The record command is `/mini-trellis:remember` in Claude Code and OpenCode, `$mini-trellis-remember` in Codex, and `/mini-trellis-remember` in Pi. DeepSeek Harness and Cursor use the `mini-trellis-remember` skill.
 
 ## Install on a new project
 
@@ -9,7 +9,7 @@ npm install -g mini-trellis
 mini-trellis init -u your-name --claude
 ```
 
-Pass only the tools you use: `--claude`, `--codex`, `--opencode`, `--pi`. Add `-y` to skip prompts. Init writes `.trellis/` and the host files. It does not create a Git commit.
+Pass only the tools you use: `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--cursor`. Add `-y` to skip prompts. Init writes `.trellis/` and the host files. It does not create a Git commit. DeepSeek has no SessionStart, so call `mem recall` when project knowledge is needed. Cursor injects the short entry only in a local session; cloud agents do not run `sessionStart`. Neither host parses local conversation history. OpenCode and Pi have no precise compact.
 
 ## Move a Trellis project over
 
@@ -111,6 +111,6 @@ mini-trellis doctor
 | `legacy-trellis` | A Trellis workflow is still present. Run `mini-trellis migrate --dry-run`. |
 | `memory-layer` | `.trellis` or `add_session.py` is missing. Run `mini-trellis init`. |
 | `instructions` | `AGENTS.md` is missing the managed block. Run init again. |
-| `platforms` | No host hook was found. Pass `--claude`, `--codex`, `--opencode`, or `--pi`. |
+| `platforms` | No host was found. Pass `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, or `--cursor`. |
 | `<host>-runtime` unknown | No real hook run is on disk yet. Start one host session. For Codex, trust the project hook first. |
 | `<host>-runtime` warn | The last hook did not finish cleanly. The detail has the status and error category. |

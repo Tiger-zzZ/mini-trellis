@@ -6,7 +6,7 @@
 
 mini-trellis 是轻量的项目记忆层：spec、research、journal 和跨会话召回。贡献应帮助 Agent 保存与查找可复用知识，同时保持安装和日常使用简单。
 
-支持宿主：Claude Code、Codex、OpenCode、Pi。
+支持宿主：Claude Code、Codex、OpenCode、Pi、DeepSeek Harness、Cursor。DeepSeek 没有项目级 SessionStart。Cursor 云端不跑 `sessionStart`。这两个宿主都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
 
 ## 本地
 

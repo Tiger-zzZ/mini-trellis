@@ -30,7 +30,7 @@ mini-trellis adds project memory to your existing way of working. Planning, impl
 
 ## Quick start
 
-v0.3.0 prefers the note that replaced an older one, and Claude Code and Codex can recover the pre-compact limit for the current session. See the [release notes](./docs/releases/v0.3.0.md).
+v0.3.1 installs project skills for DeepSeek Harness and a short local session entry for Cursor. DeepSeek has no SessionStart, so the model calls `mem recall` itself. Cursor cloud agents do not run `sessionStart`, and neither host parses local conversation history. OpenCode and Pi still have no precise compact. See the [release notes](./docs/releases/v0.3.1.md).
 
 Requires **Node.js ≥ 18.17**, **Python ≥ 3.9**, and Git for version control.
 
@@ -48,7 +48,7 @@ You can also hand this to the agent you are already using:
 ```text
 Install or migrate mini-trellis in this project. If the command is missing, run npm install -g mini-trellis first.
 If this project has legacy workflow files (for example .trellis/workflow.md, .trellis/scripts/task.py, or inject-*.py), run mini-trellis migrate --dry-run, show me the plan, and run mini-trellis migrate -y after I confirm.
-If this is a new project, run mini-trellis init -u <name> -y with only the tools I actually use (--claude, --codex, --opencode, --pi).
+If this is a new project, run mini-trellis init -u <name> -y with only the tools I actually use (--claude, --codex, --opencode, --pi, --dsh, --cursor).
 Then run mini-trellis doctor and report the result. Do not delete .trellis/spec, .trellis/research, or .trellis/workspace.
 ```
 
@@ -112,8 +112,19 @@ For conversation-only lookup, use `mem search`, then `mem context` with a return
 | Codex | `--codex` | `$mini-trellis-remember` |
 | OpenCode | `--opencode` | `/mini-trellis:remember` |
 | Pi | `--pi` | `/mini-trellis-remember` |
+| DeepSeek Harness | `--dsh` | `mini-trellis-remember` |
+| Cursor | `--cursor` | `mini-trellis-remember` |
 
 For example, add both Claude Code and Codex with `mini-trellis init -u your-name --claude --codex`.
+
+### What each host covers
+
+| Host | Project knowledge | Event injection | Local history |
+| --- | --- | --- | --- |
+| DeepSeek Harness | `.dsh/skills/`. Call `mem recall`, then `mem read` when the excerpt is not enough. | No project SessionStart to write. | `~/.dsh/sessions` is unsupported. |
+| Cursor, local | `.cursor/skills/`. | `sessionStart` injects the short entry. | Conversation history is unsupported. |
+| Cursor, cloud | Skills can travel with the repo. | `sessionStart` does not run. | Conversation history is unsupported. |
+| OpenCode, Pi | Existing commands and skills. | Each has its own startup entry. | Sessions can be listed. No precise compact. |
 
 For Codex:
 
@@ -150,7 +161,7 @@ A phase-gated workflow injects state or specs at session start, on every user pr
 
 ![Context Breakdown and Cumulative Overhead Across a 10-Turn Task](./docs/assets/context-overhead-en.svg)
 
-The table below is the v0.2.2 character count on one fixture. It is not an end-to-end token or latency result for v0.3.0.
+The table below is the v0.2.2 character count on one fixture. It is not an end-to-end token or latency result.
 
 Measured on the same repository fixture across a 10-turn backend task, where both runs load the same three backend spec files (`backend/index.md`, `error-handling.md`, `quality-guidelines.md`, 2,690 chars total) and the same research note (474 chars):
 

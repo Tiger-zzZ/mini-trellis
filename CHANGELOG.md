@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.1 — 2026-10-20
+
+- DeepSeek Harness installs short project skills under `.dsh/skills/`. There is no project SessionStart hook. The model calls `mem recall`, then `mem read` when the excerpt is not enough, and `mini-trellis-remember` after a confirmed decision. Compressed transcripts in `~/.dsh/sessions` are not read.
+- Cursor installs the same short skills and reuses the local `sessionStart` hook. Cloud agents do not run `sessionStart`. Cursor conversation history is not parsed.
+- OpenCode and Pi still do not name the current session after compact.
+
+Version changes and upgrade instructions are in the [release notes](docs/releases/v0.3.1.md).
+
 ## v0.3.0 — 2026-10-18
 
 - A note can mark a whole-document replacement with `status: superseded` and `superseded_by`. Recall prefers the current note, including when `--limit 1` would otherwise keep only the older match. `mem read` shows the same successor path and does not paste the successor body.

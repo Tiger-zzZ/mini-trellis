@@ -1,6 +1,6 @@
 # 开发时怎么用
 
-命令在项目根目录执行。Claude Code 和 OpenCode 用 `/mini-trellis:remember`，Codex 用 `$mini-trellis-remember`，Pi 用 `/mini-trellis-remember`。
+命令在项目根目录执行。Claude Code 和 OpenCode 用 `/mini-trellis:remember`，Codex 用 `$mini-trellis-remember`，Pi 用 `/mini-trellis-remember`。DeepSeek Harness 和 Cursor 用技能 `mini-trellis-remember`。
 
 ## 从零安装
 
@@ -9,7 +9,7 @@ npm install -g mini-trellis
 mini-trellis init -u 你的名字 --claude
 ```
 
-只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。
+只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 只在本地注入短入口；云端不跑 `sessionStart`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
 
 ## 从 Trellis 迁过来
 
@@ -111,6 +111,6 @@ mini-trellis doctor
 | `legacy-trellis` | 还留着 Trellis 工作流。先跑 `mini-trellis migrate --dry-run`。 |
 | `memory-layer` | 缺少 `.trellis` 或 `add_session.py`。跑 `mini-trellis init`。 |
 | `instructions` | `AGENTS.md` 没有托管块。再跑一次 init。 |
-| `platforms` | 没有发现宿主 hook。加上 `--claude`、`--codex`、`--opencode` 或 `--pi`。 |
+| `platforms` | 没有发现宿主。加上 `--claude`、`--codex`、`--opencode`、`--pi`、`--dsh` 或 `--cursor`。 |
 | `<host>-runtime` 为 unknown | 还没有一次真实 hook 记录。开一轮宿主会话。Codex 要先信任项目 hook。 |
 | `<host>-runtime` 为 warn | 最近一次 hook 没有干净结束。明细里有状态和错误类别。 |

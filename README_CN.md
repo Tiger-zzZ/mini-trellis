@@ -30,7 +30,7 @@ mini-trellis 为现有开发方式补上项目记忆，规划、实现和验收�
 
 ## 快速开始
 
-v0.3.0 在查询时优先给出替换后的现行笔记，并让 Claude Code 与 Codex 在 compact 后找回这一场会话压缩前的限制。见[版本说明](./docs/releases/v0.3.0.md)。
+v0.3.1 为 DeepSeek Harness 安装项目技能，并为 Cursor 本地会话接上短启动入口。DeepSeek 没有 SessionStart，由模型自己调用 `mem recall`。Cursor 云端不跑 `sessionStart`，两边都不解析本机对话。OpenCode 和 Pi 仍然没有精确 compact。见[版本说明](./docs/releases/v0.3.1.md)。
 
 需要 **Node.js ≥ 18.17**、**Python ≥ 3.9**，以及用于版本管理的 Git。
 
@@ -48,7 +48,7 @@ mini-trellis init -u your-name --claude
 ```text
 请在当前项目安装或迁移 mini-trellis。若还没有命令，先执行 npm install -g mini-trellis。
 如果项目里已有旧版工作流文件（例如 .trellis/workflow.md、.trellis/scripts/task.py，或 inject-*.py），先运行 mini-trellis migrate --dry-run，把计划给我看，确认后再执行 mini-trellis migrate -y。
-如果是新项目，运行 mini-trellis init -u <name> -y，并只加上我实际使用的工具参数（--claude、--codex、--opencode、--pi）。
+如果是新项目，运行 mini-trellis init -u <name> -y，并只加上我实际使用的工具参数（--claude、--codex、--opencode、--pi、--dsh、--cursor）。
 最后运行 mini-trellis doctor，并说明结果。不要删除 .trellis/spec、.trellis/research 或 .trellis/workspace。
 ```
 
@@ -112,8 +112,19 @@ mini-trellis mem read "<ref>"
 | Codex | `--codex` | `$mini-trellis-remember` |
 | OpenCode | `--opencode` | `/mini-trellis:remember` |
 | Pi | `--pi` | `/mini-trellis-remember` |
+| DeepSeek Harness | `--dsh` | `mini-trellis-remember` |
+| Cursor | `--cursor` | `mini-trellis-remember` |
 
 例如，同时配置 Claude Code 和 Codex：`mini-trellis init -u your-name --claude --codex`。
+
+### 支持到哪一层
+
+| 宿主 | 项目知识 | 事件注入 | 本机历史 |
+| --- | --- | --- | --- |
+| DeepSeek Harness | `.dsh/skills/`。需要时自己执行 `mem recall`，摘录不够再 `mem read`。 | 没有可写入的项目级 SessionStart。 | `~/.dsh/sessions` 未支持。 |
+| Cursor 本地 | `.cursor/skills/`。 | `sessionStart` 注入短入口。 | 对话历史未支持。 |
+| Cursor 云端 | 技能可以随仓库走。 | `sessionStart` 不运行。 | 对话历史未支持。 |
+| OpenCode、Pi | 现有命令和技能。 | 各有启动入口。 | 可以列会话。没有精确 compact。 |
 
 使用 Codex 时：
 
@@ -150,7 +161,7 @@ Refresh 只更新受管理且未被本地修改的文件，保留知识和自定
 
 ![同一 10 轮开发任务下的上下文构成拆解与累计开销](./docs/assets/context-overhead-zh.svg)
 
-下表是 v0.2.2 在同一夹具上的字符数，不是 v0.3.0 的端到端 token 或耗时结果。
+下表是 v0.2.2 在同一夹具上的字符数，不是端到端 token 或耗时结果。
 
 在同一测试仓库中完成一次 10 轮后端修改任务，两边读取相同的 3 份后端规范（`backend/index.md`、`error-handling.md`、`quality-guidelines.md`，共 2,690 字符）和同一篇研究笔记（474 字符）：
 

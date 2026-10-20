@@ -9,7 +9,7 @@ mini-trellis is a lightweight project memory layer: spec, research, journal,
 and cross-session recall. Contributions should help agents save and find
 reusable knowledge while keeping setup and daily use simple.
 
-Supported hosts: Claude Code, Codex, OpenCode, Pi.
+Supported hosts: Claude Code, Codex, OpenCode, Pi, DeepSeek Harness, and Cursor. DeepSeek has no project SessionStart. Cursor cloud agents do not run `sessionStart`. Neither of those hosts parses local conversation history. OpenCode and Pi have no precise compact.
 
 ## How to work
 
