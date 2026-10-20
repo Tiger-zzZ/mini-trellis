@@ -80,6 +80,11 @@ const PLATFORM_CHECKS: Record<AITool, string[]> = {
   codex: [".codex/hooks/session-start.py", ".codex/hooks.json"],
   opencode: [".opencode/plugins/session-start.js"],
   pi: [".pi/extensions/mini-trellis/index.ts", ".pi/settings.json"],
+  dsh: [
+    ".dsh/skills/mini-trellis-session-insight/SKILL.md",
+    ".dsh/skills/mini-trellis-remember/SKILL.md",
+  ],
+  cursor: [".cursor/hooks/session-start.py", ".cursor/hooks.json"],
 };
 
 const TRIGGER_MARKERS: Record<AITool, [string, string]> = {
@@ -87,6 +92,11 @@ const TRIGGER_MARKERS: Record<AITool, [string, string]> = {
   codex: [".codex/hooks/session-start.py", "additional_context"],
   opencode: [".opencode/plugins/session-start.js", "messages.transform"],
   pi: [".pi/extensions/mini-trellis/index.ts", "before_agent_start"],
+  dsh: [
+    ".dsh/skills/mini-trellis-session-insight/SKILL.md",
+    "no project SessionStart",
+  ],
+  cursor: [".cursor/hooks/session-start.py", "additional_context"],
 };
 
 export function buildDoctorReport(cwd: string): DoctorReport {
@@ -166,7 +176,9 @@ export function buildDoctorReport(cwd: string): DoctorReport {
       level: complete ? "ok" : "warn",
       name: platform,
       detail: complete
-        ? `${AI_TOOLS[platform].name} hook and config are present`
+        ? platform === "dsh"
+          ? "DeepSeek Harness skills are present"
+          : `${AI_TOOLS[platform].name} hook and config are present`
         : `${AI_TOOLS[platform].name} is partially configured (${present.length}/${files.length} files)`,
     });
     if (complete) {
@@ -191,6 +203,7 @@ export function buildDoctorReport(cwd: string): DoctorReport {
         name: `${platform}-trigger`,
         detail: triggerDetail,
       });
+      if (platform === "dsh") continue;
       const runtime = runtimeStatus(platform);
       if (!runtime) {
         checks.push({
@@ -199,7 +212,9 @@ export function buildDoctorReport(cwd: string): DoctorReport {
           detail:
             platform === "codex"
               ? "no real hook execution observed; ensure Codex trusts this project, then use /hooks to review/trust the project hook and start a new session"
-              : "no real hook execution observed; run one host session",
+              : platform === "cursor"
+                ? "no real local hook execution observed; cloud agents do not run sessionStart"
+                : "no real hook execution observed; run one host session",
         });
       } else if (
         runtime.last_status === "ok" ||
@@ -225,7 +240,7 @@ export function buildDoctorReport(cwd: string): DoctorReport {
       level: "warn",
       name: "platforms",
       detail:
-        "no host hook detected; choose --claude, --codex, --opencode, or --pi",
+        "no host detected; choose --claude, --codex, --opencode, --pi, --dsh, or --cursor",
     });
   }
 

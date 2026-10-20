@@ -608,7 +608,12 @@ def _main_impl():
     spec_index_paths = _collect_spec_index_paths(trellis_dir, allowed_pkgs)
     source = hook_input.get("source") if isinstance(hook_input.get("source"), str) else ""
     platform = _detect_platform(hook_input)
-    remember_command = "$mini-trellis-remember" if platform == "codex" else "/mini-trellis:remember"
+    if platform == "codex":
+        remember_command = "$mini-trellis-remember"
+    elif platform == "cursor":
+        remember_command = "mini-trellis-remember"
+    else:
+        remember_command = "/mini-trellis:remember"
 
     output.write("""<session-context>
 mini-trellis SessionStart context. Orient from journal, spec, and research.
@@ -638,7 +643,13 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
         "steps. Do not record every turn, and do not create a git commit unless the user asks.\n"
     )
 
-    if source == "compact":
+    if source == "compact" and platform == "cursor":
+        output.write(
+            "This SessionStart follows compact. Cursor conversation history is not read. "
+            "Use `mini-trellis mem recall <query>` then `mini-trellis mem read <ref>` for project notes. "
+            f"Record durable decisions that were not saved yet with `{remember_command}`.\n"
+        )
+    elif source == "compact":
         session_id = _session_id_from_hook(hook_input)
         if session_id:
             platform_flag = (

@@ -213,6 +213,8 @@ export interface InitOptions {
   opencode?: boolean;
   codex?: boolean;
   pi?: boolean;
+  dsh?: boolean;
+  cursor?: boolean;
   yes?: boolean;
   user?: string;
   force?: boolean;
@@ -565,5 +567,16 @@ export async function init(options: InitOptions): Promise<void> {
       "  Record sessions with /mini-trellis:remember (or $mini-trellis-remember on Codex).",
     ),
   );
+  const skillHosts = [
+    tools.includes("dsh") ? "DeepSeek Harness" : "",
+    tools.includes("cursor") ? "Cursor" : "",
+  ].filter(Boolean);
+  if (skillHosts.length > 0) {
+    console.log(
+      chalk.gray(
+        `  ${skillHosts.join(" and ")} record with the mini-trellis-remember skill.`,
+      ),
+    );
+  }
   printRecallHint();
 }

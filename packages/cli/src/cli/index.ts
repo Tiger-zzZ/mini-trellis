@@ -29,6 +29,8 @@ program
   .option("--opencode", "Include OpenCode commands")
   .option("--codex", "Include Codex skills")
   .option("--pi", "Include Pi Agent extension assets")
+  .option("--dsh", "Include DeepSeek Harness skills")
+  .option("--cursor", "Include Cursor skills and local sessionStart")
   .option("-y, --yes", "Skip prompts and use defaults")
   .option(
     "-u, --user <name>",
@@ -175,6 +177,8 @@ program
   .option("--codex", "Refresh Codex assets")
   .option("--opencode", "Refresh OpenCode assets")
   .option("--pi", "Refresh Pi Agent assets")
+  .option("--dsh", "Refresh DeepSeek Harness skills")
+  .option("--cursor", "Refresh Cursor skills and local sessionStart")
   .option("--dry-run", "Preview changes without writing files")
   .option("--json", "Output machine-readable JSON")
   .action((options: Record<string, unknown>) => {
@@ -183,6 +187,8 @@ program
       codex: options.codex as boolean,
       opencode: options.opencode as boolean,
       pi: options.pi as boolean,
+      dsh: options.dsh as boolean,
+      cursor: options.cursor as boolean,
       dryRun: options.dryRun as boolean,
       json: options.json as boolean,
     });

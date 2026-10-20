@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import chalk from "chalk";
-import { AI_TOOLS, type AITool } from "../types/ai-tools.js";
+import { AI_TOOLS, type AITool, type CliFlag } from "../types/ai-tools.js";
 import {
   collectPlatformTemplates,
   getConfiguredPlatforms,
@@ -47,6 +47,7 @@ export interface RefreshReport {
 const JSON_PATHS = new Set([
   ".claude/settings.json",
   ".codex/hooks.json",
+  ".cursor/hooks.json",
   ".pi/settings.json",
 ]);
 
@@ -84,7 +85,7 @@ function addPlatformTemplates(
 
 export function resolveRefreshPlatforms(
   cwd: string,
-  options: Partial<Record<"claude" | "codex" | "opencode" | "pi", boolean>>,
+  options: Partial<Record<CliFlag, boolean>>,
 ): AITool[] {
   const selected = (Object.keys(AI_TOOLS) as AITool[]).filter(
     (platform) => options[AI_TOOLS[platform].cliFlag],
@@ -227,6 +228,8 @@ export function runRefresh(
     codex?: boolean;
     opencode?: boolean;
     pi?: boolean;
+    dsh?: boolean;
+    cursor?: boolean;
   } = {},
 ): RefreshReport {
   const cwd = options.cwd ?? process.cwd();

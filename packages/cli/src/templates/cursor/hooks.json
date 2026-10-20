@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "{{PYTHON_CMD}} -X utf8 .cursor/hooks/session-start.py",
+        "timeout": 30
+      }
+    ]
+  }
+}

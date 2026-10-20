@@ -2,11 +2,17 @@
  * AI Tool Types and Registry — mini-trellis v1 hosts only.
  */
 
-export type AITool = "claude-code" | "codex" | "opencode" | "pi";
+export type AITool =
+  | "claude-code"
+  | "codex"
+  | "opencode"
+  | "pi"
+  | "dsh"
+  | "cursor";
 
 export type TemplateDir = "common" | "claude" | "codex" | "opencode" | "pi";
 
-export type CliFlag = "claude" | "codex" | "opencode" | "pi";
+export type CliFlag = "claude" | "codex" | "opencode" | "pi" | "dsh" | "cursor";
 
 export interface TemplateContext {
   cmdRefPrefix: "/mini-trellis:" | "/mini-trellis-" | "$";
@@ -94,6 +100,47 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
       agentCapable: true,
       hasHooks: true,
       cliFlag: "pi",
+    },
+  },
+  /**
+   * DeepSeek Harness — pull-based. Skills live in `.dsh/skills/`.
+   * There is no project SessionStart file this CLI may write.
+   * `~/.dsh/sessions` transcripts are not parsed.
+   */
+  dsh: {
+    name: "DeepSeek Harness",
+    templateDirs: ["common"],
+    configDir: ".dsh",
+    cliFlag: "dsh",
+    defaultChecked: false,
+    hasPythonHooks: false,
+    templateContext: {
+      cmdRefPrefix: "/mini-trellis-",
+      executorAI: "Bash scripts or tool calls",
+      userActionLabel: "Skills",
+      agentCapable: true,
+      hasHooks: false,
+      cliFlag: "dsh",
+    },
+  },
+  /**
+   * Cursor — project skills plus a local sessionStart hook.
+   * Cloud agents do not run sessionStart. Conversation history is not parsed.
+   */
+  cursor: {
+    name: "Cursor",
+    templateDirs: ["common"],
+    configDir: ".cursor",
+    cliFlag: "cursor",
+    defaultChecked: false,
+    hasPythonHooks: true,
+    templateContext: {
+      cmdRefPrefix: "/mini-trellis-",
+      executorAI: "Bash scripts or tool calls",
+      userActionLabel: "Skills",
+      agentCapable: true,
+      hasHooks: true,
+      cliFlag: "cursor",
     },
   },
 };

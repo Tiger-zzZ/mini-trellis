@@ -15,6 +15,8 @@ import { collectClaudeTemplates, configureClaude } from "./claude.js";
 import { collectOpenCodeTemplates } from "./opencode.js";
 import { collectCodexTemplates, configureCodex } from "./codex.js";
 import { collectPiTemplates } from "./pi.js";
+import { collectDshTemplates } from "./dsh.js";
+import { collectCursorTemplates } from "./cursor.js";
 
 import { writeTemplateMap, type PlatformConfigureOptions } from "./shared.js";
 
@@ -40,6 +42,8 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
   opencode: fromTemplates(collectOpenCodeTemplates),
   codex: { configure: configureCodex, collectTemplates: collectCodexTemplates },
   pi: fromTemplates(collectPiTemplates),
+  dsh: fromTemplates(collectDshTemplates),
+  cursor: fromTemplates(collectCursorTemplates),
 };
 
 export const PLATFORM_IDS = Object.keys(AI_TOOLS) as AITool[];
@@ -60,6 +64,8 @@ const DETECT_FILES: Record<AITool, string[]> = {
   codex: [".codex/hooks.json", ".codex/hooks/session-start.py"],
   opencode: [".opencode/plugins/session-start.js"],
   pi: [".pi/extensions/mini-trellis/index.ts", ".pi/settings.json"],
+  dsh: [".dsh/skills/mini-trellis-remember/SKILL.md"],
+  cursor: [".cursor/hooks.json", ".cursor/hooks/session-start.py"],
 };
 
 export function getConfiguredPlatforms(cwd: string): Set<AITool> {

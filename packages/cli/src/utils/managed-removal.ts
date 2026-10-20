@@ -144,6 +144,12 @@ export function buildStructuredFileSpecs(): Map<string, StructuredFileSpec> {
       }),
     ),
     {
+      posixPath: ".cursor/hooks.json",
+      reason: "Strip mini-trellis sessionStart; preserve user hooks",
+      scrub: (content, deletedPaths) =>
+        scrubHooksJson(content, deletedPaths, "flat"),
+    },
+    {
       posixPath: ".opencode/package.json",
       reason: "Remove @opencode-ai/plugin dep; preserve other deps",
       scrub: (content) => scrubOpencodePackageJson(content),

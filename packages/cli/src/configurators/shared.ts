@@ -500,6 +500,7 @@ export async function writeTemplateMap(
   const mergeJsonPaths = new Set([
     ".claude/settings.json",
     ".codex/hooks.json",
+    ".cursor/hooks.json",
     ".pi/settings.json",
   ]);
   for (const [relPath, content] of renderTemplateMap(files)) {
