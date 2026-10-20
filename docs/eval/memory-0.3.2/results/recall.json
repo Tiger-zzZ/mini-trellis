@@ -1,0 +1,272 @@
+{
+  "fixture": "docs/eval/memory-0.3.2",
+  "repeats": 3,
+  "recall": {
+    "tool": "mini-trellis",
+    "version": "0.3.1",
+    "mode": "mem-recall",
+    "tokenizer": null,
+    "injectedCharsMeaning": "JSON characters of one mem recall result, not host tokens"
+  },
+  "agentLoops": {
+    "mini-trellis-0.3.1": {
+      "ran": false,
+      "missing": "live agent loop"
+    },
+    "trellis-0.7.0-beta.4": {
+      "ran": false,
+      "phaseWorkflow": true,
+      "missing": "live agent loop"
+    },
+    "comet": {
+      "ran": false,
+      "missing": "an environment that can run Comet on these notes"
+    }
+  },
+  "questions": [
+    {
+      "id": "q1-no-history",
+      "prompt": "Rename the local variable shade to tint in the paint helper. No project history applies.",
+      "query": "rename shade tint paint helper",
+      "rows": [
+        {
+          "repeat": 1,
+          "wallClockMs": 83,
+          "injectedChars": 76,
+          "turns": null,
+          "tokens": {
+            "input": null,
+            "output": null,
+            "cache": null
+          },
+          "timeout": false,
+          "oldCli": false,
+          "failure": null,
+          "correct": true,
+          "currentNoteInTop": null,
+          "supersededNoteLater": null,
+          "explicitNoHit": true
+        },
+        {
+          "repeat": 2,
+          "wallClockMs": 39,
+          "injectedChars": 76,
+          "turns": null,
+          "tokens": {
+            "input": null,
+            "output": null,
+            "cache": null
+          },
+          "timeout": false,
+          "oldCli": false,
+          "failure": null,
+          "correct": true,
+          "currentNoteInTop": null,
+          "supersededNoteLater": null,
+          "explicitNoHit": true
+        },
+        {
+          "repeat": 3,
+          "wallClockMs": 38,
+          "injectedChars": 76,
+          "turns": null,
+          "tokens": {
+            "input": null,
+            "output": null,
+            "cache": null
+          },
+          "timeout": false,
+          "oldCli": false,
+          "failure": null,
+          "correct": true,
+          "currentNoteInTop": null,
+          "supersededNoteLater": null,
+          "explicitNoHit": true
+        }
+      ]
+    },
+    {
+      "id": "q2-superseded",
+      "prompt": "What idempotency key must an accepted callback include now?",
+      "query": "callback idempotency key",
+      "rows": [
+        {
+          "repeat": 1,
+          "wallClockMs": 36,
+          "injectedChars": 1391,
+          "turns": null,
+          "tokens": {
+            "input": null,
+            "output": null,
+            "cache": null
+          },
+          "timeout": false,
+          "oldCli": false,
+          "failure": null,
+          "correct": true,
+          "currentNoteInTop": true,
+          "supersededNoteLater": true,
+          "explicitNoHit": null
+        },
+        {
+          "repeat": 2,
+          "wallClockMs": 38,
+          "injectedChars": 1391,
+          "turns": null,
+          "tokens": {
+            "input": null,
+            "output": null,
+            "cache": null
+          },
+          "timeout": false,
+          "oldCli": false,
+          "failure": null,
+          "correct": true,
+          "currentNoteInTop": true,
+          "supersededNoteLater": true,
+          "explicitNoHit": null
+        },
+        {
+          "repeat": 3,
+          "wallClockMs": 35,
+          "injectedChars": 1391,
+          "turns": null,
+          "tokens": {
+            "input": null,
+            "output": null,
+            "cache": null
+          },
+          "timeout": false,
+          "oldCli": false,
+          "failure": null,
+          "correct": true,
+          "currentNoteInTop": true,
+          "supersededNoteLater": true,
+          "explicitNoHit": null
+        }
+      ]
+    },
+    {
+      "id": "q3-rejected",
+      "prompt": "Why was the hourly batch window rejected? Do not treat it as a recommendation.",
+      "query": "why was the hourly batch window rejected",
+      "rows": [
+        {
+          "repeat": 1,
+          "wallClockMs": 36,
+          "injectedChars": 1780,
+          "turns": null,
+          "tokens": {
+            "input": null,
+            "output": null,
+            "cache": null
+          },
+          "timeout": false,
+          "oldCli": false,
+          "failure": null,
+          "correct": true,
+          "currentNoteInTop": true,
+          "supersededNoteLater": null,
+          "explicitNoHit": null
+        },
+        {
+          "repeat": 2,
+          "wallClockMs": 37,
+          "injectedChars": 1780,
+          "turns": null,
+          "tokens": {
+            "input": null,
+            "output": null,
+            "cache": null
+          },
+          "timeout": false,
+          "oldCli": false,
+          "failure": null,
+          "correct": true,
+          "currentNoteInTop": true,
+          "supersededNoteLater": null,
+          "explicitNoHit": null
+        },
+        {
+          "repeat": 3,
+          "wallClockMs": 35,
+          "injectedChars": 1780,
+          "turns": null,
+          "tokens": {
+            "input": null,
+            "output": null,
+            "cache": null
+          },
+          "timeout": false,
+          "oldCli": false,
+          "failure": null,
+          "correct": true,
+          "currentNoteInTop": true,
+          "supersededNoteLater": null,
+          "explicitNoHit": null
+        }
+      ]
+    },
+    {
+      "id": "q4-pre-compact",
+      "prompt": "After a new session or compact, what is the outbound payment retry limit? The number must come from before the summary.",
+      "query": "outbound payment retries stop",
+      "rows": [
+        {
+          "repeat": 1,
+          "wallClockMs": 37,
+          "injectedChars": 583,
+          "turns": null,
+          "tokens": {
+            "input": null,
+            "output": null,
+            "cache": null
+          },
+          "timeout": false,
+          "oldCli": false,
+          "failure": null,
+          "correct": true,
+          "currentNoteInTop": true,
+          "supersededNoteLater": null,
+          "explicitNoHit": null
+        },
+        {
+          "repeat": 2,
+          "wallClockMs": 36,
+          "injectedChars": 583,
+          "turns": null,
+          "tokens": {
+            "input": null,
+            "output": null,
+            "cache": null
+          },
+          "timeout": false,
+          "oldCli": false,
+          "failure": null,
+          "correct": true,
+          "currentNoteInTop": true,
+          "supersededNoteLater": null,
+          "explicitNoHit": null
+        },
+        {
+          "repeat": 3,
+          "wallClockMs": 33,
+          "injectedChars": 583,
+          "turns": null,
+          "tokens": {
+            "input": null,
+            "output": null,
+            "cache": null
+          },
+          "timeout": false,
+          "oldCli": false,
+          "failure": null,
+          "correct": true,
+          "currentNoteInTop": true,
+          "supersededNoteLater": null,
+          "explicitNoHit": null
+        }
+      ]
+    }
+  ]
+}
