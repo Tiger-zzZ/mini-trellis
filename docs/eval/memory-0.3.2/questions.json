@@ -1,0 +1,39 @@
+{
+  "repeats": 3,
+  "questions": [
+    {
+      "id": "q1-no-history",
+      "prompt": "Rename the local variable shade to tint in the paint helper. No project history applies.",
+      "query": "rename shade tint paint helper",
+      "kind": "no-history"
+    },
+    {
+      "id": "q2-superseded",
+      "prompt": "What idempotency key must an accepted callback include now?",
+      "query": "callback idempotency key",
+      "kind": "lineage",
+      "current": ".trellis/research/idempotency.md",
+      "superseded": ".trellis/research/idempotency-old.md",
+      "currentText": "pay-key-current",
+      "retiredText": "pay-key-retired"
+    },
+    {
+      "id": "q3-rejected",
+      "prompt": "Why was the hourly batch window rejected? Do not treat it as a recommendation.",
+      "query": "why was the hourly batch window rejected",
+      "kind": "rejection",
+      "path": ".trellis/research/batch-window.md",
+      "includes": ["rejected", "duplicate charge", "Do not recommend"]
+    },
+    {
+      "id": "q4-pre-compact",
+      "prompt": "After a new session or compact, what is the outbound payment retry limit? The number must come from before the summary.",
+      "query": "outbound payment retries stop",
+      "kind": "pre-compact",
+      "path": ".trellis/research/retry-cap.md",
+      "includes": "4 attempts",
+      "summary": ".trellis/research/retry-summary.md",
+      "summaryMustNotInclude": "4 attempts"
+    }
+  ]
+}
