@@ -191,6 +191,156 @@ function runGit(directory, args) {
   }
 }
 
+const CUE_GENERIC_SEGMENTS = new Set([
+  "src", "lib", "libs", "test", "tests", "dist", "build", "node_modules",
+  "packages", "package", "app", "apps", "bin", "cmd", "pkg", "internal",
+  "vendor", "third_party", "deps", "docs", "doc", "common", "utils", "util",
+  "types", "type", "index", "main", "mod", "templates", "shared-hooks",
+  "extensions", "plugins", "scripts", "trellis", ".trellis", "spec",
+  "research", "workspace", "archive", "markdown", "md", "ts", "tsx", "js",
+  "jsx", "mjs", "cjs", "py", "css", "json", "yaml", "yml", "toml", "txt",
+  "cli", "core",
+])
+const CUE_MAX_PATHS = 2
+const CUE_MAX_CHARS = 160
+const CUE_NOISE_PARTS = new Set(["__pycache__", ".runtime", "node_modules", ".git"])
+
+function parsePorcelainPaths(porcelain) {
+  const paths = []
+  for (const raw of porcelain.split(/\r?\n/)) {
+    const line = raw.replace(/\n$/, "")
+    if (!line.trim() || line.length < 4) continue
+    let rest = line.slice(3)
+    const arrow = rest.indexOf(" -> ")
+    if (arrow !== -1) rest = rest.slice(arrow + 4)
+    if (rest.length >= 2 && rest.startsWith('"') && rest.endsWith('"')) {
+      rest = rest.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\")
+    }
+    paths.push(rest.replace(/\\/g, "/"))
+  }
+  return paths
+}
+
+function isCueNoisePath(relPath) {
+  const parts = relPath.replace(/\\/g, "/").split("/")
+  if (parts.some(p => CUE_NOISE_PARTS.has(p))) return true
+  const name = parts[parts.length - 1] || ""
+  return name.endsWith(".pyc") || name.endsWith(".pyo") || name.endsWith(".tmp")
+}
+
+function pathToken(part) {
+  if (!part.includes(".")) return part.toLowerCase()
+  // Leading-dot directory names (`.trellis`) are not file extensions.
+  if (part.startsWith(".") && part.lastIndexOf(".") === 0) return part.toLowerCase()
+  const stem = part.slice(0, part.lastIndexOf("."))
+  return (stem || part).toLowerCase()
+}
+
+function cueSegments(relPath) {
+  const segments = new Set()
+  for (const part of relPath.replace(/\\/g, "/").split("/")) {
+    if (!part || part === "." || part === "..") continue
+    const token = pathToken(part)
+    if (token && !CUE_GENERIC_SEGMENTS.has(token) && token.length > 1) {
+      segments.add(token)
+    }
+  }
+  return segments
+}
+
+function listKnowledgeCuePaths(directory) {
+  const found = []
+  for (const kind of ["spec", "research"]) {
+    const root = join(directory, ".trellis", kind)
+    if (!existsSync(root)) continue
+    const stack = [root]
+    while (stack.length) {
+      const dir = stack.pop()
+      let entries
+      try {
+        entries = readdirSync(dir)
+      } catch {
+        continue
+      }
+      for (const name of entries.sort()) {
+        if (name.startsWith(".")) continue
+        if (name === "archive") continue
+        const full = join(dir, name)
+        let st
+        try {
+          st = statSync(full)
+        } catch {
+          continue
+        }
+        if (st.isDirectory()) {
+          stack.push(full)
+          continue
+        }
+        if (!st.isFile() || !name.toLowerCase().endsWith(".md")) continue
+        if (name.toLowerCase() === "readme.md") continue
+        const rel = full.slice(directory.length).replace(/\\/g, "/").replace(/^\//, "")
+        // Allow `.trellis` root; skip other hidden segments.
+        if (rel.split("/").some(p => p.startsWith(".") && p !== ".trellis")) continue
+        found.push(rel)
+      }
+    }
+  }
+  return found.sort()
+}
+
+function scoreKnowledgeCue(knowledgeRel, dirtyPaths) {
+  const knowSegs = cueSegments(knowledgeRel)
+  if (knowSegs.size === 0) return 0
+  let best = 0
+  for (const dirty of dirtyPaths) {
+    const dirtyNorm = dirty.replace(/\/$/, "")
+    if (dirtyNorm === knowledgeRel) return 1000
+    if (knowledgeRel.endsWith(".md")) {
+      const parent = knowledgeRel.slice(0, knowledgeRel.lastIndexOf("/") + 1)
+      if (
+        parent.startsWith(".trellis/") &&
+        (dirty.startsWith(parent) || dirtyNorm === parent.replace(/\/$/, ""))
+      ) {
+        best = Math.max(best, 500)
+      }
+    }
+    let overlap = 0
+    const dirtySegs = cueSegments(dirtyNorm)
+    for (const seg of knowSegs) {
+      if (dirtySegs.has(seg)) overlap += 1
+    }
+    if (overlap > best) best = overlap
+  }
+  return best
+}
+
+function formatGitPathCue(directory) {
+  const porcelain = runGit(directory, ["status", "--porcelain", "-uall"])
+  if (!porcelain) return null
+  const dirtyPaths = parsePorcelainPaths(porcelain).filter(p => !isCueNoisePath(p))
+  if (dirtyPaths.length === 0) return null
+  const knowledge = listKnowledgeCuePaths(directory)
+  if (knowledge.length === 0) return null
+
+  const ranked = []
+  for (const rel of knowledge) {
+    const score = scoreKnowledgeCue(rel, dirtyPaths)
+    if (score > 0) ranked.push([score, rel])
+  }
+  if (ranked.length === 0) return null
+  ranked.sort((a, b) => b[0] - a[0] || (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0))
+  let chosen = ranked.slice(0, CUE_MAX_PATHS).map(([, rel]) => rel)
+
+  const render = paths => `Cue: ${paths.join(", ")}`
+  let line = render(chosen)
+  while (chosen.length && line.length + 1 > CUE_MAX_CHARS) {
+    chosen = chosen.slice(0, -1)
+    if (!chosen.length) return null
+    line = render(chosen)
+  }
+  return line
+}
+
 function buildCompactCurrentState(ctx, specIndexPaths) {
   const directory = ctx.directory
   const lines = []
@@ -225,6 +375,9 @@ function buildCompactCurrentState(ctx, specIndexPaths) {
   }
 
   lines.push("Research: use `mini-trellis mem recall <query>` when relevant.")
+
+  const cue = formatGitPathCue(directory)
+  if (cue) lines.push(cue)
 
   return lines.join("\n")
 }
