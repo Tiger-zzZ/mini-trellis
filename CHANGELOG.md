@@ -6,6 +6,8 @@
 - Cursor installs the same short skills and reuses the local `sessionStart` hook. Cloud agents do not run `sessionStart`. Cursor conversation history is not parsed.
 - OpenCode and Pi still do not name the current session after compact.
 
+- Adds a [task comparison summary and detailed per-run breakdown](docs/releases/benchmark-detail.md): 38.4% less elapsed time and 40.1% fewer processed tokens across the recorded Claude Code batch.
+
 Version changes and upgrade instructions are in the [release notes](docs/releases/v0.3.1.md).
 
 ## v0.3.0 — 2026-10-18
