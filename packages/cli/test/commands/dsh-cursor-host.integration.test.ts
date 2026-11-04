@@ -281,6 +281,7 @@ describe.skipIf(!canRun)("DeepSeek and Cursor synthetic project", () => {
     '{"hooks":{"sessionStart":"not an array"}}',
     '{"hooks":{"sessionStart":[null]}}',
     '{"hooks":{"sessionStart":[{"command":" "}]}}',
+    '{"hooks":{"sessionStart":[{"type":"prompt","prompt":" "}]}}',
   ])(
     "keeps invalid Cursor config shapes and diagnoses them: %s",
     async (content) => {
@@ -313,15 +314,16 @@ describe.skipIf(!canRun)("DeepSeek and Cursor synthetic project", () => {
     },
   );
 
-  it("repairs a missing registration without replacing a user startup hook", () => {
+  it("repairs a missing registration without replacing user startup hooks", () => {
     const hooksPath = path.join(tmpDir, ".cursor/hooks.json");
     const userHook = { command: "./hooks/user-start.sh", timeout: 10 };
+    const promptHook = { type: "prompt", prompt: "Check this session", timeout: 10 };
     fs.writeFileSync(
       hooksPath,
       JSON.stringify({
         version: 2,
         userSetting: "keep",
-        hooks: { sessionStart: [userHook] },
+        hooks: { sessionStart: [userHook, promptHook] },
       }),
     );
     expect(
@@ -335,12 +337,13 @@ describe.skipIf(!canRun)("DeepSeek and Cursor synthetic project", () => {
     const merged = JSON.parse(fs.readFileSync(hooksPath, "utf8")) as {
       version: number;
       userSetting: string;
-      hooks: { sessionStart: { command: string }[] };
+      hooks: { sessionStart: unknown[] };
     };
     expect(merged.version).toBe(2);
     expect(merged.userSetting).toBe("keep");
-    expect(merged.hooks.sessionStart).toHaveLength(2);
+    expect(merged.hooks.sessionStart).toHaveLength(3);
     expect(merged.hooks.sessionStart).toContainEqual(userHook);
+    expect(merged.hooks.sessionStart).toContainEqual(promptHook);
     expect(
       buildDoctorReport(tmpDir).checks.find(
         (check) => check.name === "cursor-config",

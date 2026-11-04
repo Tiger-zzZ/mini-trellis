@@ -34,14 +34,13 @@ export function readCursorHooksConfigIssue(
   if (
     startup !== undefined &&
     (!Array.isArray(startup) ||
-      startup.some(
-        (entry: unknown) =>
-          !isObject(entry) ||
-          typeof entry.command !== "string" ||
-          !entry.command.trim(),
-      ))
+      startup.some((entry: unknown) => {
+        if (!isObject(entry)) return true;
+        const text = entry.type === "prompt" ? entry.prompt : entry.command;
+        return typeof text !== "string" || !text.trim();
+      }))
   ) {
-    return "Cursor sessionStart must be an array of command hooks";
+    return "Cursor sessionStart must be an array of command or prompt hooks";
   }
   if (
     requireSessionStart &&
@@ -49,6 +48,7 @@ export function readCursorHooksConfigIssue(
       !startup.some(
         (entry: unknown) =>
           isObject(entry) &&
+          (entry.type === undefined || entry.type === "command") &&
           typeof entry.command === "string" &&
           entry.command
             .replaceAll("\\", "/")
