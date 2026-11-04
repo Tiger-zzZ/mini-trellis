@@ -26,6 +26,6 @@ pnpm --filter mini-trellis test
 
 CLI 与 core 包版本保持一致，更新 changelog 和版本说明，验包后再发布。先发布 core，再发布依赖该版本的 CLI。
 
-新发布标签使用 `mini-trellis-v<version>`，沿用 `mini-trellis-v0.3.2` 的命名。保留上游 Trellis 标签的本地克隆可能已有 `v0.3.3` 和 `v0.3.4`，它们不代表 mini-trellis 发布。不要移动这些旧标签，也不要推送全部本地标签；只推送指向已验证发布提交的目标标签。
+PR 合并后，在已验证的发布提交上创建标签。新发布标签使用 `mini-trellis-v<version>`，沿用 `mini-trellis-v0.3.2` 的命名。
 
 [官网](https://mini-trellis.github.io/)在[独立仓库](https://github.com/mini-trellis/mini-trellis.github.io)维护。中英文内容、导航、版本说明和“当前版本”提示随实际 npm 发布同步，评测数字保留真实测量版本。

@@ -25,7 +25,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 许可证" /></a>
 </p>
 
-> [下一版说明](./docs/releases/unreleased.md)中的 Cursor 与项目现状维护改进尚未发布，npm 当前仍提供 v0.3.2。
+> **v0.3.4：**维护原有项目说明，在 Cursor 中记录与找回知识，配置时保留用户 hook。详见[版本说明](./docs/releases/v0.3.4.md)。
 
 ![开发中的约定、研究结论与验证记录沉淀为项目知识，在后续工作中复用，并随新证据继续更新。](./docs/assets/knowledge-zh.svg)
 
@@ -201,7 +201,7 @@ mini-trellis mem read "<ref>"
   4. 运行 `mini-trellis doctor`，随后开启新会话。
 - **宿主边界说明**：
   - DeepSeek Harness 无项目级 `SessionStart` 注入点，不解析 `~/.dsh/sessions` 压缩转录本；
-  - Cursor 3.27.22 的本地 Agent 对话已收到生成的 `.cursor/hooks/session-start.py` 短入口，模型在不使用工具的情况下准确给出了其中的 Developer 和 Journal 两行。hook 日志成功本身不能证明送达或使用。按需使用 `AGENTS.md`、技能 `mini-trellis-remember` 和 `mini-trellis mem recall`。Cursor 托管云端不运行 `sessionStart`，自托管机器仍未验证。不解析 Cursor 对话历史；
+  - Cursor 本地 `sessionStart` 短入口已在 3.27.22 验证。hook 日志成功本身不能证明模型收到或使用内容。按需使用 `AGENTS.md`、技能 `mini-trellis-remember` 和 `mini-trellis mem recall`。Cursor 托管云端不运行 `sessionStart`，自托管机器仍未验证。不解析 Cursor 对话历史；
   - OpenCode 与 Pi 支持列出会话与检索，暂无精确 compact 边界恢复。详见 [v0.3.1 版本说明](./docs/releases/v0.3.1.md)。
 
 </details>

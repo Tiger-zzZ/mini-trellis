@@ -1,7 +1,5 @@
 # Using it while you code
 
-The Cursor configuration and project-description changes below are [unreleased](releases/unreleased.md). npm currently provides v0.3.2.
-
 Commands run from the project root. The record command is `/mini-trellis:remember` in Claude Code and OpenCode, `$mini-trellis-remember` in Codex, and `/mini-trellis-remember` in Pi. DeepSeek Harness and Cursor use the `mini-trellis-remember` skill.
 
 ## Install on a new project
@@ -21,7 +19,7 @@ mini-trellis init -u your-name --cursor -y
 
 Init writes the managed block in `AGENTS.md`, three skills under `.cursor/skills/`, and a `.cursor/hooks.json` that registers only `sessionStart`. Record with the `mini-trellis-remember` skill. Recall with `mini-trellis mem recall`, then `mem read` when the excerpt is missing a condition.
 
-On Cursor 3.27.22, a local Agent Chat received the generated `.cursor/hooks/session-start.py` entry: the model quoted its Developer and Journal lines without using tools. A successful hook log alone does not prove delivery or use. `AGENTS.md` plus `mem recall` also works when the short entry is unavailable. Cursor-managed cloud agents do not run `sessionStart`; self-hosted machines remain unverified. Cursor conversation history is not parsed.
+The generated local `sessionStart` entry is verified on Cursor 3.27.22. A successful hook log alone does not prove model delivery or use. `AGENTS.md` plus `mem recall` also works when the short entry is unavailable. Cursor-managed cloud agents do not run `sessionStart`; self-hosted machines remain unverified. Cursor conversation history is not parsed.
 
 First loop:
 

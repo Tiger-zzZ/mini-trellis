@@ -25,7 +25,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 license" /></a>
 </p>
 
-> The Cursor and project-description changes in [the upcoming release notes](./docs/releases/unreleased.md) are not published yet. npm currently provides v0.3.2.
+> **v0.3.4:** Keep the current project description in its existing file, record it from Cursor, and preserve user hooks when configuring the project. See the [release notes](./docs/releases/v0.3.4.md).
 
 ![Conventions, research and verified fixes accumulate in project Markdown, inform later work, and are updated with new evidence.](./docs/assets/knowledge-en.svg)
 
@@ -201,7 +201,7 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
   4. Run `mini-trellis doctor`, then start a new session.
 - **Host boundaries**:
   - DeepSeek Harness has no project-level `SessionStart` hook and does not parse compressed transcripts in `~/.dsh/sessions`;
-  - Cursor 3.27.22 local Agent Chat received the generated `.cursor/hooks/session-start.py` entry: the model quoted its Developer and Journal lines without tools. A successful hook log alone does not prove delivery or use. Use `AGENTS.md`, the `mini-trellis-remember` skill, and `mini-trellis mem recall`. Cursor-managed cloud agents do not run `sessionStart`; self-hosted machines remain unverified. Cursor conversation history is not parsed;
+  - Cursor's generated local `sessionStart` entry is verified on Cursor 3.27.22. A successful hook log alone does not prove model delivery or use. Use `AGENTS.md`, the `mini-trellis-remember` skill, and `mini-trellis mem recall`. Cursor-managed cloud agents do not run `sessionStart`; self-hosted machines remain unverified. Cursor conversation history is not parsed;
   - OpenCode and Pi support session listing and search without precise compact boundary recovery. See the [v0.3.1 release notes](./docs/releases/v0.3.1.md).
 
 </details>

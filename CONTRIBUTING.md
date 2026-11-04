@@ -31,6 +31,6 @@ and submit a pull request.
 
 Keep the CLI and core package versions aligned, update the changelog and release notes, and verify the package contents before publishing. Publish core before the CLI, which depends on that version.
 
-Use `mini-trellis-v<version>` for new release tags, following `mini-trellis-v0.3.2`. Local clones retaining upstream Trellis tags may contain `v0.3.3` and `v0.3.4`; those are not mini-trellis releases. Do not move them or push all local tags. Push only the intended tag at the verified release commit.
+Create the release tag from the verified release commit after its PR is merged. Use `mini-trellis-v<version>`, following `mini-trellis-v0.3.2`.
 
 The [documentation site](https://mini-trellis.github.io/) has a [separate repository](https://github.com/mini-trellis/mini-trellis.github.io). Synchronize both languages, navigation, release notes, and the current-version notice with the published npm version. Keep benchmark numbers tied to the version actually measured.

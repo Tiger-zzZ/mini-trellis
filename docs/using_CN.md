@@ -1,7 +1,5 @@
 # 开发时怎么用
 
-下文的 Cursor 配置与项目现状维护改进[尚未发布](releases/unreleased.md)，npm 当前仍提供 v0.3.2。
-
 命令在项目根目录执行。Claude Code 和 OpenCode 用 `/mini-trellis:remember`，Codex 用 `$mini-trellis-remember`，Pi 用 `/mini-trellis-remember`。DeepSeek Harness 和 Cursor 用技能 `mini-trellis-remember`。
 
 ## 从零安装
@@ -21,7 +19,7 @@ mini-trellis init -u 你的名字 --cursor -y
 
 init 会写入 `AGENTS.md` 里的托管说明、`.cursor/skills/` 下的三个技能，以及只注册 `sessionStart` 的 `.cursor/hooks.json`。记录用技能 `mini-trellis-remember`。找回用 `mini-trellis mem recall`，摘录缺条件时再 `mem read`。
 
-2026-11-04 在 Cursor 3.27.22 的本地 Agent 对话里核对过：生成的 `.cursor/hooks/session-start.py` 短入口已送达，模型在不使用工具的情况下准确给出了其中的 Developer 和 Journal 两行。hook 日志成功本身不能证明送达或使用。短入口不可用时，也可以使用 `AGENTS.md` 和 `mem recall`。Cursor 托管云端不运行 `sessionStart`，自托管机器仍未验证。不解析 Cursor 对话历史。
+Cursor 本地 `sessionStart` 短入口已在 3.27.22 验证。hook 日志成功本身不能证明模型收到或使用内容。短入口不可用时，也可以使用 `AGENTS.md` 和 `mem recall`。Cursor 托管云端不运行 `sessionStart`，自托管机器仍未验证。不解析 Cursor 对话历史。
 
 第一次这样走：
 

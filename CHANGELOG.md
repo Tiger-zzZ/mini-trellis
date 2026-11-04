@@ -1,14 +1,14 @@
 # Changelog
 
-## Unreleased
+## v0.3.4 — 2026-11-04
 
 - Migration and adding a host restore a missing `.trellis/.gitignore`, keeping developer identity and runtime state local without replacing existing user ignore rules.
 - Cursor configuration checks reject invalid JSON shapes without replacing user hooks and report a missing mini-trellis `sessionStart` registration.
 - Project descriptions keep renamed symbol and path references current without adding a journal entry for the rename alone. Confirmed decisions and unused configuration values stay separate from implemented capabilities.
-- Cursor's generated local `sessionStart` entry reached a real Cursor 3.27.22 Agent Chat: the model quoted startup-only Developer and Journal lines without tools. Hook logs alone still do not prove delivery or use. The session-insight skill also points to `AGENTS.md` and `mini-trellis mem recall`. Cursor-managed cloud agents do not run `sessionStart`; self-hosted machines remain unverified. Cursor conversation history is not parsed.
+- Cursor's local `sessionStart` entry is verified on Cursor 3.27.22. The session-insight skill also points to `AGENTS.md` and `mini-trellis mem recall`. Hook logs alone do not prove model delivery or use. Cursor-managed cloud agents do not run `sessionStart`; self-hosted machines remain unverified. Cursor conversation history is not parsed.
 - `add_session.py --topic` accepts a root `README*.md` and Markdown under `docs/` or `doc/`, in addition to spec and research notes. An existing install gets that check after `mini-trellis refresh`.
 
-These changes cover the 0.3.3 and 0.3.4 work packages and are not published yet. Details and upgrade steps are in the [upcoming release notes](docs/releases/unreleased.md).
+Version changes and upgrade instructions are in the [release notes](docs/releases/v0.3.4.md).
 
 ## v0.3.2 — 2026-11-01
 
