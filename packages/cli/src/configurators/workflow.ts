@@ -19,6 +19,19 @@ import { replacePythonCommandLiterals } from "./shared.js";
 
 const JOURNAL_MERGE_UNION_PATTERN = /journal-\*\.md\s+merge=union/;
 
+/** Repair a missing local-state ignore file without replacing user rules. */
+export function ensureTrellisGitignore(cwd: string): void {
+  try {
+    fs.writeFileSync(
+      path.join(cwd, DIR_NAMES.WORKFLOW, ".gitignore"),
+      gitignoreTemplate,
+      { flag: "wx" },
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+}
+
 export interface WorkflowOptions {
   packages?: {
     name: string;

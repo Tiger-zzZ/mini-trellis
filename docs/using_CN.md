@@ -47,7 +47,7 @@ mini-trellis migrate --dry-run
 mini-trellis migrate
 ```
 
-`--dry-run` 只列出会改什么。迁移会换掉 Trellis 的说明入口，重写 mini-trellis 的脚本，并把 `.trellis/tasks/` 收进 research。`.trellis/spec/`、`research/`、`workspace/` 保留。`-y` 跳过提问，并把任务文件归档到 `<topic>/legacy/`。迁完之后，项目现状的维护和新项目一样，见[维护项目现状](#维护项目现状)。
+`--dry-run` 只列出会改什么。迁移会换掉 Trellis 的说明入口，重写 mini-trellis 的脚本，并把 `.trellis/tasks/` 收进 research。`.trellis/spec/`、`research/`、`workspace/` 保留。缺少 `.trellis/.gitignore` 时会补上，让本地身份与运行状态保持在 Git 之外；已有用户规则会保留。`-y` 跳过提问，并把任务文件归档到 `<topic>/legacy/`。迁完之后，项目现状的维护和新项目一样，见[维护项目现状](#维护项目现状)。
 
 ## 改代码之前先查
 

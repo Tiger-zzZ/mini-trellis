@@ -47,7 +47,7 @@ mini-trellis migrate --dry-run
 mini-trellis migrate
 ```
 
-`--dry-run` lists the changes and does not write. The migration replaces the Trellis instruction surface, rewrites mini-trellis scripts, and folds `.trellis/tasks/` into research. `.trellis/spec/`, `research/`, and `workspace/` stay. `-y` skips the prompts and archives task files under `<topic>/legacy/`. After that, keep the project description current the same way as a new project. See [Keep the project description current](#keep-the-project-description-current).
+`--dry-run` lists the changes and does not write. The migration replaces the Trellis instruction surface, rewrites mini-trellis scripts, and folds `.trellis/tasks/` into research. `.trellis/spec/`, `research/`, and `workspace/` stay. A missing `.trellis/.gitignore` is added to keep local identity and runtime state out of Git; existing user rules are kept. `-y` skips the prompts and archives task files under `<topic>/legacy/`. After that, keep the project description current the same way as a new project. See [Keep the project description current](#keep-the-project-description-current).
 
 ## Look it up before editing
 

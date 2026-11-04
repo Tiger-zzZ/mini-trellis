@@ -5,7 +5,10 @@ import readline from "node:readline";
 import chalk from "chalk";
 import figlet from "figlet";
 import inquirer from "inquirer";
-import { createWorkflowStructure } from "../configurators/workflow.js";
+import {
+  createWorkflowStructure,
+  ensureTrellisGitignore,
+} from "../configurators/workflow.js";
 import { needsTrellisMigration } from "./migrate.js";
 import {
   getInitToolChoices,
@@ -471,6 +474,8 @@ export async function init(options: InitOptions): Promise<void> {
   }
 
   const { command: pythonCmd } = resolveSupportedPython();
+
+  if (!isFirstInit) ensureTrellisGitignore(cwd);
 
   if (!isFirstInit && !options.force && !options.skipExisting) {
     const reinitDone = await handleReinit(
