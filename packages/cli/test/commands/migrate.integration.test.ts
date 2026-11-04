@@ -218,6 +218,30 @@ describe("migrate", () => {
     });
   });
 
+  it("adds a missing local-state ignore file only when migration runs", async () => {
+    const ignorePath = path.join(tmpDir, ".trellis/.gitignore");
+    fs.rmSync(ignorePath);
+    await migrate({ dryRun: true });
+    expect(fs.existsSync(ignorePath)).toBe(false);
+    expect(vi.mocked(console.log).mock.calls.flat().join("\n")).toContain(
+      "add missing local-state ignore rules",
+    );
+
+    await migrate({ yes: true });
+    const rules = fs.readFileSync(ignorePath, "utf8");
+    expect(rules).toContain(".runtime/");
+    expect(rules).toContain(".developer");
+  });
+
+  it("preserves an existing user ignore file during migration", async () => {
+    const ignorePath = path.join(tmpDir, ".trellis/.gitignore");
+    const custom =
+      "# User-owned rules\n.runtime/\n.developer\nprivate-notes/\n";
+    fs.writeFileSync(ignorePath, custom);
+    await migrate({ yes: true });
+    expect(fs.readFileSync(ignorePath, "utf8")).toBe(custom);
+  });
+
   it("removes the Trellis surface and keeps the memory data", async () => {
     const plan = buildMigratePlan(tmpDir);
     const removed = plan.deletions.length + (plan.dropsVersion ? 1 : 0);

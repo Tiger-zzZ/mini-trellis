@@ -9,7 +9,34 @@ npm install -g mini-trellis
 mini-trellis init -u 你的名字 --claude
 ```
 
-只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 只在本地注入短入口；云端不跑 `sessionStart`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
+只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 会装上技能和本地 `sessionStart`；Cursor 托管云端不跑这个 hook，本地 hook 跑过也不等于 Agent 提示里收到了 `additional_context`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
+
+## 在 Cursor 里
+
+```bash
+mini-trellis init -u 你的名字 --cursor -y
+```
+
+init 会写入 `AGENTS.md` 里的托管说明、`.cursor/skills/` 下的三个技能，以及只注册 `sessionStart` 的 `.cursor/hooks.json`。记录用技能 `mini-trellis-remember`。找回用 `mini-trellis mem recall`，摘录缺条件时再 `mem read`。
+
+Cursor 本地 `sessionStart` 短入口已在 3.27.22 验证。hook 日志成功本身不能证明模型收到或使用内容。短入口不可用时，也可以使用 `AGENTS.md` 和 `mem recall`。Cursor 托管云端不运行 `sessionStart`，自托管机器仍未验证。不解析 Cursor 对话历史。
+
+第一次这样走：
+
+1. 在项目根执行上面的 init。
+2. 新开一个本地 Agent 对话。`mini-trellis doctor` 里 `cursor` 和 `cursor-trigger` 应为 ok。hook 还没在磁盘留下记录时，`cursor-runtime` 是 unknown。
+3. 确认一条规则。让 Agent 更新已有主题；没有合适文件时再写一篇短 spec，然后使用 `mini-trellis-remember`。核对主题正文、journal 链接和 index。
+4. 再开一个对话，对这条规则执行 `mem recall`。摘录里要还在条件和来源。
+
+再次 init 或 refresh 会保留 `.cursor/hooks.json` 里不相干的 hook，也会保留用户写的 `version`。文件不是合法 JSON 或 hook 结构无效时，init 打印 `Skipped .cursor/hooks.json` 并留下原文件，refresh 停在 conflict。`doctor` 会对这些错误以及缺失的 mini-trellis `sessionStart` 注册报告 `cursor-config`。
+
+| 看到什么 | 怎么处理 |
+| --- | --- |
+| Hooks 日志里没有加载项目 `sessionStart` | 打开的是含 `.cursor/hooks.json` 的项目根。 |
+| `cursor-runtime` 为 unknown | 还没有成功的 hook 记录。开一轮本地 Agent 对话，再看 `.trellis/.runtime/hooks/cursor.json`。 |
+| hook 成功了，模型却没有 recall 说明 | 看 `AGENTS.md`，直接说 `mini-trellis mem recall`。日志里的 merged 不是送达。 |
+| `cursor-config` 警告 | 按详情处理：先修正 JSON 或 hook 结构错误；缺少注册时运行 `init --cursor` 补回。用户 hook 会保留。 |
+| Cursor 托管云端 Agent | 不跑 `sessionStart`。仓库里的笔记还在，需要时自己 recall。 |
 
 ## 从 Trellis 迁过来
 
@@ -20,7 +47,7 @@ mini-trellis migrate --dry-run
 mini-trellis migrate
 ```
 
-`--dry-run` 只列出会改什么。迁移会换掉 Trellis 的说明入口，重写 mini-trellis 的脚本，并把 `.trellis/tasks/` 收进 research。`.trellis/spec/`、`research/`、`workspace/` 保留。`-y` 跳过提问，并把任务文件归档到 `<topic>/legacy/`。
+`--dry-run` 只列出会改什么。迁移会换掉 Trellis 的说明入口，重写 mini-trellis 的脚本，并把 `.trellis/tasks/` 收进 research。`.trellis/spec/`、`research/`、`workspace/` 保留。缺少 `.trellis/.gitignore` 时会补上，让本地身份与运行状态保持在 Git 之外；已有用户规则会保留。`-y` 跳过提问，并把任务文件归档到 `<topic>/legacy/`。迁完之后，项目现状的维护和新项目一样，见[维护项目现状](#维护项目现状)。
 
 ## 改代码之前先查
 
@@ -57,7 +84,23 @@ mini-trellis mem context <session-id> --platform claude
 | 试过先去重再记账，对账对不上，放弃了 | 同一篇研究笔记 | 标明这是 rejected，不要写成当前规则。 |
 | 这次改了哪个文件、测试是否通过 | `.trellis/workspace/<你>/` 的 journal | 会话结束前执行对应宿主的 `remember`。 |
 
-journal 只记过程和笔记路径。规则正文写在 spec 或 research 里。已经有同一主题的文件时，改那个文件，不要再新建一篇。
+journal 只记过程和主题路径。正文保留在已有主题文件里，也可以是原本就在维护的 README 或 docs；没有合适文件时再写入 spec 或 research。
+
+## 维护项目现状
+
+项目今天是什么，只留一份说明。已经写在 README、docs 或 spec 里的，改那一处。没有合适的文件时，再写一篇短 spec。不要把同一段说明复制成第二份。
+
+可以对 Agent 说：
+
+```text
+根据当前代码更新项目说明，保留已经确认的能力、架构和约束；不确定的部分标明待核实。
+```
+
+说明里写清用途、已实现能力、主要模块和约束。已实现能力要核对当前代码或测试：已确认的决定、常量或配置值本身不能证明行为已经实现。已约定或规划中的行为要与已实现能力分开。只改相关章节。普通改名或排版不重写整篇说明，也不记一条 journal；如果文中引用的符号或路径因此过时，仍要同步修正。
+
+中文讨论去改一篇英文旧说明时，正文保持英文，含义、限额和否定不变。确认之后，现行说明和 journal 里的链接一致。下一轮用 `mem recall` 找回的是更新后的内容，旧 journal 仍可查，但不代替现行说明。
+
+已经装过的项目要先 `mini-trellis refresh`，`--topic` 才接受根目录的 `README*.md`，以及 `docs/`、`doc/` 下的 Markdown。
 
 对 Agent 可以直接说：
 
@@ -112,5 +155,6 @@ mini-trellis doctor
 | `memory-layer` | 缺少 `.trellis` 或 `add_session.py`。跑 `mini-trellis init`。 |
 | `instructions` | `AGENTS.md` 没有托管块。再跑一次 init。 |
 | `platforms` | 没有发现宿主。加上 `--claude`、`--codex`、`--opencode`、`--pi`、`--dsh` 或 `--cursor`。 |
-| `<host>-runtime` 为 unknown | 还没有一次真实 hook 记录。开一轮宿主会话。Codex 要先信任项目 hook。 |
+| `<host>-runtime` 为 unknown | 还没有一次真实 hook 记录。开一轮宿主会话。Codex 要先信任项目 hook。Cursor 还要分开看：hook 记录出现，也不等于短入口进了模型提示。 |
+| `cursor-config` | `.cursor/hooks.json` 无效或 mini-trellis 启动 hook 没有注册。按详情处理；无效配置会保留。 |
 | `<host>-runtime` 为 warn | 最近一次 hook 没有干净结束。明细里有状态和错误类别。 |

@@ -91,6 +91,42 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it("repairs missing local-state ignore rules when adding a host", async () => {
+    const ignorePath = path.join(tmpDir, ".trellis/.gitignore");
+    fs.rmSync(ignorePath);
+    await init({ yes: true, user: "tester", cursor: true });
+    fs.mkdirSync(path.join(tmpDir, ".trellis/.runtime/hooks"), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(tmpDir, ".trellis/.runtime/hooks/cursor.json"),
+      "{}\n",
+    );
+    const ignored = execFileSync(
+      "git",
+      [
+        "-C",
+        tmpDir,
+        "check-ignore",
+        ".trellis/.developer",
+        ".trellis/.runtime/hooks/cursor.json",
+      ],
+      { encoding: "utf8" },
+    )
+      .trim()
+      .split("\n");
+    expect(ignored).toEqual([
+      ".trellis/.developer",
+      ".trellis/.runtime/hooks/cursor.json",
+    ]);
+
+    const custom =
+      "# User-owned rules\n.runtime/\n.developer\nprivate-notes/\n";
+    fs.writeFileSync(ignorePath, custom);
+    await init({ yes: true, cursor: true });
+    expect(fs.readFileSync(ignorePath, "utf8")).toBe(custom);
+  });
+
   it("writes research/, short spec, remember, and four-host SessionStart", () => {
     expect(fs.readFileSync(path.join(tmpDir, ".trellis/config.yaml"), "utf8")).toContain("session_auto_commit: false");
     expect(exists(tmpDir, ".trellis/research/README.md")).toBe(true);

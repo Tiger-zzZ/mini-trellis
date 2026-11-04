@@ -25,6 +25,8 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 license" /></a>
 </p>
 
+> **v0.3.4:** Keep the current project description in its existing file, record it from Cursor, and preserve user hooks when configuring the project. See the [release notes](./docs/releases/v0.3.4.md).
+
 ![Conventions, research and verified fixes accumulate in project Markdown, inform later work, and are updated with new evidence.](./docs/assets/knowledge-en.svg)
 
 AI coding workflows often fall into one of two traps: **starting every session with amnesia**—re-explaining the same API boundaries and past bugs—or **strapping on a heavy phase-gated workflow** that injects thousands of characters at startup, re-injects state on every prompt, and spawns cold-start sub-agents for routine edits.
@@ -120,10 +122,10 @@ Start a new agent session. For routine edits, just write code. Once you reach a 
 
 ```text
 Confirmed: every callback must carry an idempotency key, and transient failures retry up to 4 attempts total (upstream confirmed idempotency).
-Update the relevant spec or research note, then run remember for this session.
+Update the existing topic file, or create a spec or research note if none exists, then run remember for this session.
 ```
 
-The agent updates `.trellis/spec/` or `.trellis/research/` and writes a short entry in `.trellis/workspace/<you>/` linking to that note.
+The agent updates the existing topic file, which can also be a root `README*.md` or Markdown under `docs/` or `doc/`, and writes a short entry in `.trellis/workspace/<you>/` linking to that file.
 
 ### 3. Recall it in a later session
 
@@ -170,6 +172,8 @@ Consider a billing service where repeated callbacks caused duplicate charges. On
 - **Look up only when context is missing.** Run `mem recall` when touching unfamiliar rules or prior decisions; stop at the excerpt if it answers your question, and run `mem read "<ref>"` only when you need the full text. For conversation-only search, use `mem search` and `mem context <session-id>`.
 - **Record only what future sessions need.** Update an existing topic note when rules evolve, promote lasting boundaries with `mini-trellis-update-spec`, and run `remember` when a session produced a reusable conclusion. New installations write files without auto-committing to Git.
 
+Keep one current project description in the existing README, docs page, or spec; create a short spec only when none exists. Verify implemented capabilities against code or tests, keep agreed but unimplemented behavior separate, and preserve the document's language. Update stale symbol and path references after a rename. A rename or formatting change alone does not add a journal entry. See [Keep the project description current](./docs/using.md#keep-the-project-description-current).
+
 > Walk through a concrete change in [During a change](./docs/using.md).
 
 ---
@@ -181,7 +185,7 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
 | Agent | Init flag | Record a session | Knowledge & history support |
 | --- | --- | --- | --- |
 | **Claude Code** | `--claude` | `/mini-trellis:remember` | `SessionStart` injects the short entry; searches project docs and `~/.claude/projects` history |
-| **Cursor** | `--cursor` | `mini-trellis-remember` | Installs `.cursor/skills/`; local sessions inject the short entry via `sessionStart` (cloud agents do not run the hook) |
+| **Cursor** | `--cursor` | `mini-trellis-remember` | Installs `.cursor/skills/` and a local `sessionStart` entry, verified on Cursor 3.27.22. Uses `AGENTS.md` and `mem recall` for project knowledge. Cursor-managed cloud agents do not run `sessionStart`. Conversation history is not parsed |
 | **Codex** | `--codex` | `$mini-trellis-remember` | Project hook injection and local session history search |
 | **OpenCode** | `--opencode` | `/mini-trellis:remember` | Startup entry and local session search (including `--include-children` sub-agent merging) |
 | **Pi** | `--pi` | `/mini-trellis-remember` | Startup entry and local session search |
@@ -197,7 +201,7 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
   4. Run `mini-trellis doctor`, then start a new session.
 - **Host boundaries**:
   - DeepSeek Harness has no project-level `SessionStart` hook and does not parse compressed transcripts in `~/.dsh/sessions`;
-  - Cursor local sessions run `sessionStart`, while Cursor cloud agents carry the repo skills without running `sessionStart`; Cursor conversation history is not parsed;
+  - Cursor's generated local `sessionStart` entry is verified on Cursor 3.27.22. A successful hook log alone does not prove model delivery or use. Use `AGENTS.md`, the `mini-trellis-remember` skill, and `mini-trellis mem recall`. Cursor-managed cloud agents do not run `sessionStart`; self-hosted machines remain unverified. Cursor conversation history is not parsed;
   - OpenCode and Pi support session listing and search without precise compact boundary recovery. See the [v0.3.1 release notes](./docs/releases/v0.3.1.md).
 
 </details>
@@ -215,6 +219,7 @@ mini-trellis migrate             # Apply after confirmation
 
 - **Retains existing knowledge**: Keeps `.trellis/spec/`, `.trellis/research/`, and `.trellis/workspace/` journals intact.
 - **Folds task directories cleanly**: Moves task research into `.trellis/research/`, archives other task artifacts under `legacy/` by default, and replaces Trellis workflow files and scripts with `mini-trellis`.
+- **Keeps local state private**: Adds a missing `.trellis/.gitignore` during migration or when adding a host; existing user ignore rules are kept. This does not untrack files already in Git.
 
 <details>
 <summary><strong>Upgrading (`upgrade` / `refresh`) &amp; uninstalling</strong></summary>

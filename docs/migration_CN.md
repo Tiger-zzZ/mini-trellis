@@ -34,5 +34,6 @@ mini-trellis migrate             # 确认迁移，默认 no
 
 - `.trellis/spec/`、`research/`、`workspace/` 原样保留。已有 spec 内容，包括 Trellis 创建的 `backend/`、`frontend/` 文档，仍可检索；SessionStart 提供短入口，文档按需查找。
 - `.trellis/config.yaml` 和 `.trellis/scripts/` 会被 mini-trellis 版本覆盖，自定义配置和脚本修改需在迁移后重新应用。
+- 缺少 `.trellis/.gitignore` 时会补上，让本地身份与运行状态保持在 Git 之外，已有用户规则保留。不会取消 Git 对已跟踪文件的跟踪。
 - 迁移后的任务目录是 `.trellis/research/` 下的 topic，`mem recall` 可查活跃和归档笔记，启动时不枚举全部主题；只有没有未处理条目时才删除 `.trellis/tasks/`。
 - `.trellis/.version` 被移除，mini-trellis 自己不会再写这个文件，Trellis CLI 在这个项目里不会再有更新提示。

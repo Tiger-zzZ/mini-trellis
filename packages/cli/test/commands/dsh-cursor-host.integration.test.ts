@@ -19,6 +19,7 @@ vi.mock("inquirer", () => ({
 
 import { init } from "../../src/commands/init.js";
 import { buildDoctorReport } from "../../src/commands/doctor.js";
+import { runRefresh } from "../../src/commands/refresh.js";
 import { resetResolvedPythonCommand } from "../../src/configurators/shared.js";
 import { setWriteMode } from "../../src/utils/file-writer.js";
 
@@ -92,7 +93,7 @@ describe.skipIf(!canRun)("DeepSeek and Cursor synthetic project", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("installs pull skills, injects a short local Cursor entry, and recalls an updated note", () => {
+  it("installs pull skills, emits a Cursor hook response, and recalls an updated note", () => {
     expect(
       fs.existsSync(
         path.join(tmpDir, ".dsh/skills/mini-trellis-remember/SKILL.md"),
@@ -211,5 +212,142 @@ describe.skipIf(!canRun)("DeepSeek and Cursor synthetic project", () => {
       "./hooks/user-audit.sh",
     );
     expect(merged.hooks.sessionStart).toHaveLength(1);
+    const lines = vi
+      .mocked(console.log)
+      .mock.calls.map((args) => args.map((arg) => String(arg)).join(" "))
+      .join("\n");
+    expect(lines).toContain("mini-trellis-remember");
+    expect(lines).not.toContain("/mini-trellis:remember");
+  });
+
+  it("keeps a user Cursor hook across refresh and reports invalid JSON", async () => {
+    const hooksPath = path.join(tmpDir, ".cursor/hooks.json");
+    const existing = JSON.parse(fs.readFileSync(hooksPath, "utf8")) as {
+      version: number;
+      hooks: Record<string, unknown[]>;
+    };
+    existing.version = 2;
+    existing.hooks.beforeShellExecution = [
+      { command: "./hooks/user-audit.sh" },
+    ];
+    fs.writeFileSync(hooksPath, `${JSON.stringify(existing, null, 2)}\n`);
+
+    const report = runRefresh({ cwd: tmpDir, cursor: true });
+    expect(report.ok).toBe(true);
+    const merged = JSON.parse(fs.readFileSync(hooksPath, "utf8")) as {
+      version: number;
+      hooks: Record<string, { command?: string }[]>;
+    };
+    expect(merged.version).toBe(2);
+    expect(merged.hooks.beforeShellExecution[0]?.command).toBe(
+      "./hooks/user-audit.sh",
+    );
+    expect(merged.hooks.sessionStart).toHaveLength(1);
+
+    fs.writeFileSync(hooksPath, "{not json\n");
+    const blocked = runRefresh({ cwd: tmpDir, cursor: true });
+    expect(blocked.ok).toBe(false);
+    expect(
+      blocked.items.find((item) => item.path === ".cursor/hooks.json"),
+    ).toMatchObject({
+      action: "conflict",
+      detail: "existing file is not valid JSON",
+    });
+    expect(fs.readFileSync(hooksPath, "utf8")).toBe("{not json\n");
+
+    const diagnosis = buildDoctorReport(tmpDir);
+    expect(
+      diagnosis.checks.find((check) => check.name === "cursor-config"),
+    ).toMatchObject({
+      level: "warn",
+      detail: expect.stringContaining("not valid JSON"),
+    });
+
+    await init({ yes: true, force: true, user: "tester", cursor: true });
+    expect(fs.readFileSync(hooksPath, "utf8")).toBe("{not json\n");
+    const warnings = vi
+      .mocked(console.warn)
+      .mock.calls.map((args) => args.map((arg) => String(arg)).join(" "))
+      .join("\n");
+    expect(warnings).toContain("Skipped .cursor/hooks.json");
+  });
+
+  it.each([
+    "null",
+    "[]",
+    '{"version":"1"}',
+    '{"hooks":null}',
+    '{"hooks":[]}',
+    '{"hooks":{"sessionStart":"not an array"}}',
+    '{"hooks":{"sessionStart":[null]}}',
+    '{"hooks":{"sessionStart":[{"command":" "}]}}',
+    '{"hooks":{"sessionStart":[{"type":"prompt","prompt":" "}]}}',
+  ])(
+    "keeps invalid Cursor config shapes and diagnoses them: %s",
+    async (content) => {
+      const hooksPath = path.join(tmpDir, ".cursor/hooks.json");
+      fs.writeFileSync(hooksPath, content);
+      const manifestPath = path.join(
+        tmpDir,
+        ".trellis/.mini-trellis-manifest.json",
+      );
+      const manifest = fs.readFileSync(manifestPath, "utf8");
+      const refresh = runRefresh({ cwd: tmpDir, cursor: true });
+      expect(refresh.ok).toBe(false);
+      expect(
+        refresh.items.find((item) => item.path === ".cursor/hooks.json")
+          ?.action,
+      ).toBe("conflict");
+      expect(fs.readFileSync(hooksPath, "utf8")).toBe(content);
+      expect(fs.readFileSync(manifestPath, "utf8")).toBe(manifest);
+      expect(
+        buildDoctorReport(tmpDir).checks.find(
+          (check) => check.name === "cursor-config",
+        )?.level,
+      ).toBe("warn");
+
+      await init({ yes: true, force: true, user: "tester", cursor: true });
+      expect(fs.readFileSync(hooksPath, "utf8")).toBe(content);
+      expect(vi.mocked(console.warn).mock.calls.flat().join("\n")).toContain(
+        "Skipped .cursor/hooks.json",
+      );
+    },
+  );
+
+  it("repairs a missing registration without replacing user startup hooks", () => {
+    const hooksPath = path.join(tmpDir, ".cursor/hooks.json");
+    const userHook = { command: "./hooks/user-start.sh", timeout: 10 };
+    const promptHook = { type: "prompt", prompt: "Check this session", timeout: 10 };
+    fs.writeFileSync(
+      hooksPath,
+      JSON.stringify({
+        version: 2,
+        userSetting: "keep",
+        hooks: { sessionStart: [userHook, promptHook] },
+      }),
+    );
+    expect(
+      buildDoctorReport(tmpDir).checks.find(
+        (check) => check.name === "cursor-config",
+      )?.detail,
+    ).toContain("sessionStart is not registered");
+
+    expect(runRefresh({ cwd: tmpDir, cursor: true }).ok).toBe(true);
+    expect(runRefresh({ cwd: tmpDir, cursor: true }).ok).toBe(true);
+    const merged = JSON.parse(fs.readFileSync(hooksPath, "utf8")) as {
+      version: number;
+      userSetting: string;
+      hooks: { sessionStart: unknown[] };
+    };
+    expect(merged.version).toBe(2);
+    expect(merged.userSetting).toBe("keep");
+    expect(merged.hooks.sessionStart).toHaveLength(3);
+    expect(merged.hooks.sessionStart).toContainEqual(userHook);
+    expect(merged.hooks.sessionStart).toContainEqual(promptHook);
+    expect(
+      buildDoctorReport(tmpDir).checks.find(
+        (check) => check.name === "cursor-config",
+      ),
+    ).toBeUndefined();
   });
 });

@@ -4,6 +4,7 @@ import chalk from "chalk";
 import { AI_TOOLS, type AITool } from "../types/ai-tools.js";
 import { getConfiguredPlatforms } from "../configurators/index.js";
 import { needsTrellisMigration } from "./migrate.js";
+import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
 
 export type DoctorLevel = "ok" | "warn" | "error" | "unknown";
 
@@ -204,6 +205,19 @@ export function buildDoctorReport(cwd: string): DoctorReport {
         detail: triggerDetail,
       });
       if (platform === "dsh") continue;
+      if (platform === "cursor") {
+        const issue = readCursorHooksConfigIssue(
+          path.join(cwd, ".cursor/hooks.json"),
+          true,
+        );
+        if (issue) {
+          checks.push({
+            level: "warn",
+            name: "cursor-config",
+            detail: `.cursor/hooks.json: ${issue}; invalid configuration is kept`,
+          });
+        }
+      }
       const runtime = runtimeStatus(platform);
       if (!runtime) {
         checks.push({
@@ -213,7 +227,7 @@ export function buildDoctorReport(cwd: string): DoctorReport {
             platform === "codex"
               ? "no real hook execution observed; ensure Codex trusts this project, then use /hooks to review/trust the project hook and start a new session"
               : platform === "cursor"
-                ? "no real local hook execution observed; cloud agents do not run sessionStart"
+                ? "no real local hook execution observed; Cursor-managed cloud agents do not run sessionStart"
                 : "no real hook execution observed; run one host session",
         });
       } else if (

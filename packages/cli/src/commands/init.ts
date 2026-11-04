@@ -5,7 +5,10 @@ import readline from "node:readline";
 import chalk from "chalk";
 import figlet from "figlet";
 import inquirer from "inquirer";
-import { createWorkflowStructure } from "../configurators/workflow.js";
+import {
+  createWorkflowStructure,
+  ensureTrellisGitignore,
+} from "../configurators/workflow.js";
 import { needsTrellisMigration } from "./migrate.js";
 import {
   getInitToolChoices,
@@ -472,6 +475,8 @@ export async function init(options: InitOptions): Promise<void> {
 
   const { command: pythonCmd } = resolveSupportedPython();
 
+  if (!isFirstInit) ensureTrellisGitignore(cwd);
+
   if (!isFirstInit && !options.force && !options.skipExisting) {
     const reinitDone = await handleReinit(
       cwd,
@@ -562,11 +567,17 @@ export async function init(options: InitOptions): Promise<void> {
   }
 
   console.log(chalk.green("\n✓ mini-trellis initialized."));
-  console.log(
-    chalk.gray(
-      "  Record sessions with /mini-trellis:remember (or $mini-trellis-remember on Codex).",
-    ),
-  );
+  const recordCommands: string[] = [];
+  if (tools.includes("claude") || tools.includes("opencode")) {
+    recordCommands.push("/mini-trellis:remember");
+  }
+  if (tools.includes("pi")) recordCommands.push("/mini-trellis-remember");
+  if (tools.includes("codex")) recordCommands.push("$mini-trellis-remember");
+  if (recordCommands.length > 0) {
+    console.log(
+      chalk.gray(`  Record sessions with ${recordCommands.join(", ")}.`),
+    );
+  }
   const skillHosts = [
     tools.includes("dsh") ? "DeepSeek Harness" : "",
     tools.includes("cursor") ? "Cursor" : "",

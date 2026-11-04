@@ -5,7 +5,9 @@
  * configurators cannot import from index.ts).
  */
 
+import { existsSync } from "node:fs";
 import type { TemplateContext } from "../types/ai-tools.js";
+import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
 
 /**
  * Per-platform configure options threaded from `trellis init` flags.
@@ -231,9 +233,9 @@ export function resolvePlaceholdersNeutral(
 /** Skill description registry — maps template name to auto-trigger description. */
 const SKILL_DESCRIPTIONS: Record<string, string> = {
   remember:
-    "Save confirmed decisions, rejected approaches worth not retrying, and reusable findings. Update existing spec/research topics and link them from the journal. Use when asked to remember, when a decision is confirmed, or for a useful session/compact handoff.",
+    "Save confirmed decisions, rejected approaches worth not retrying, and reusable findings. Update an existing README, docs page, or spec instead of copying it, and link that file from the journal. Use when asked to remember, to update the project description from current code, when a decision is confirmed, or for a useful session/compact handoff.",
   "update-spec":
-    "Captures durable contracts and conventions into .trellis/spec/ as short markdown. Use when a debugging, implementation, or discussion produced a boundary that should still hold next session.",
+    "Captures durable contracts into .trellis/spec/ as short markdown, or updates the README or docs section that already states them. Use when a boundary should still hold next session, or when asked to refresh the project description from current code without turning plans into implemented features.",
 };
 
 /**
@@ -261,7 +263,7 @@ export function wrapWithSkillFrontmatter(
  */
 const COMMAND_DESCRIPTIONS: Record<string, string> = {
   remember:
-    "Save confirmed decisions or rejected approaches, update existing topics, and record a linked journal entry.",
+    "Save confirmed decisions or rejected approaches, update the existing project description or topic, and record a linked journal entry.",
 };
 
 /** Wrap resolved command content with YAML frontmatter (name + description). */
@@ -507,6 +509,13 @@ export async function writeTemplateMap(
     const absPath = path.join(cwd, ...relPath.split("/"));
     ensureDir(path.dirname(absPath));
     if (mergeJsonPaths.has(relPath)) {
+      if (relPath === ".cursor/hooks.json" && existsSync(absPath)) {
+        const issue = readCursorHooksConfigIssue(absPath);
+        if (issue) {
+          console.warn(`  ⚠ Skipped ${relPath}: ${issue}`);
+          continue;
+        }
+      }
       const result = mergeJsonFile(absPath, content);
       if (result === "invalid") {
         console.warn(`  ⚠ Skipped ${relPath}: existing file is not valid JSON`);

@@ -25,6 +25,7 @@ import inquirer from "inquirer";
 
 import { DIR_NAMES, FILE_NAMES, PATHS } from "../constants/paths.js";
 import { copyTrellisDir } from "../templates/extract.js";
+import { ensureTrellisGitignore } from "../configurators/workflow.js";
 import { configYamlTemplate } from "../templates/trellis/index.js";
 import {
   agentsMdContent,
@@ -397,6 +398,11 @@ function renderPlan(
       )}`,
     );
   }
+  if (!fs.existsSync(path.join(cwd, DIR_NAMES.WORKFLOW, ".gitignore"))) {
+    console.log(
+      `  ${chalk.green("+")} ${DIR_NAMES.WORKFLOW}/.gitignore  ${chalk.gray("(add missing local-state ignore rules)")}`,
+    );
+  }
   if (plan.reconfigure.length > 0 || plan.rewritesAgents) {
     console.log(chalk.yellow.bold("Host integrations to update:"));
   }
@@ -485,6 +491,7 @@ async function installMemoryLayer(cwd: string): Promise<void> {
   // Seeds are created only when absent, so an existing spec index or research
   // inbox keeps whatever the user wrote in it.
   setWriteMode("skip");
+  ensureTrellisGitignore(cwd);
   const researchDir = path.join(cwd, DIR_NAMES.WORKFLOW, "research");
   ensureDir(researchDir);
   ensureDir(path.join(researchDir, "archive"));
