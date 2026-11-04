@@ -12,7 +12,7 @@ const CURSOR_SKILL_NOTE = `
 
 ## Cursor
 
-A local sessionStart hook can run without its additional_context reaching the agent prompt. Use the AGENTS.md instructions and \`mini-trellis mem recall\`, then \`mini-trellis mem read\` if the excerpt is not enough. Cloud agents do not run sessionStart. Cursor conversation history is not parsed. After a confirmed decision, use the \`mini-trellis-remember\` skill.
+Local sessionStart supplies a short memory entry. A successful hook record alone does not prove model delivery. Use the AGENTS.md instructions and \`mini-trellis mem recall\`, then \`mini-trellis mem read\` if the excerpt is not enough. Cursor-managed cloud agents do not run sessionStart; self-hosted machines have not been verified. Cursor conversation history is not parsed. After a confirmed decision, use the \`mini-trellis-remember\` skill.
 `;
 
 /**

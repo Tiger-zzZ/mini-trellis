@@ -23,6 +23,7 @@ import {
   updateManifestForTemplates,
 } from "../utils/managed-manifest.js";
 import { writeFileAtomic } from "../utils/atomic-write.js";
+import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
 
 export type RefreshAction =
   | "add"
@@ -113,6 +114,13 @@ export function buildRefreshPlan(
       continue;
     }
     if (JSON_PATHS.has(relative)) {
+      if (relative === ".cursor/hooks.json") {
+        const issue = readCursorHooksConfigIssue(filePath);
+        if (issue) {
+          items.push({ path: relative, action: "conflict", detail: issue });
+          continue;
+        }
+      }
       const action = renderedJsonMerge(filePath, content);
       items.push({
         path: relative,

@@ -285,6 +285,78 @@ describe.skipIf(!hasPython())("recording diagnostics", () => {
     expect(readJournal(tmp)).toBe(outside);
   });
 
+  it.each([
+    "README_CN.md",
+    "docs/status.md",
+    "doc/项目现状.md",
+    "docs/status with spaces.md",
+  ])(
+    "links a project description without changing its contents: %s",
+    (relative) => {
+      const topic = path.join(tmp, relative);
+      const content =
+        "# Project status\n\nCurrent rule: at most four attempts.\n";
+      fs.mkdirSync(path.dirname(topic), { recursive: true });
+      fs.writeFileSync(topic, content);
+      const result = tryAddSession(tmp, "project description", [
+        "--no-commit",
+        "--topic",
+        relative,
+      ]);
+      expect(result.status).toBe(0);
+      expect(fs.readFileSync(topic, "utf8")).toBe(content);
+      const link = [
+        ...readJournal(tmp).matchAll(/\[([^\]]+)\]\(([^)]+)\)/g),
+      ].find((match) => match[1] === relative);
+      expect(link).toBeDefined();
+      expect(
+        path.resolve(
+          path.dirname(journalPath(tmp)),
+          decodeURIComponent(link?.[2] ?? ""),
+        ),
+      ).toBe(topic);
+    },
+  );
+
+  it("rejects invalid description topics before changing the journal or index", () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "mt-topic-outside-"));
+    try {
+      const foreign = path.join(outside, "status.md");
+      fs.writeFileSync(foreign, "# Outside the project\n");
+      fs.mkdirSync(path.join(tmp, "docs"), { recursive: true });
+      fs.writeFileSync(path.join(tmp, "README.md"), "# Current description\n");
+      fs.writeFileSync(path.join(tmp, "docs/empty.md"), " \n");
+      fs.writeFileSync(
+        path.join(tmp, "docs/status.txt"),
+        "# Wrong extension\n",
+      );
+      fs.symlinkSync(foreign, path.join(tmp, "docs/outside.md"));
+      const journal = readJournal(tmp);
+      const index = fs.readFileSync(indexPath(tmp), "utf8");
+      for (const invalid of [
+        "docs/empty.md",
+        "docs/status.txt",
+        "docs/missing.md",
+        "docs/outside.md",
+        foreign,
+      ]) {
+        const result = tryAddSession(tmp, "invalid topic", [
+          "--no-commit",
+          "--topic",
+          "README.md",
+          "--topic",
+          invalid,
+        ]);
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain("journal not written");
+        expect(readJournal(tmp)).toBe(journal);
+        expect(fs.readFileSync(indexPath(tmp), "utf8")).toBe(index);
+      }
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
   it("keeps topic links usable after journal rotation and a retry", () => {
     const topicRelative = ".trellis/research/payment rules (v2)#中文.md";
     const topic = path.join(tmp, topicRelative);

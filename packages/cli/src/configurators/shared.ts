@@ -5,7 +5,9 @@
  * configurators cannot import from index.ts).
  */
 
+import { existsSync } from "node:fs";
 import type { TemplateContext } from "../types/ai-tools.js";
+import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
 
 /**
  * Per-platform configure options threaded from `trellis init` flags.
@@ -507,6 +509,13 @@ export async function writeTemplateMap(
     const absPath = path.join(cwd, ...relPath.split("/"));
     ensureDir(path.dirname(absPath));
     if (mergeJsonPaths.has(relPath)) {
+      if (relPath === ".cursor/hooks.json" && existsSync(absPath)) {
+        const issue = readCursorHooksConfigIssue(absPath);
+        if (issue) {
+          console.warn(`  ⚠ Skipped ${relPath}: ${issue}`);
+          continue;
+        }
+      }
       const result = mergeJsonFile(absPath, content);
       if (result === "invalid") {
         console.warn(`  ⚠ Skipped ${relPath}: existing file is not valid JSON`);

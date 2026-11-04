@@ -181,7 +181,7 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
 | Agent | Init flag | Record a session | Knowledge & history support |
 | --- | --- | --- | --- |
 | **Claude Code** | `--claude` | `/mini-trellis:remember` | `SessionStart` injects the short entry; searches project docs and `~/.claude/projects` history |
-| **Cursor** | `--cursor` | `mini-trellis-remember` | Installs `.cursor/skills/` and a local `sessionStart` hook. The hook can run while its `additional_context` still misses the agent prompt; `AGENTS.md` and `mem recall` remain the usable path. Cloud agents do not run `sessionStart`. Conversation history is not parsed |
+| **Cursor** | `--cursor` | `mini-trellis-remember` | Installs `.cursor/skills/` and a local `sessionStart` entry, verified on Cursor 3.27.22. Uses `AGENTS.md` and `mem recall` for project knowledge. Cursor-managed cloud agents do not run `sessionStart`. Conversation history is not parsed |
 | **Codex** | `--codex` | `$mini-trellis-remember` | Project hook injection and local session history search |
 | **OpenCode** | `--opencode` | `/mini-trellis:remember` | Startup entry and local session search (including `--include-children` sub-agent merging) |
 | **Pi** | `--pi` | `/mini-trellis-remember` | Startup entry and local session search |
@@ -197,7 +197,7 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
   4. Run `mini-trellis doctor`, then start a new session.
 - **Host boundaries**:
   - DeepSeek Harness has no project-level `SessionStart` hook and does not parse compressed transcripts in `~/.dsh/sessions`;
-  - Cursor local sessions can run `sessionStart`, and the Hooks log can say the response merged, without that `additional_context` reaching the agent prompt. Checked on Cursor 3.27.22 agent chat: the hook exited 0 and the model did not receive the short entry. Use the `AGENTS.md` instructions, the `mini-trellis-remember` skill, and `mini-trellis mem recall`. Cloud agents do not run `sessionStart`. Cursor conversation history is not parsed;
+  - Cursor 3.27.22 local Agent Chat received the generated `.cursor/hooks/session-start.py` entry: the model quoted its Developer and Journal lines without tools. A successful hook log alone does not prove delivery or use. Use `AGENTS.md`, the `mini-trellis-remember` skill, and `mini-trellis mem recall`. Cursor-managed cloud agents do not run `sessionStart`; self-hosted machines remain unverified. Cursor conversation history is not parsed;
   - OpenCode and Pi support session listing and search without precise compact boundary recovery. See the [v0.3.1 release notes](./docs/releases/v0.3.1.md).
 
 </details>

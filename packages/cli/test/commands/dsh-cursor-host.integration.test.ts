@@ -93,7 +93,7 @@ describe.skipIf(!canRun)("DeepSeek and Cursor synthetic project", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("installs pull skills, injects a short local Cursor entry, and recalls an updated note", () => {
+  it("installs pull skills, emits a Cursor hook response, and recalls an updated note", () => {
     expect(
       fs.existsSync(
         path.join(tmpDir, ".dsh/skills/mini-trellis-remember/SKILL.md"),
@@ -270,5 +270,81 @@ describe.skipIf(!canRun)("DeepSeek and Cursor synthetic project", () => {
       .mock.calls.map((args) => args.map((arg) => String(arg)).join(" "))
       .join("\n");
     expect(warnings).toContain("Skipped .cursor/hooks.json");
+  });
+
+  it.each([
+    "null",
+    "[]",
+    '{"version":"1"}',
+    '{"hooks":null}',
+    '{"hooks":[]}',
+    '{"hooks":{"sessionStart":"not an array"}}',
+    '{"hooks":{"sessionStart":[null]}}',
+    '{"hooks":{"sessionStart":[{"command":" "}]}}',
+  ])(
+    "keeps invalid Cursor config shapes and diagnoses them: %s",
+    async (content) => {
+      const hooksPath = path.join(tmpDir, ".cursor/hooks.json");
+      fs.writeFileSync(hooksPath, content);
+      const manifestPath = path.join(
+        tmpDir,
+        ".trellis/.mini-trellis-manifest.json",
+      );
+      const manifest = fs.readFileSync(manifestPath, "utf8");
+      const refresh = runRefresh({ cwd: tmpDir, cursor: true });
+      expect(refresh.ok).toBe(false);
+      expect(
+        refresh.items.find((item) => item.path === ".cursor/hooks.json")
+          ?.action,
+      ).toBe("conflict");
+      expect(fs.readFileSync(hooksPath, "utf8")).toBe(content);
+      expect(fs.readFileSync(manifestPath, "utf8")).toBe(manifest);
+      expect(
+        buildDoctorReport(tmpDir).checks.find(
+          (check) => check.name === "cursor-config",
+        )?.level,
+      ).toBe("warn");
+
+      await init({ yes: true, force: true, user: "tester", cursor: true });
+      expect(fs.readFileSync(hooksPath, "utf8")).toBe(content);
+      expect(vi.mocked(console.warn).mock.calls.flat().join("\n")).toContain(
+        "Skipped .cursor/hooks.json",
+      );
+    },
+  );
+
+  it("repairs a missing registration without replacing a user startup hook", () => {
+    const hooksPath = path.join(tmpDir, ".cursor/hooks.json");
+    const userHook = { command: "./hooks/user-start.sh", timeout: 10 };
+    fs.writeFileSync(
+      hooksPath,
+      JSON.stringify({
+        version: 2,
+        userSetting: "keep",
+        hooks: { sessionStart: [userHook] },
+      }),
+    );
+    expect(
+      buildDoctorReport(tmpDir).checks.find(
+        (check) => check.name === "cursor-config",
+      )?.detail,
+    ).toContain("sessionStart is not registered");
+
+    expect(runRefresh({ cwd: tmpDir, cursor: true }).ok).toBe(true);
+    expect(runRefresh({ cwd: tmpDir, cursor: true }).ok).toBe(true);
+    const merged = JSON.parse(fs.readFileSync(hooksPath, "utf8")) as {
+      version: number;
+      userSetting: string;
+      hooks: { sessionStart: { command: string }[] };
+    };
+    expect(merged.version).toBe(2);
+    expect(merged.userSetting).toBe("keep");
+    expect(merged.hooks.sessionStart).toHaveLength(2);
+    expect(merged.hooks.sessionStart).toContainEqual(userHook);
+    expect(
+      buildDoctorReport(tmpDir).checks.find(
+        (check) => check.name === "cursor-config",
+      ),
+    ).toBeUndefined();
   });
 });

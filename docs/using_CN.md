@@ -9,7 +9,7 @@ npm install -g mini-trellis
 mini-trellis init -u 你的名字 --claude
 ```
 
-只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 会装上技能和本地 `sessionStart`；云端不跑这个 hook，本地 hook 跑过也不等于 Agent 提示里收到了 `additional_context`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
+只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 会装上技能和本地 `sessionStart`；Cursor 托管云端不跑这个 hook，本地 hook 跑过也不等于 Agent 提示里收到了 `additional_context`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
 
 ## 在 Cursor 里
 
@@ -19,7 +19,7 @@ mini-trellis init -u 你的名字 --cursor -y
 
 init 会写入 `AGENTS.md` 里的托管说明、`.cursor/skills/` 下的三个技能，以及只注册 `sessionStart` 的 `.cursor/hooks.json`。记录用技能 `mini-trellis-remember`。找回用 `mini-trellis mem recall`，摘录缺条件时再 `mem read`。
 
-2026-11-01 在 Cursor 3.27.22 的本地 Agent 对话里核对过：`sessionStart` 执行了，Hooks 日志写成已合并，返回的 `additional_context` 不在模型提示里。实际能用的是 `AGENTS.md` 和 `mem recall`。云端 Agent 不运行 `sessionStart`。不解析 Cursor 对话历史。
+2026-11-04 在 Cursor 3.27.22 的本地 Agent 对话里核对过：生成的 `.cursor/hooks/session-start.py` 短入口已送达，模型在不使用工具的情况下准确给出了其中的 Developer 和 Journal 两行。hook 日志成功本身不能证明送达或使用。短入口不可用时，也可以使用 `AGENTS.md` 和 `mem recall`。Cursor 托管云端不运行 `sessionStart`，自托管机器仍未验证。不解析 Cursor 对话历史。
 
 第一次这样走：
 
@@ -28,15 +28,15 @@ init 会写入 `AGENTS.md` 里的托管说明、`.cursor/skills/` 下的三个�
 3. 确认一条规则。让 Agent 更新已有主题；没有合适文件时再写一篇短 spec，然后使用 `mini-trellis-remember`。核对主题正文、journal 链接和 index。
 4. 再开一个对话，对这条规则执行 `mem recall`。摘录里要还在条件和来源。
 
-再次 init 或 refresh 会保留 `.cursor/hooks.json` 里不相干的 hook，也会保留用户写的 `version`。文件不是合法 JSON 时，init 打印 `Skipped .cursor/hooks.json` 并留下原文件，refresh 停在 conflict。这时 `doctor` 报 `cursor-config`。
+再次 init 或 refresh 会保留 `.cursor/hooks.json` 里不相干的 hook，也会保留用户写的 `version`。文件不是合法 JSON 或 hook 结构无效时，init 打印 `Skipped .cursor/hooks.json` 并留下原文件，refresh 停在 conflict。`doctor` 会对这些错误以及缺失的 mini-trellis `sessionStart` 注册报告 `cursor-config`。
 
 | 看到什么 | 怎么处理 |
 | --- | --- |
 | Hooks 日志里没有加载项目 `sessionStart` | 打开的是含 `.cursor/hooks.json` 的项目根。 |
 | `cursor-runtime` 为 unknown | 还没有成功的 hook 记录。开一轮本地 Agent 对话，再看 `.trellis/.runtime/hooks/cursor.json`。 |
 | hook 成功了，模型却没有 recall 说明 | 看 `AGENTS.md`，直接说 `mini-trellis mem recall`。日志里的 merged 不是送达。 |
-| `cursor-config` 警告 | 先修好 `.cursor/hooks.json`。坏文件不会被覆盖。 |
-| 云端 Agent | 不跑 `sessionStart`。仓库里的笔记还在，需要时自己 recall。 |
+| `cursor-config` 警告 | 按详情处理：先修正 JSON 或 hook 结构错误；缺少注册时运行 `init --cursor` 补回。用户 hook 会保留。 |
+| Cursor 托管云端 Agent | 不跑 `sessionStart`。仓库里的笔记还在，需要时自己 recall。 |
 
 ## 从 Trellis 迁过来
 
@@ -96,7 +96,7 @@ journal 只记过程和笔记路径。规则正文写在 spec 或 research 里�
 根据当前代码更新项目说明，保留已经确认的能力、架构和约束；不确定的部分标明待核实。
 ```
 
-说明里只写已经实现的用途、能力、主要模块和约束，并带上代码、测试或已确认决定作为依据。规划中的功能、用户只是提出的建议，不能写成已经实现。只改相关章节。普通改名或排版不重写整篇说明，也不记一条 journal。
+说明里写清用途、已实现能力、主要模块和约束。已实现能力要核对当前代码或测试：已确认的决定、常量或配置值本身不能证明行为已经实现。已约定或规划中的行为要与已实现能力分开。只改相关章节。普通改名或排版不重写整篇说明，也不记一条 journal；如果文中引用的符号或路径因此过时，仍要同步修正。
 
 中文讨论去改一篇英文旧说明时，正文保持英文，含义、限额和否定不变。确认之后，现行说明和 journal 里的链接一致。下一轮用 `mem recall` 找回的是更新后的内容，旧 journal 仍可查，但不代替现行说明。
 
@@ -156,5 +156,5 @@ mini-trellis doctor
 | `instructions` | `AGENTS.md` 没有托管块。再跑一次 init。 |
 | `platforms` | 没有发现宿主。加上 `--claude`、`--codex`、`--opencode`、`--pi`、`--dsh` 或 `--cursor`。 |
 | `<host>-runtime` 为 unknown | 还没有一次真实 hook 记录。开一轮宿主会话。Codex 要先信任项目 hook。Cursor 还要分开看：hook 记录出现，也不等于短入口进了模型提示。 |
-| `cursor-config` | `.cursor/hooks.json` 不是合法 JSON。init 会跳过，refresh 会停住并保留该文件。 |
+| `cursor-config` | `.cursor/hooks.json` 无效或 mini-trellis 启动 hook 没有注册。按详情处理；无效配置会保留。 |
 | `<host>-runtime` 为 warn | 最近一次 hook 没有干净结束。明细里有状态和错误类别。 |

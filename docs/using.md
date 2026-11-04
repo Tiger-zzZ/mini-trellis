@@ -9,7 +9,7 @@ npm install -g mini-trellis
 mini-trellis init -u your-name --claude
 ```
 
-Pass only the tools you use: `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--cursor`. Add `-y` to skip prompts. Init writes `.trellis/` and the host files. It does not create a Git commit. DeepSeek has no SessionStart, so call `mem recall` when project knowledge is needed. Cursor installs skills and a local `sessionStart` hook; cloud agents do not run that hook, and a local hook run does not by itself mean the agent prompt received `additional_context`. Neither host parses local conversation history. OpenCode and Pi have no precise compact.
+Pass only the tools you use: `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--cursor`. Add `-y` to skip prompts. Init writes `.trellis/` and the host files. It does not create a Git commit. DeepSeek has no SessionStart, so call `mem recall` when project knowledge is needed. Cursor installs skills and a local `sessionStart` hook; Cursor-managed cloud agents do not run that hook, and a local hook run does not by itself mean the agent prompt received `additional_context`. Neither host parses local conversation history. OpenCode and Pi have no precise compact.
 
 ## Cursor
 
@@ -19,7 +19,7 @@ mini-trellis init -u your-name --cursor -y
 
 Init writes the managed block in `AGENTS.md`, three skills under `.cursor/skills/`, and a `.cursor/hooks.json` that registers only `sessionStart`. Record with the `mini-trellis-remember` skill. Recall with `mini-trellis mem recall`, then `mem read` when the excerpt is missing a condition.
 
-On Cursor 3.27.22, a local agent chat ran `sessionStart`, the Hooks log said the responses were merged, and the returned `additional_context` was not in the model prompt. Treat `AGENTS.md` plus `mem recall` as the path that actually works. Cloud agents do not run `sessionStart`. Cursor conversation history is not parsed.
+On Cursor 3.27.22, a local Agent Chat received the generated `.cursor/hooks/session-start.py` entry: the model quoted its Developer and Journal lines without using tools. A successful hook log alone does not prove delivery or use. `AGENTS.md` plus `mem recall` also works when the short entry is unavailable. Cursor-managed cloud agents do not run `sessionStart`; self-hosted machines remain unverified. Cursor conversation history is not parsed.
 
 First loop:
 
@@ -28,15 +28,15 @@ First loop:
 3. Confirm one rule. Ask the agent to update the existing topic, or create a short spec if none exists, then use `mini-trellis-remember`. Check the topic text, the journal link, and the index.
 4. Open another chat and run `mem recall` for that rule. The excerpt should keep the condition and the source.
 
-`init` and `refresh` keep unrelated hooks in `.cursor/hooks.json`. A user `version` value is left as-is. If that file is not valid JSON, init prints `Skipped .cursor/hooks.json` and leaves it, and refresh stops with a conflict. `doctor` then reports `cursor-config`.
+`init` and `refresh` keep unrelated hooks in `.cursor/hooks.json`. A user `version` value is left as-is. If that file is not valid JSON or has an invalid hooks structure, init prints `Skipped .cursor/hooks.json` and leaves it, and refresh stops with a conflict. `doctor` reports `cursor-config` for those errors and for a missing mini-trellis `sessionStart` registration.
 
 | What you see | What to do |
 | --- | --- |
 | Hooks log never says a project `sessionStart` hook loaded | Open the project root that contains `.cursor/hooks.json`. |
 | `cursor-runtime` is unknown | No successful hook record yet. Start one local agent chat, then read `.trellis/.runtime/hooks/cursor.json`. |
 | The hook succeeded and the model still has no recall instruction | Use `AGENTS.md` and say `mini-trellis mem recall`. A merged Hooks log is not delivery. |
-| `cursor-config` warns | Fix `.cursor/hooks.json` before the next init or refresh. The invalid file is kept. |
-| Cloud agent | `sessionStart` does not run. Notes in the repo are still there; call `mem recall`. |
+| `cursor-config` warns | Follow the detail: fix invalid JSON or hooks structure first, or run `init --cursor` to restore a missing registration. User hooks are kept. |
+| Cursor-managed cloud agent | `sessionStart` does not run. Notes in the repo are still there; call `mem recall`. |
 
 ## Move a Trellis project over
 
@@ -106,7 +106,7 @@ You can hand this to the agent:
 Update the project description from the current code. Keep confirmed capabilities, architecture, and constraints. Mark anything uncertain as unverified.
 ```
 
-The description lists purpose, implemented capabilities, main modules, and constraints, each traced to code, a test, or a confirmed decision. Planned work and a suggestion are not implemented capabilities. Change the affected section. An ordinary rename or formatting change does not rewrite the description and does not get a journal entry.
+The description lists purpose, implemented capabilities, main modules, and constraints. Check implemented capabilities against current code or tests: a confirmed decision, constant, or configuration value alone does not prove implementation. Keep agreed or planned behavior separate from implemented capabilities. Change only the affected section. An ordinary rename or formatting change does not trigger a full rewrite or get a journal entry, but still update any symbol or path references it makes stale.
 
 A Chinese discussion updates an English description in English, with the same meaning, limits, and negations. After a confirmation, the current description and the journal link agree. The next session's `mem recall` returns the updated text. Older journal entries stay searchable and do not replace the current description.
 
@@ -156,5 +156,5 @@ mini-trellis doctor
 | `instructions` | `AGENTS.md` is missing the managed block. Run init again. |
 | `platforms` | No host was found. Pass `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, or `--cursor`. |
 | `<host>-runtime` unknown | No real hook run is on disk yet. Start one host session. For Codex, trust the project hook first. For Cursor, a later hook record still does not prove the short entry reached the model prompt. |
-| `cursor-config` | `.cursor/hooks.json` is not valid JSON. Init skips it and refresh stops, leaving the file in place. |
+| `cursor-config` | `.cursor/hooks.json` is invalid or the mini-trellis startup hook is unregistered. Follow the detail; invalid configuration is kept. |
 | `<host>-runtime` warn | The last hook did not finish cleanly. The detail has the status and error category. |

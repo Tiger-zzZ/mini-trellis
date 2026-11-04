@@ -35,8 +35,8 @@ If this session produced reusable research, write `.trellis/research/<topic>.md`
 When the user asks what the project is today, or a confirmed capability or architecture boundary changes, keep one description:
 
 - Update the README, docs page, or spec section that already states it. Create a short `.trellis/spec/` note only when no such file exists. Do not copy the same description into a second file.
-- Write the purpose, implemented capabilities, main modules, and constraints. Each claim needs a source in the current code, a test, or a confirmed decision. Planned work is not an implemented capability. A suggestion stays a suggestion, or is labeled unverified.
-- Edit the affected section. An ordinary rename or formatting change does not rewrite the description and does not get a journal entry.
+- Write the purpose, implemented capabilities, main modules, and constraints. Check capability claims against current code or tests; a confirmed decision alone does not prove implementation. A constant or configuration value does not prove the behavior that would use it. Keep planned or agreed behavior separate from implemented capabilities. A suggestion stays a suggestion, or is labeled unverified.
+- Edit only the affected section. An ordinary rename or formatting change does not trigger a full rewrite or get a journal entry. Still update any symbol or path references made stale by that change.
 - Keep the file's language. A Chinese discussion updates an English description in English, with the same meaning, limits, and negations.
 - Link that verified file from the journal with `--topic`. A root `README*.md` or a Markdown file under `docs/` or `doc/` is accepted, as are spec and research notes. The journal does not replace the description.
 
