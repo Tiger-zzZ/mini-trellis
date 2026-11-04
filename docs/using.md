@@ -1,5 +1,7 @@
 # Using it while you code
 
+The Cursor configuration and project-description changes below are [unreleased](releases/unreleased.md). npm currently provides v0.3.2.
+
 Commands run from the project root. The record command is `/mini-trellis:remember` in Claude Code and OpenCode, `$mini-trellis-remember` in Codex, and `/mini-trellis-remember` in Pi. DeepSeek Harness and Cursor use the `mini-trellis-remember` skill.
 
 ## Install on a new project
@@ -84,7 +86,7 @@ Keep a conclusion only when a later session would need it.
 | Deduplicating before the ledger made reconciliation wrong, so that approach was dropped. | The same research note | Label it rejected. Do not write it as a current rule. |
 | Which files changed, and whether the test passed. | The journal under `.trellis/workspace/<you>/` | Run `remember` before the session ends. |
 
-The journal records the work and the note path. The rule itself lives in spec or research. If a file already covers the topic, edit that file.
+The journal records the work and the topic path. Keep the authoritative text in the existing topic file, including a README or docs page when that is already its home. If no file covers the topic, use spec or research.
 
 You can hand this to the agent:
 

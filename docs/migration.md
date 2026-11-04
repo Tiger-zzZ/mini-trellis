@@ -34,5 +34,6 @@ Before migration, back up project knowledge and custom configuration, including 
 
 - `.trellis/spec/`, `research/`, and `workspace/` are left alone. Your spec content survives, including any `backend/`/`frontend/` docs Trellis wrote; these remain searchable. SessionStart supplies a short entry, and articles are retrieved on demand.
 - `.trellis/config.yaml` and `.trellis/scripts/` get overwritten with mini-trellis's versions. Re-apply any local edits.
+- A missing `.trellis/.gitignore` is added to keep local identity and runtime state out of Git. Existing user ignore rules are kept. This does not untrack files already in Git. This repair is part of the [upcoming release](releases/unreleased.md).
 - Migrated task directories are topics under `.trellis/research/` now; `mem recall` searches active and archived notes without listing all topics at startup. `.trellis/tasks/` is removed only if no unprocessed entries remain.
 - `.trellis/.version` is removed and mini-trellis never writes one, so the Trellis CLI stays quiet in that project.

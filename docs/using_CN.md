@@ -1,5 +1,7 @@
 # 开发时怎么用
 
+下文的 Cursor 配置与项目现状维护改进[尚未发布](releases/unreleased.md)，npm 当前仍提供 v0.3.2。
+
 命令在项目根目录执行。Claude Code 和 OpenCode 用 `/mini-trellis:remember`，Codex 用 `$mini-trellis-remember`，Pi 用 `/mini-trellis-remember`。DeepSeek Harness 和 Cursor 用技能 `mini-trellis-remember`。
 
 ## 从零安装
@@ -84,7 +86,7 @@ mini-trellis mem context <session-id> --platform claude
 | 试过先去重再记账，对账对不上，放弃了 | 同一篇研究笔记 | 标明这是 rejected，不要写成当前规则。 |
 | 这次改了哪个文件、测试是否通过 | `.trellis/workspace/<你>/` 的 journal | 会话结束前执行对应宿主的 `remember`。 |
 
-journal 只记过程和笔记路径。规则正文写在 spec 或 research 里。已经有同一主题的文件时，改那个文件，不要再新建一篇。
+journal 只记过程和主题路径。正文保留在已有主题文件里，也可以是原本就在维护的 README 或 docs；没有合适文件时再写入 spec 或 research。
 
 ## 维护项目现状
 

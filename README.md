@@ -25,6 +25,8 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 license" /></a>
 </p>
 
+> The Cursor and project-description changes in [the upcoming release notes](./docs/releases/unreleased.md) are not published yet. npm currently provides v0.3.2.
+
 ![Conventions, research and verified fixes accumulate in project Markdown, inform later work, and are updated with new evidence.](./docs/assets/knowledge-en.svg)
 
 AI coding workflows often fall into one of two traps: **starting every session with amnesia**—re-explaining the same API boundaries and past bugs—or **strapping on a heavy phase-gated workflow** that injects thousands of characters at startup, re-injects state on every prompt, and spawns cold-start sub-agents for routine edits.
@@ -120,10 +122,10 @@ Start a new agent session. For routine edits, just write code. Once you reach a 
 
 ```text
 Confirmed: every callback must carry an idempotency key, and transient failures retry up to 4 attempts total (upstream confirmed idempotency).
-Update the relevant spec or research note, then run remember for this session.
+Update the existing topic file, or create a spec or research note if none exists, then run remember for this session.
 ```
 
-The agent updates `.trellis/spec/` or `.trellis/research/` and writes a short entry in `.trellis/workspace/<you>/` linking to that note.
+The agent updates the existing topic file, which can also be a root `README*.md` or Markdown under `docs/` or `doc/`, and writes a short entry in `.trellis/workspace/<you>/` linking to that file.
 
 ### 3. Recall it in a later session
 
@@ -170,6 +172,8 @@ Consider a billing service where repeated callbacks caused duplicate charges. On
 - **Look up only when context is missing.** Run `mem recall` when touching unfamiliar rules or prior decisions; stop at the excerpt if it answers your question, and run `mem read "<ref>"` only when you need the full text. For conversation-only search, use `mem search` and `mem context <session-id>`.
 - **Record only what future sessions need.** Update an existing topic note when rules evolve, promote lasting boundaries with `mini-trellis-update-spec`, and run `remember` when a session produced a reusable conclusion. New installations write files without auto-committing to Git.
 
+Keep one current project description in the existing README, docs page, or spec; create a short spec only when none exists. Verify implemented capabilities against code or tests, keep agreed but unimplemented behavior separate, and preserve the document's language. Update stale symbol and path references after a rename. A rename or formatting change alone does not add a journal entry. See [Keep the project description current](./docs/using.md#keep-the-project-description-current).
+
 > Walk through a concrete change in [During a change](./docs/using.md).
 
 ---
@@ -215,6 +219,7 @@ mini-trellis migrate             # Apply after confirmation
 
 - **Retains existing knowledge**: Keeps `.trellis/spec/`, `.trellis/research/`, and `.trellis/workspace/` journals intact.
 - **Folds task directories cleanly**: Moves task research into `.trellis/research/`, archives other task artifacts under `legacy/` by default, and replaces Trellis workflow files and scripts with `mini-trellis`.
+- **Keeps local state private**: Adds a missing `.trellis/.gitignore` during migration or when adding a host; existing user ignore rules are kept. This does not untrack files already in Git.
 
 <details>
 <summary><strong>Upgrading (`upgrade` / `refresh`) &amp; uninstalling</strong></summary>

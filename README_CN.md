@@ -16,7 +16,7 @@
   <a href="#知识如何留下并再次使用">工作方式</a> ·
   <a href="./docs/using_CN.md">开发时怎么用</a> ·
   <a href="#支持的工具">支持工具</a> ·
-  <a href="#从-trellis-迁移">迁移指南</a> ·
+  <a href="#从-trellis-迁移与日常升级">迁移指南</a> ·
   <a href="./README.md">English</a>
 </p>
 
@@ -24,6 +24,8 @@
   <a href="https://www.npmjs.com/package/mini-trellis"><img src="https://img.shields.io/npm/v/mini-trellis?style=flat-square&amp;color=28785e" alt="npm 版本" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 许可证" /></a>
 </p>
+
+> [下一版说明](./docs/releases/unreleased.md)中的 Cursor 与项目现状维护改进尚未发布，npm 当前仍提供 v0.3.2。
 
 ![开发中的约定、研究结论与验证记录沉淀为项目知识，在后续工作中复用，并随新证据继续更新。](./docs/assets/knowledge-zh.svg)
 
@@ -120,10 +122,10 @@ mini-trellis init -u your-name --claude
 
 ```text
 这次确认：回调必须携带幂等键，transient 失败最多尝试 4 次（上游已确认幂等保障）。
-请更新对应的规范或研究笔记，然后执行 remember 记录本次会话。
+请更新已有的主题文件，没有合适文件时再新建规范或研究笔记，然后执行 remember 记录本次会话。
 ```
 
-Agent 会把规则写入 `.trellis/spec/` 或 `.trellis/research/`，并在 `.trellis/workspace/<你>/` 的开发日志里留下简短记录与文件链接。
+Agent 会更新已有主题文件，也可以是根目录的 `README*.md` 或 `docs/`、`doc/` 下的 Markdown，并在 `.trellis/workspace/<你>/` 的开发日志里留下简短记录与文件链接。
 
 ### 3. 在后续会话按需找回
 
@@ -170,6 +172,8 @@ mini-trellis mem read "<ref>"
 - **拿不准历史边界时再查**：遇到老模块或历史决定时跑一次 `mem recall`；短摘录够用就直接改，不够再 `mem read "<ref>"`。只查对话历史时也可以用 `mem search` 配合 `mem context <session-id>`。
 - **有长期价值的结论才记**：只有定下了以后还要遵守的约定（用 `mini-trellis-update-spec` 写入 `spec`）或值得复用的调研/排障结论（已有同主题文件则直接更新原文件，再用 `remember` 留一条日志）时，才需要记录。新安装默认只写文件，不自动执行 Git commit。
 
+项目现状只维护一份：已有 README、docs 或 spec 就改原文件，没有才建短 spec。已实现能力要核对代码或测试，已确认但未实现的约定单独写，更新时保持原文件语言。改名后同步修正符号与路径引用；仅改名或排版不新增 journal。详见[维护项目现状](./docs/using_CN.md#维护项目现状)。
+
 > 一次完整需求修改的具体操作见 [《开发时怎么用》](./docs/using_CN.md)。
 
 ---
@@ -215,6 +219,7 @@ mini-trellis migrate             # 确认后执行迁移
 
 - **保留全部沉淀知识**：原 `.trellis/spec/`、`.trellis/research/` 和 `.trellis/workspace/` 完整保留；
 - **收敛旧任务目录**：将 `.trellis/tasks/` 中的研究内容提取为 research 主题，其余任务文件默认归档到 `legacy/`，并替换 Trellis 专用流程文件与脚本。
+- **本地状态保持在 Git 之外**：迁移或增加宿主时补齐缺失的 `.trellis/.gitignore`，保留已有用户规则；不会取消 Git 对已跟踪文件的跟踪。
 
 <details>
 <summary><strong>查看日常升级（upgrade / refresh）与卸载说明</strong></summary>

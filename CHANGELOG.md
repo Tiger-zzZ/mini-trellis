@@ -8,6 +8,8 @@
 - Cursor's generated local `sessionStart` entry reached a real Cursor 3.27.22 Agent Chat: the model quoted startup-only Developer and Journal lines without tools. Hook logs alone still do not prove delivery or use. The session-insight skill also points to `AGENTS.md` and `mini-trellis mem recall`. Cursor-managed cloud agents do not run `sessionStart`; self-hosted machines remain unverified. Cursor conversation history is not parsed.
 - `add_session.py --topic` accepts a root `README*.md` and Markdown under `docs/` or `doc/`, in addition to spec and research notes. An existing install gets that check after `mini-trellis refresh`.
 
+These changes cover the 0.3.3 and 0.3.4 work packages and are not published yet. Details and upgrade steps are in the [upcoming release notes](docs/releases/unreleased.md).
+
 ## v0.3.2 — 2026-11-01
 
 - A user question that only restates the query no longer crowds out a note that states the rule, including a question that repeats an id such as `TASK-4419`. A turn is treated as only a question when every word is a query term or a request word. A fact with no confirmation word, a `Confirmed:` line, a numeric correction, and a Chinese rejection stay eligible. Reordering document bodies does not move a session hit out of the place coverage gave it.
