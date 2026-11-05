@@ -100,6 +100,7 @@ export function mergeJsonValues(
 export function mergeJsonFile(
   filePath: string,
   desiredContent: string,
+  merge: (existing: unknown, desired: unknown) => unknown = mergeJsonValues,
 ): "written" | "unchanged" | "invalid" {
   let desired: JsonValue;
   try {
@@ -121,7 +122,7 @@ export function mergeJsonFile(
     return "invalid";
   }
 
-  const merged = mergeJsonValues(existing, desired);
+  const merged = merge(existing, desired);
   const rendered = `${JSON.stringify(merged, null, 2)}\n`;
   if (rendered === fs.readFileSync(filePath, "utf8")) return "unchanged";
   writeFileAtomic(filePath, rendered);

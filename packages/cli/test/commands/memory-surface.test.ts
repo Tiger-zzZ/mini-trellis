@@ -34,9 +34,10 @@ function posixKeys(files: Map<string, string> | undefined): string[] {
 }
 
 describe("host CLI surface", () => {
-  it("exposes the four original hosts plus DeepSeek Harness and Cursor", () => {
+  it("exposes the supported project hosts", () => {
     expect(Object.keys(AI_TOOLS).sort()).toEqual([
       "claude-code",
+      "codebuddy",
       "codex",
       "cursor",
       "dsh",
@@ -47,7 +48,7 @@ describe("host CLI surface", () => {
       getInitToolChoices()
         .map((t) => t.key)
         .sort(),
-    ).toEqual(["claude", "codex", "cursor", "dsh", "opencode", "pi"]);
+    ).toEqual(["claude", "codebuddy", "codex", "cursor", "dsh", "opencode", "pi"]);
   });
 
   it("registers DeepSeek and Cursor without the hosts this release skips", () => {
@@ -94,6 +95,8 @@ describe("platform template maps", () => {
     expect(codex).toContain(".codex/hooks/session-start.py");
 
     expect(opencode).toContain(".opencode/commands/mini-trellis/remember.md");
+    expect(opencode).toContain(".opencode/plugins/mini-trellis/index.js");
+    expect(opencode).not.toContain(".opencode/plugins/session-start.js");
     expect(opencode).not.toContain(
       ".opencode/plugins/inject-workflow-state.js",
     );

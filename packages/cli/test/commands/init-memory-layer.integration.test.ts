@@ -80,6 +80,7 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
       claude: true,
       codex: true,
       opencode: true,
+      opencodeVersion: "1",
       pi: true,
     });
   });
@@ -90,6 +91,16 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
     setWriteMode("ask");
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it.each([false, true])(
+    "restores local-state ignores on reinit without a host flag (identity=%s)",
+    async (withIdentity) => {
+      const ignorePath = path.join(tmpDir, ".trellis/.gitignore");
+      fs.rmSync(ignorePath);
+      await init({ yes: true, ...(withIdentity ? { user: "tester" } : {}) });
+      expect(fs.readFileSync(ignorePath, "utf8")).toContain(".runtime/");
+    },
+  );
 
   it("repairs missing local-state ignore rules when adding a host", async () => {
     const ignorePath = path.join(tmpDir, ".trellis/.gitignore");

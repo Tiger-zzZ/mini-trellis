@@ -8,11 +8,19 @@ export type AITool =
   | "opencode"
   | "pi"
   | "dsh"
-  | "cursor";
+  | "cursor"
+  | "codebuddy";
 
 export type TemplateDir = "common" | "claude" | "codex" | "opencode" | "pi";
 
-export type CliFlag = "claude" | "codex" | "opencode" | "pi" | "dsh" | "cursor";
+export type CliFlag =
+  | "claude"
+  | "codex"
+  | "opencode"
+  | "pi"
+  | "dsh"
+  | "cursor"
+  | "codebuddy";
 
 export interface TemplateContext {
   cmdRefPrefix: "/mini-trellis:" | "/mini-trellis-" | "$";
@@ -141,6 +149,22 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
       agentCapable: true,
       hasHooks: true,
       cliFlag: "cursor",
+    },
+  },
+  codebuddy: {
+    name: "CodeBuddy (CLI / IDE)",
+    templateDirs: ["common"],
+    configDir: ".codebuddy",
+    cliFlag: "codebuddy",
+    defaultChecked: false,
+    hasPythonHooks: true,
+    templateContext: {
+      cmdRefPrefix: "/mini-trellis:",
+      executorAI: "Bash scripts or tool calls",
+      userActionLabel: "Slash commands",
+      agentCapable: true,
+      hasHooks: true,
+      cliFlag: "codebuddy",
     },
   },
 };

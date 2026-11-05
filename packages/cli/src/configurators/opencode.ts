@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, rmSync } from "node:fs";
 import path from "node:path";
 import { AI_TOOLS } from "../types/ai-tools.js";
 import { getOpenCodeTemplatePath } from "../templates/extract.js";
@@ -9,7 +9,18 @@ import {
   resolveBundledSkills,
   resolveCommands,
   resolveSkills,
+  writeTemplateMap,
+  renderTemplateMap,
+  type PlatformConfigureOptions,
 } from "./shared.js";
+import {
+  DEFAULT_OPENCODE_VERSION,
+  openCodeSwitchFiles,
+  resolveOpenCodeVersion,
+  cleanupOpenCodeEntryDirectory,
+} from "../utils/opencode-version.js";
+import { getWriteMode, setWriteMode } from "../utils/file-writer.js";
+import { updateManifestForTemplates } from "../utils/managed-manifest.js";
 
 const EXCLUDE_PATTERNS = [
   ".d.ts",
@@ -27,7 +38,7 @@ function shouldExclude(filename: string): boolean {
   );
 }
 
-function walkOpenCodeTemplateDir(): Map<string, string> {
+function walkOpenCodeTemplateDir(version: "1" | "2"): Map<string, string> {
   const files = new Map<string, string>();
   const sourcePath = getOpenCodeTemplatePath();
 
@@ -42,6 +53,8 @@ function walkOpenCodeTemplateDir(): Map<string, string> {
         if (
           relEntry === "commands" ||
           relEntry === "agents" ||
+          (version === "1" &&
+            relEntry === path.join("plugins", "mini-trellis")) ||
           relEntry === path.join("plugins", "inject-subagent-context.js")
         ) {
           continue;
@@ -49,6 +62,8 @@ function walkOpenCodeTemplateDir(): Map<string, string> {
         walk(relEntry);
       } else {
         if (
+          (version === "2" &&
+            relEntry === path.join("plugins", "session-start.js")) ||
           relEntry.endsWith("inject-subagent-context.js") ||
           relEntry.endsWith("inject-workflow-state.js")
         ) {
@@ -67,8 +82,13 @@ function walkOpenCodeTemplateDir(): Map<string, string> {
   return files;
 }
 
-export function collectOpenCodeTemplates(): Map<string, string> {
-  const files = walkOpenCodeTemplateDir();
+export function collectOpenCodeTemplates(
+  options: PlatformConfigureOptions = {},
+): Map<string, string> {
+  const version = options.opencodeVersion ?? DEFAULT_OPENCODE_VERSION;
+  const files = walkOpenCodeTemplateDir(version);
+  if (version === "2")
+    files.set(".opencode/package.json", '{"type":"module"}\n');
   const ctx = AI_TOOLS.opencode.templateContext;
   for (const cmd of resolveCommands(ctx)) {
     files.set(`.opencode/commands/mini-trellis/${cmd.name}.md`, cmd.content);
@@ -81,4 +101,28 @@ export function collectOpenCodeTemplates(): Map<string, string> {
     files.set(filePath, content);
   }
   return files;
+}
+
+export async function configureOpenCode(
+  cwd: string,
+  options: PlatformConfigureOptions = {},
+): Promise<void> {
+  const version = resolveOpenCodeVersion(cwd, options.opencodeVersion);
+  const files = renderTemplateMap(
+    collectOpenCodeTemplates({ opencodeVersion: version }),
+  );
+  const removed = openCodeSwitchFiles(cwd, version, files);
+  const mode = getWriteMode();
+  try {
+    // Explicit protocol switches refresh only files proven unmodified above.
+    if (removed.length) setWriteMode("force");
+    await writeTemplateMap(cwd, files);
+  } finally {
+    setWriteMode(mode);
+  }
+  for (const relative of removed) {
+    rmSync(path.join(cwd, relative));
+    cleanupOpenCodeEntryDirectory(cwd, relative);
+  }
+  updateManifestForTemplates(cwd, files, removed);
 }

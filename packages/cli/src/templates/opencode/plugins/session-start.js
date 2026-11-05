@@ -15,6 +15,7 @@ import {
   prependEphemeralText,
 } from "../lib/context-visibility.js"
 import { buildSessionContext } from "../lib/session-utils.js"
+import { writeRuntimeStatus } from "../lib/runtime-status.js"
 
 // OpenCode 1.2.x expects plugins to be factory functions (see inject-subagent-context.js comment).
 export default async ({ directory }) => {
@@ -39,22 +40,18 @@ export default async ({ directory }) => {
           return
         }
 
-        if (process.env.OPENCODE_NON_INTERACTIVE === "1") {
-          debugLog("session", "Skipping - non-interactive mode")
-          return
-        }
+        if (!ctx.isTrellisProject()) return
 
         const context = buildSessionContext(ctx, platformInput)
-        if (messages?.some(message =>
-          message?.parts?.some(part =>
-            part?.synthetic === true && part.text === context))) {
-          debugLog("session", "Skipping - same SessionStart content already injected")
-          return
-        }
+        // Normalize all retained entries, even when one already matches.
+        // Otherwise an older conflicting entry can survive beside it.
         debugLog("session", "Built context, length:", context.length)
-        prependEphemeralText(messages, context)
+        if (prependEphemeralText(messages, context)) writeRuntimeStatus(directory, "ok", context.length)
+        else writeRuntimeStatus(directory, "skipped", 0, "no-user-message")
       } catch (error) {
-        debugLog("session", "Error in messages.transform:", error.message, error.stack)
+        const category = error instanceof Error ? error.name : "UnknownError"
+        debugLog("session", "Error in messages.transform:", category)
+        writeRuntimeStatus(directory, "error", 0, category)
       }
     },
   }

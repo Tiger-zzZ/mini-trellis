@@ -5,8 +5,21 @@ import { AI_TOOLS, type AITool, type CliFlag } from "../types/ai-tools.js";
 import {
   collectPlatformTemplates,
   getConfiguredPlatforms,
+  resolvePlatformOptions,
 } from "../configurators/index.js";
-import { renderTemplateMap } from "../configurators/shared.js";
+import {
+  renderTemplateMap,
+  type PlatformConfigureOptions,
+} from "../configurators/shared.js";
+import {
+  mergeCodeBuddySettings,
+  readCodeBuddySettingsIssue,
+} from "../utils/codebuddy-settings.js";
+import {
+  openCodeSwitchFiles,
+  cleanupOpenCodeEntryDirectory,
+} from "../utils/opencode-version.js";
+import { ManagedAssetConflict } from "../utils/managed-path-safety.js";
 import { RETIRED_SCRIPT_MODULES } from "./migrate.js";
 import { collectTrellisScriptTemplates } from "../templates/extract.js";
 import { PATHS } from "../constants/paths.js";
@@ -43,6 +56,7 @@ export interface RefreshReport {
   ok: boolean;
   platforms: AITool[];
   items: RefreshItem[];
+  opencodeVersion?: "1" | "2";
 }
 
 const JSON_PATHS = new Set([
@@ -50,6 +64,8 @@ const JSON_PATHS = new Set([
   ".codex/hooks.json",
   ".cursor/hooks.json",
   ".pi/settings.json",
+  ".codebuddy/settings.json",
+  ".opencode/package.json",
 ]);
 
 function executableFor(relative: string): boolean {
@@ -57,6 +73,7 @@ function executableFor(relative: string): boolean {
 }
 
 function renderedJsonMerge(
+  relative: string,
   filePath: string,
   content: string,
 ): "merge" | "unchanged" | "conflict" {
@@ -64,7 +81,11 @@ function renderedJsonMerge(
   try {
     const existing = JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
     const desired = JSON.parse(content) as unknown;
-    const merged = `${JSON.stringify(mergeJsonValues(existing, desired), null, 2)}\n`;
+    const merge =
+      relative === ".codebuddy/settings.json"
+        ? mergeCodeBuddySettings
+        : mergeJsonValues;
+    const merged = `${JSON.stringify(merge(existing, desired), null, 2)}\n`;
     return merged === fs.readFileSync(filePath, "utf8") ? "unchanged" : "merge";
   } catch {
     return "conflict";
@@ -74,9 +95,10 @@ function renderedJsonMerge(
 function addPlatformTemplates(
   target: Map<string, string>,
   platforms: AITool[],
+  options: PlatformConfigureOptions,
 ): void {
   for (const platform of platforms) {
-    const templates = collectPlatformTemplates(platform);
+    const templates = collectPlatformTemplates(platform, options);
     if (!templates) continue;
     for (const [relative, content] of renderTemplateMap(templates)) {
       target.set(relative, content);
@@ -97,9 +119,32 @@ export function resolveRefreshPlatforms(
 export function buildRefreshPlan(
   cwd: string,
   platforms: AITool[],
+  options: { opencodeVersion?: unknown } = {},
 ): RefreshReport {
+  let context: PlatformConfigureOptions;
+  try {
+    context = resolvePlatformOptions(cwd, platforms, options);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      platforms,
+      items: [
+        {
+          path:
+            error instanceof ManagedAssetConflict
+              ? error.relativePath
+              : detail.startsWith(".codebuddy/settings.json")
+                ? ".codebuddy/settings.json"
+                : ".opencode",
+          action: "conflict",
+          detail,
+        },
+      ],
+    };
+  }
   const templates = collectTrellisScriptTemplates();
-  addPlatformTemplates(templates, platforms);
+  addPlatformTemplates(templates, platforms, context);
   const manifest = readManifest(cwd);
   const items: RefreshItem[] = [];
 
@@ -121,7 +166,14 @@ export function buildRefreshPlan(
           continue;
         }
       }
-      const action = renderedJsonMerge(filePath, content);
+      if (relative === ".codebuddy/settings.json") {
+        const issue = readCodeBuddySettingsIssue(filePath);
+        if (issue) {
+          items.push({ path: relative, action: "conflict", detail: issue });
+          continue;
+        }
+      }
+      const action = renderedJsonMerge(relative, filePath, content);
       items.push({
         path: relative,
         action,
@@ -150,6 +202,22 @@ export function buildRefreshPlan(
         path: relative,
         action: "conflict",
         detail: "local changes kept; refresh skipped",
+      });
+    }
+  }
+
+  if (context.opencodeVersion) {
+    for (const relative of openCodeSwitchFiles(
+      cwd,
+      context.opencodeVersion,
+      renderTemplateMap(
+        collectPlatformTemplates("opencode", context) ?? new Map(),
+      ),
+    )) {
+      items.push({
+        path: relative,
+        action: "remove",
+        detail: `retire managed entry when switching to OpenCode V${context.opencodeVersion}`,
       });
     }
   }
@@ -185,12 +253,17 @@ export function buildRefreshPlan(
     ok: items.every((item) => item.action !== "conflict"),
     platforms,
     items,
+    ...(context.opencodeVersion
+      ? { opencodeVersion: context.opencodeVersion }
+      : {}),
   };
 }
 
 function applyRefresh(cwd: string, report: RefreshReport): void {
   const templates = collectTrellisScriptTemplates();
-  addPlatformTemplates(templates, report.platforms);
+  addPlatformTemplates(templates, report.platforms, {
+    opencodeVersion: report.opencodeVersion,
+  });
   for (const item of report.items) {
     const filePath = path.join(cwd, ...item.path.split("/"));
     const content = templates.get(item.path);
@@ -212,19 +285,32 @@ function applyRefresh(cwd: string, report: RefreshReport): void {
     }
     if (item.action === "remove") {
       fs.rmSync(filePath, { force: true });
+      cleanupOpenCodeEntryDirectory(cwd, item.path);
       continue;
     }
     if (!content || item.action === "unchanged" || item.action === "conflict")
       continue;
     if (JSON_PATHS.has(item.path)) {
-      mergeJsonFile(filePath, content);
+      mergeJsonFile(
+        filePath,
+        content,
+        item.path === ".codebuddy/settings.json"
+          ? mergeCodeBuddySettings
+          : undefined,
+      );
       continue;
     }
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     writeFileAtomic(filePath, content);
     if (executableFor(item.path)) fs.chmodSync(filePath, 0o755);
   }
-  updateManifestForTemplates(cwd, templates);
+  updateManifestForTemplates(
+    cwd,
+    templates,
+    report.items
+      .filter((item) => item.action === "remove")
+      .map((item) => item.path),
+  );
 }
 
 export function runRefresh(
@@ -238,11 +324,13 @@ export function runRefresh(
     pi?: boolean;
     dsh?: boolean;
     cursor?: boolean;
+    codebuddy?: boolean;
+    opencodeVersion?: string;
   } = {},
 ): RefreshReport {
   const cwd = options.cwd ?? process.cwd();
   const platforms = resolveRefreshPlatforms(cwd, options);
-  const report = buildRefreshPlan(cwd, platforms);
+  const report = buildRefreshPlan(cwd, platforms, options);
   if (!options.dryRun && report.ok) applyRefresh(cwd, report);
 
   if (options.json) {

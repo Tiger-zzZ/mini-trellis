@@ -5,16 +5,28 @@
  * configurators cannot import from index.ts).
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
+import {
+  assertSafeManagedPath,
+  ManagedAssetConflict,
+} from "../utils/managed-path-safety.js";
 import type { TemplateContext } from "../types/ai-tools.js";
 import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
+import {
+  readCodeBuddySettingsIssue,
+  mergeCodeBuddySettings,
+} from "../utils/codebuddy-settings.js";
+import type { OpenCodeVersion } from "../utils/opencode-version.js";
+import { readOpenCodePackageIssue } from "../utils/opencode-package.js";
 
 /**
  * Per-platform configure options threaded from `trellis init` flags.
  * Defined here (not in index.ts) so configurators can reference it without
  * a circular import.
  */
-export type PlatformConfigureOptions = Record<string, never>;
+export interface PlatformConfigureOptions {
+  opencodeVersion?: OpenCodeVersion;
+}
 
 /**
  * Module-level resolved Python command, set by the init flow after probing.
@@ -488,6 +500,29 @@ export function renderTemplateMap(
   return rendered;
 }
 
+/** New host integrations must not follow project links into global config. */
+export function assertProjectTemplatePaths(
+  cwd: string,
+  files: Map<string, string>,
+): void {
+  const paths = [...files.keys()].filter(
+    (relative) =>
+      relative.startsWith(".codebuddy/") || relative.startsWith(".opencode/"),
+  );
+  if (!paths.length) return;
+  const root = realpathSync(cwd);
+  for (const relative of paths) {
+    try {
+      assertSafeManagedPath(root, relative, { followLeaf: true });
+    } catch (error) {
+      throw new ManagedAssetConflict(
+        relative,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+}
+
 /**
  * Write a collected template map into `cwd`.
  *
@@ -499,11 +534,32 @@ export async function writeTemplateMap(
   cwd: string,
   files: Map<string, string>,
 ): Promise<void> {
+  assertProjectTemplatePaths(cwd, files);
+  const packageContent = files.get(".opencode/package.json");
+  const packagePath = path.join(cwd, ".opencode/package.json");
+  if (packageContent && existsSync(packagePath)) {
+    const desired = JSON.parse(packageContent) as { type?: string };
+    const issue = readOpenCodePackageIssue(
+      packagePath,
+      desired.type === "module" ? "2" : "1",
+    );
+    if (issue) throw new ManagedAssetConflict(".opencode/package.json", issue);
+  }
+  const codeBuddySettings = path.join(cwd, ".codebuddy/settings.json");
+  if (files.has(".codebuddy/settings.json") && existsSync(codeBuddySettings)) {
+    const issue = readCodeBuddySettingsIssue(codeBuddySettings);
+    if (issue)
+      throw new Error(
+        `.codebuddy/settings.json: ${issue}; no CodeBuddy assets changed`,
+      );
+  }
   const mergeJsonPaths = new Set([
     ".claude/settings.json",
     ".codex/hooks.json",
     ".cursor/hooks.json",
     ".pi/settings.json",
+    ".codebuddy/settings.json",
+    ".opencode/package.json",
   ]);
   for (const [relPath, content] of renderTemplateMap(files)) {
     const absPath = path.join(cwd, ...relPath.split("/"));
@@ -516,7 +572,13 @@ export async function writeTemplateMap(
           continue;
         }
       }
-      const result = mergeJsonFile(absPath, content);
+      const result = mergeJsonFile(
+        absPath,
+        content,
+        relPath === ".codebuddy/settings.json"
+          ? mergeCodeBuddySettings
+          : undefined,
+      );
       if (result === "invalid") {
         console.warn(`  ⚠ Skipped ${relPath}: existing file is not valid JSON`);
       }

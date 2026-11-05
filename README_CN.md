@@ -25,7 +25,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 许可证" /></a>
 </p>
 
-> **v0.3.4：**维护原有项目说明，在 Cursor 中记录与找回知识，配置时保留用户 hook。详见[版本说明](./docs/releases/v0.3.4.md)。
+> **v0.3.5：**OpenCode 默认 V2、保留 V1 兼容，以及 CodeBuddy CLI/IDE 共用集成。详见[版本说明](./docs/releases/v0.3.5.md)。
 
 ![开发中的约定、研究结论与验证记录沉淀为项目知识，在后续工作中复用，并随新证据继续更新。](./docs/assets/knowledge-zh.svg)
 
@@ -43,9 +43,9 @@
 
 | 对比维度 | 手写 `CLAUDE.md` / `AGENTS.md` | 向量数据库 / MCP 记忆服务 | 阶段门控工作流（如 Trellis） | **mini-trellis** |
 | --- | --- | --- | --- | --- |
-| **启动与每轮注入** | 越写越长，每次会话全量常驻 | 取决于插件，常伴随额外索引与网络延迟 | 启动注入 ~8.6k 字符 + 每轮状态 + 子代理重注入 | **仅启动注入 ~1.1k 字符短入口，每轮 0 注入** |
+| **启动与每轮注入** | 越写越长，每次会话全量常驻 | 取决于插件，常伴随额外索引与网络延迟 | 启动注入 ~8.6k 字符 + 每轮状态 + 子代理重注入 | **约 1.1k 字符记忆短入口，不注入每轮工作流状态** |
 | **规范与结论加载方式** | 全量塞入，无关规则也占上下文 | 语义切块召回，易漏掉精确边界条件 | 子代理冷启动时重复读取规范 | **需要时 `mem recall` 看短摘录，不够再 `mem read`** |
-| **本地历史对话查证** | 关掉窗口即不可查 | 需额外同步入库 | 依赖任务目录归档文件 | **原地直接检索 Claude / Codex / OpenCode / Pi 本地会话** |
+| **本地历史对话查证** | 关掉窗口即不可查 | 需额外同步入库 | 依赖任务目录归档文件 | **原地直接检索 Claude / Codex / OpenCode V1 / Pi 本地会话** |
 | **知识演进与过期替换** | 靠人工删改，易留存过期冲突规则 | 新旧结论在向量空间混杂 | 散落在各历史 task 目录中 | **支持 `superseded` 演进标记，现行结论自动排在前面** |
 | **外部依赖与心智负担** | 纯文件，无检索能力 | 需维护数据库、索引与 API Key | 需遵循固定阶段流程与子代理模板 | **纯本地 Markdown + 轻量 CLI，不强制任何工作流** |
 
@@ -107,12 +107,12 @@ npm install -g mini-trellis
 mini-trellis init -u your-name --claude
 ```
 
-按你实际使用的工具选择或组合参数（`--claude`、`--cursor`、`--codex`、`--opencode`、`--pi`、`--dsh`）。也可以直接把下面这段话发给正在使用的 Agent，让它完成安装或从 Trellis 迁移：
+按你实际使用的工具选择或组合参数（`--claude`、`--cursor`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--codebuddy`）。也可以直接把下面这段话发给正在使用的 Agent，让它完成安装或从 Trellis 迁移：
 
 ```text
 请在当前项目安装或迁移 mini-trellis。若还没有命令，先执行 npm install -g mini-trellis。
 如果项目里已有旧版工作流文件（例如 .trellis/workflow.md、.trellis/scripts/task.py，或 inject-*.py），先运行 mini-trellis migrate --dry-run，把计划给我看，确认后再执行 mini-trellis migrate -y。
-如果是新项目，运行 mini-trellis init -u <name> -y，并只加上我实际使用的工具参数（--claude、--codex、--opencode、--pi、--dsh、--cursor）。
+如果是新项目，运行 mini-trellis init -u <name> -y，并只加上我实际使用的工具参数（--claude、--codex、--opencode、--pi、--dsh、--cursor、--codebuddy）。OpenCode 新项目默认 V2，已有项目保留原入口；使用旧版宿主时明确加 --opencode-version 1。
 最后运行 mini-trellis doctor，并说明结果。不要删除 .trellis/spec、.trellis/research 或 .trellis/workspace。
 ```
 
@@ -187,7 +187,8 @@ mini-trellis mem read "<ref>"
 | **Claude Code** | `--claude` | `/mini-trellis:remember` | `SessionStart` 注入短入口；支持项目文档与 `~/.claude/projects` 本地历史检索 |
 | **Cursor** | `--cursor` | `mini-trellis-remember` | 安装 `.cursor/skills/` 和本地 `sessionStart` 短入口，已在 Cursor 3.27.22 验证。按需使用 `AGENTS.md` 和 `mem recall`。Cursor 托管云端不运行 `sessionStart`。不解析对话历史 |
 | **Codex** | `--codex` | `$mini-trellis-remember` | 支持项目 Hook 注入与本地会话历史检索 |
-| **OpenCode** | `--opencode` | `/mini-trellis:remember` | 支持启动入口与本地会话检索（含 `--include-children` 子代理会话合并） |
+| **OpenCode V1/V2** | `--opencode` | `/mini-trellis:remember` | 新项目默认 V2；已有 V1 入口保留，`--opencode-version 1` 可显式选择旧版兼容。支持 V1 本地历史检索；V2 历史不解析并给出告警 |
+| **CodeBuddy CLI / IDE** | `--codebuddy` | 技能 `mini-trellis-remember`；CLI 也可 `/mini-trellis:remember` | 共用项目配置、技能和 SessionStart 短入口。支持项目知识检索，不解析 CodeBuddy 对话历史 |
 | **Pi** | `--pi` | `/mini-trellis-remember` | 支持启动入口与本地会话检索 |
 | **DeepSeek Harness** | `--dsh` | `mini-trellis-remember` | 安装 `.dsh/skills/`，无项目级 `SessionStart`，由模型按需调用 `mem recall` / `mem read` |
 
@@ -202,7 +203,9 @@ mini-trellis mem read "<ref>"
 - **宿主边界说明**：
   - DeepSeek Harness 无项目级 `SessionStart` 注入点，不解析 `~/.dsh/sessions` 压缩转录本；
   - Cursor 本地 `sessionStart` 短入口已在 3.27.22 验证。hook 日志成功本身不能证明模型收到或使用内容。按需使用 `AGENTS.md`、技能 `mini-trellis-remember` 和 `mini-trellis mem recall`。Cursor 托管云端不运行 `sessionStart`，自托管机器仍未验证。不解析 Cursor 对话历史；
-  - OpenCode 与 Pi 支持列出会话与检索，暂无精确 compact 边界恢复。详见 [v0.3.1 版本说明](./docs/releases/v0.3.1.md)。
+  - OpenCode V2（已测 2.2.0）是默认开发目标；V1（已测 1.18.29）保留为旧版兼容选项，使用独立插件协议。普通 refresh 保留已安装协议。V2 在每次模型请求中重建有预算限制的短入口，不写入对话历史；仅解析 V1 历史，两种协议均无精确 compact 恢复。
+  - CodeBuddy CLI 与 IDE 共用 `.codebuddy/settings.json` 和 `.codebuddy/skills/`。见[安装与使用](./docs/using_CN.md#codebuddy-cli-与-ide)。
+  - Pi 支持列出会话与检索，暂无精确 compact 边界恢复。
 
 </details>
 

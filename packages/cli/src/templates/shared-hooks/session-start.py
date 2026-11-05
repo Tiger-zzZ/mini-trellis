@@ -110,7 +110,6 @@ def should_skip_injection() -> bool:
     non_interactive_vars = [
         "CLAUDE_NON_INTERACTIVE",
         "QODER_NON_INTERACTIVE",
-        "CODEBUDDY_NON_INTERACTIVE",
         "FACTORY_NON_INTERACTIVE",
         "CURSOR_NON_INTERACTIVE",
         "GEMINI_NON_INTERACTIVE",
@@ -610,7 +609,7 @@ def _main_impl():
     platform = _detect_platform(hook_input)
     if platform == "codex":
         remember_command = "$mini-trellis-remember"
-    elif platform == "cursor":
+    elif platform in {"cursor", "codebuddy"}:
         remember_command = "mini-trellis-remember"
     else:
         remember_command = "/mini-trellis:remember"
@@ -643,9 +642,9 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
         "steps. Do not record every turn, and do not create a git commit unless the user asks.\n"
     )
 
-    if source == "compact" and platform == "cursor":
+    if source == "compact" and platform in {"cursor", "codebuddy"}:
         output.write(
-            "This SessionStart follows compact. Cursor conversation history is not read. "
+            f"This SessionStart follows compact. {platform.title()} conversation history is not read. "
             "Use `mini-trellis mem recall <query>` then `mini-trellis mem read <ref>` for project notes. "
             f"Record durable decisions that were not saved yet with `{remember_command}`.\n"
         )
@@ -730,7 +729,7 @@ Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. R
     # Codex's SessionStart contract accepts the nested shape above; leaving the
     # extra field out there avoids an ambiguous duplicate. ZCode already had
     # the same exception for its own parser.
-    if platform not in {"codex", "zcode"}:
+    if platform not in {"codex", "zcode", "codebuddy"}:
         result["additional_context"] = context_text
 
     # Output JSON - stdout is already configured for UTF-8

@@ -1,6 +1,6 @@
 # 开发时怎么用
 
-命令在项目根目录执行。Claude Code 和 OpenCode 用 `/mini-trellis:remember`，Codex 用 `$mini-trellis-remember`，Pi 用 `/mini-trellis-remember`。DeepSeek Harness 和 Cursor 用技能 `mini-trellis-remember`。
+命令在项目根目录执行。Claude Code 和 OpenCode 用 `/mini-trellis:remember`，Codex 用 `$mini-trellis-remember`，Pi 用 `/mini-trellis-remember`。DeepSeek Harness、Cursor 和 CodeBuddy 用技能 `mini-trellis-remember`；CodeBuddy CLI 也可用 `/mini-trellis:remember`。
 
 ## 从零安装
 
@@ -9,7 +9,52 @@ npm install -g mini-trellis
 mini-trellis init -u 你的名字 --claude
 ```
 
-只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 会装上技能和本地 `sessionStart`；Cursor 托管云端不跑这个 hook，本地 hook 跑过也不等于 Agent 提示里收到了 `additional_context`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
+只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`、`--codebuddy`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 会装上技能和本地 `sessionStart`；Cursor 托管云端不跑这个 hook，本地 hook 跑过也不等于 Agent 提示里收到了 `additional_context`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
+
+## OpenCode V1 与 V2
+
+从 0.3.5 起，新项目默认 OpenCode V2，后续功能以 V2 为主。已有项目沿用已安装的协议。新安装不要求本机存在二进制，也不再询问协议：
+
+```bash
+mini-trellis init -u 你的名字 --opencode -y
+```
+
+若仍使用 V1 宿主，显式加 `--opencode-version 1`，作为旧版兼容选项。V1 使用 `.opencode/plugins/session-start.js`，V2 使用 `.opencode/plugins/mini-trellis/index.js`。短入口和知识写入规则共用。V2 在每个模型请求中提供短入口，不把它保存成用户消息，也不全量加载笔记。
+
+| 机制 | V1 | V2 |
+| --- | --- | --- |
+| 插件注册 | 工厂函数返回 hooks | `id` / `setup(ctx)` 注册 hooks |
+| 短入口注入 | `experimental.chat.messages.transform` 修改消息副本 | `ctx.session.hook("context")` 修改请求中的 system 上下文 |
+| 项目定位 | 插件实例的 `directory` | 根据 session ID 取得实际会话目录 |
+
+两者复用短入口生成和知识技能，都不把入口写入原始聊天记录。同一项目只启用一种插件协议；V1/V2 用户共用仓库时需要明确选择和切换，不支持两份入口同时活动。协议差异见[官方迁移说明](https://opencode.ai/v2/docs/build/plugins/migrate-v1/)。
+
+普通 `refresh` 保留已安装协议，即使本机二进制已升级也不会静默切换。主动切换先看具体文件变更：
+
+```bash
+mini-trellis refresh --opencode --opencode-version 2 --dry-run
+mini-trellis refresh --opencode --opencode-version 2
+```
+
+改为 `1` 可切回。只移除 manifest 证明未修改的旧托管入口；插件资产有本地修改或未托管时，切换在写入前停止，其他插件保留。项目 package.json 按结构合并，保留宿主固定的 SDK 版本和用户依赖；结构无效或 CommonJS 类型与 V2 不兼容时停止更新。两套入口并存会报告冲突。`doctor` 报告本机版本/插件协议不一致和最近 hook 结果，不证明模型送达。
+
+卸载保留共享的 `.opencode/package.json`，包括宿主或其他插件使用的 SDK 依赖。
+
+协议目标为 V1 1.18.29、V2 2.2.0。V1 SQLite 读取器不解析 V2 的 `session_v2`/`session_message` 历史。`opencode-v2-history-unsupported` 表示这些对话被跳过，零命中时也不能据此判断没有项目记忆。已保存的项目 Markdown 和 V1 历史仍可读取。
+
+## CodeBuddy CLI 与 IDE
+
+需要 0.3.5：
+
+```bash
+mini-trellis init -u 你的名字 --codebuddy -y
+```
+
+两端共用 `.codebuddy/settings.json` 和 `.codebuddy/skills/`，共同的记录入口是 `mini-trellis-remember` 技能。CLI 还会将 `.codebuddy/commands/mini-trellis/remember.md` 加载为 `/mini-trellis:remember`，正文由同一份共享说明生成。只需安装一次，写入规则相同。在 CodeBuddy 中按提示登录并审核项目/hook 信任；mini-trellis 不修改 API、模型或全局信任。修改 hook 配置后新开会话。
+
+用 `mini-trellis-remember` 技能记录确认的结论（CLI 也可 `/mini-trellis:remember`），优先更新原主题。`mem recall`/`mem read` 可查已保存的项目知识；不解析 CodeBuddy 转录本。
+
+重复 init/refresh 保留用户 hook、环境和权限。非法 JSON、settings 为数组/null、hook 分组或 matcher 无效时，先停止宿主更新，不覆盖原文件。`doctor` 报告注册缺失和最近运行错误；未观察到运行保持 unknown。
 
 ## 在 Cursor 里
 
@@ -139,7 +184,7 @@ Codex 用 `--platform codex`。不加查询时，读的是最近一次压缩边�
 
 三种失败分开说。没有会话 id 时，提示保持通用，不改绑另一场。历史文件还没落盘时，命令警告这场会话没有可读历史，然后以 `session not found` 退出。文件不可读时，警告写明读不了这场会话。这两条警告分别是 `session-history-missing` 和 `session-history-unreadable`。
 
-OpenCode 和 Pi 还没有这种精确会话恢复。它们的启动文案不会点名当前会话 id。查笔记用 `mem recall` 和 `mem read`。要看本机历史文件时，用 `mem list --platform opencode` 或 `--platform pi`，再用列表里的完整 id 调 `mem context`。
+OpenCode 和 Pi 还没有这种精确会话恢复。它们的启动文案不会点名当前会话 id。查笔记用 `mem recall` 和 `mem read`。要看 OpenCode V1 或 Pi 历史，用 `mem list --platform opencode` 或 `--platform pi`，再用列表里的完整 id 调 `mem context`。不解析 OpenCode V2 或 CodeBuddy 对话历史。
 
 ## 排障
 

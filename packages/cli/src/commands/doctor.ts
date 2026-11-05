@@ -5,6 +5,12 @@ import { AI_TOOLS, type AITool } from "../types/ai-tools.js";
 import { getConfiguredPlatforms } from "../configurators/index.js";
 import { needsTrellisMigration } from "./migrate.js";
 import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
+import { readCodeBuddySettingsIssue } from "../utils/codebuddy-settings.js";
+import {
+  detectOpenCodeVersion,
+  installedOpenCodeVersions,
+  OPENCODE_ENTRIES,
+} from "../utils/opencode-version.js";
 
 export type DoctorLevel = "ok" | "warn" | "error" | "unknown";
 
@@ -86,6 +92,12 @@ const PLATFORM_CHECKS: Record<AITool, string[]> = {
     ".dsh/skills/mini-trellis-remember/SKILL.md",
   ],
   cursor: [".cursor/hooks/session-start.py", ".cursor/hooks.json"],
+  codebuddy: [
+    ".codebuddy/hooks/session-start.py",
+    ".codebuddy/settings.json",
+    ".codebuddy/commands/mini-trellis/remember.md",
+    ".codebuddy/skills/mini-trellis-remember/SKILL.md",
+  ],
 };
 
 const TRIGGER_MARKERS: Record<AITool, [string, string]> = {
@@ -98,6 +110,7 @@ const TRIGGER_MARKERS: Record<AITool, [string, string]> = {
     "no project SessionStart",
   ],
   cursor: [".cursor/hooks/session-start.py", "additional_context"],
+  codebuddy: [".codebuddy/hooks/session-start.py", "additionalContext"],
 };
 
 export function buildDoctorReport(cwd: string): DoctorReport {
@@ -168,8 +181,32 @@ export function buildDoctorReport(cwd: string): DoctorReport {
   });
 
   const platforms = [...getConfiguredPlatforms(cwd)];
+  const openCodeVersions = installedOpenCodeVersions(cwd);
+  if (openCodeVersions.length > 1)
+    checks.push({
+      level: "error",
+      name: "opencode-protocol",
+      detail:
+        "Both V1 and V2 plugins are active; resolve the duplicate entry before refreshing",
+    });
+  else if (openCodeVersions[0]) {
+    const installed = openCodeVersions[0];
+    const binary = detectOpenCodeVersion();
+    checks.push({
+      name: "opencode-protocol",
+      level: binary && binary !== installed ? "warn" : "ok",
+      detail:
+        binary && binary !== installed
+          ? `Installed V${installed} plugin differs from local OpenCode V${binary}; use mini-trellis refresh --opencode --opencode-version ${binary} --dry-run to review a switch`
+          : `Installed V${installed} plugin; ordinary refresh preserves this protocol${binary ? "" : "; local OpenCode version unavailable"}`,
+    });
+  }
   for (const platform of Object.keys(AI_TOOLS) as AITool[]) {
-    const files = PLATFORM_CHECKS[platform];
+    const openCodeVersion = openCodeVersions[0] ?? "1";
+    const files =
+      platform === "opencode"
+        ? [OPENCODE_ENTRIES[openCodeVersion]]
+        : PLATFORM_CHECKS[platform];
     const present = files.filter(exists);
     if (present.length === 0) continue;
     const complete = present.length === files.length;
@@ -182,8 +219,23 @@ export function buildDoctorReport(cwd: string): DoctorReport {
           : `${AI_TOOLS[platform].name} hook and config are present`
         : `${AI_TOOLS[platform].name} is partially configured (${present.length}/${files.length} files)`,
     });
+    if (platform === "codebuddy" && exists(".codebuddy/settings.json")) {
+      const issue = readCodeBuddySettingsIssue(
+        path.join(cwd, ".codebuddy/settings.json"),
+        true,
+      );
+      if (issue)
+        checks.push({
+          name: "codebuddy-config",
+          level: "error",
+          detail: issue,
+        });
+    }
     if (complete) {
-      const [triggerPath, marker] = TRIGGER_MARKERS[platform];
+      const [triggerPath, marker] =
+        platform === "opencode" && openCodeVersion === "2"
+          ? [OPENCODE_ENTRIES["2"], 'ctx.session.hook("context"']
+          : TRIGGER_MARKERS[platform];
       let triggerLevel: DoctorLevel = "unknown";
       let triggerDetail = "host delivery is unknown until a real session runs";
       try {
@@ -254,7 +306,7 @@ export function buildDoctorReport(cwd: string): DoctorReport {
       level: "warn",
       name: "platforms",
       detail:
-        "no host detected; choose --claude, --codex, --opencode, --pi, --dsh, or --cursor",
+        "no host detected; choose --claude, --codex, --opencode, --pi, --dsh, --cursor, or --codebuddy",
     });
   }
 

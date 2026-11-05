@@ -20,7 +20,7 @@ export interface HookScript {
 
 export type SharedHookName = "session-start.py";
 
-export type SharedHookPlatform = "claude" | "codex" | "cursor";
+export type SharedHookPlatform = "claude" | "codex" | "cursor" | "codebuddy";
 
 export const SHARED_HOOKS_BY_PLATFORM: Record<
   SharedHookPlatform,
@@ -29,6 +29,7 @@ export const SHARED_HOOKS_BY_PLATFORM: Record<
   claude: ["session-start.py"],
   codex: ["session-start.py"],
   cursor: ["session-start.py"],
+  codebuddy: ["session-start.py"],
 };
 
 export function getSharedHookScripts(): HookScript[] {

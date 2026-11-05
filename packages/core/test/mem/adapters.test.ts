@@ -1815,6 +1815,37 @@ describe.skipIf(!SQLITE_PY)("opencode adapter", () => {
     expect(warnings[0]?.message).toContain("session");
   });
 
+  it("reports V2 history explicitly while retaining V1 and project isolation", () => {
+    buildOpencodeDb({ sessions: [{ id: "v1", directory: "/proj/legacy" }] });
+    runPython(
+      `import sqlite3\ndb = sqlite3.connect(${JSON.stringify(OPENCODE_DB)})\ndb.executescript("CREATE TABLE session_v2 (id TEXT PRIMARY KEY, directory TEXT, time_created INTEGER, time_updated INTEGER); CREATE TABLE session_message (id TEXT PRIMARY KEY, session_id TEXT, type TEXT, seq INTEGER, time_created INTEGER, time_updated INTEGER, data TEXT); INSERT INTO session_v2 VALUES ('v2', '/proj/new', 1700000000000, 1700000001000);")\ndb.commit()\ndb.close()\n`,
+    );
+    const warnings: { code: string; message: string }[] = [];
+    expect(
+      opencodeListSessions(mkFilter({ cwd: undefined }), warnings).map(
+        (row) => row.id,
+      ),
+    ).toEqual(["v1"]);
+    expect(warnings.map((warning) => warning.code)).toEqual([
+      "opencode-v2-history-unsupported",
+    ]);
+    const isolated: { code: string; message: string }[] = [];
+    expect(
+      opencodeListSessions(mkFilter({ cwd: "/proj/legacy" }), isolated),
+    ).toHaveLength(1);
+    expect(isolated).toEqual([]);
+    runPython(
+      `import sqlite3\ndb = sqlite3.connect(${JSON.stringify(OPENCODE_DB)})\ndb.executescript("DROP TABLE session; DROP TABLE message; DROP TABLE part;")\ndb.commit()\ndb.close()\n`,
+    );
+    const onlyV2: { code: string; message: string }[] = [];
+    expect(
+      opencodeListSessions(mkFilter({ cwd: "/proj/new" }), onlyV2),
+    ).toEqual([]);
+    expect(onlyV2.map((warning) => warning.code)).toEqual([
+      "opencode-v2-history-unsupported",
+    ]);
+  });
+
   it("warns with opencode-db-schema-unsupported when no known cwd column exists", () => {
     buildOpencodeDb({
       cwdColumn: "workspace_path",

@@ -19,37 +19,41 @@ export interface ScrubResult {
   fullyEmpty: boolean;
 }
 
-/**
- * Test whether a hook command string references any of the given manifest paths.
- *
- * Trellis-emitted hook commands always have the shape
- *   `<python-cmd> <manifest-path>`
- * so the trailing whitespace-delimited token is the script path. We compare
- * that last token (with surrounding quotes stripped) against the manifest
- * delete-set. This is intentionally stricter than substring matching: a
- * user-added hook whose body merely mentions a deleted path inside an `echo`
- * or comment argument (`echo "see .claude/hooks/session-start.py"`) does NOT
- * match, because the trailing token is `inspiration"` (or similar) — not the
- * path. We also accept absolute-path variants like
- * `/Users/me/proj/.claude/hooks/session-start.py` via `endsWith("/" + p)`.
+/** Match known script invocations, preserving commands that only mention a path.
+ * Shell wrappers and unknown interpreter flags are left for manual review.
  */
-function commandMatchesDeletedPath(
+export function commandMatchesDeletedPath(
   command: string,
   deletedPaths: readonly string[],
 ): boolean {
-  const trimmed = command.trim();
-  if (trimmed.length === 0) return false;
-
-  const tokens = trimmed.split(/\s+/);
-  const lastToken = tokens[tokens.length - 1].replace(/^["']|["']$/g, "");
-  if (lastToken.length === 0) return false;
-
-  for (const p of deletedPaths) {
-    if (lastToken === p || lastToken.endsWith("/" + p)) {
-      return true;
-    }
+  const tokens = (
+    command.trim().match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? []
+  ).map((token) => token.replace(/^(["'])(.*)\1$/s, "$2"));
+  const matches = (token: string | undefined): boolean => {
+    const normalized = token?.replaceAll("\\", "/");
+    return (
+      !!normalized &&
+      deletedPaths.some(
+        (relative) =>
+          normalized === relative || normalized.endsWith("/" + relative),
+      )
+    );
+  };
+  if (tokens.length === 1) return matches(tokens[0]);
+  const executable = tokens[0]?.replaceAll("\\", "/").split("/").pop();
+  if (
+    !executable ||
+    !/^(?:python(?:\d+(?:\.\d+)*)?|py)(?:\.exe)?$/i.test(executable)
+  )
+    return false;
+  let index = 1;
+  while (index < tokens.length && tokens[index].startsWith("-")) {
+    const flag = tokens[index];
+    if (flag === "-X" || flag === "-W") index += 2;
+    else if (/^-(?:[uIBEsS]+|[23](?:\.\d+)?|[XW].+)$/.test(flag)) index += 1;
+    else return false;
   }
-  return false;
+  return index === tokens.length - 1 && matches(tokens[index]);
 }
 
 /**
@@ -193,45 +197,6 @@ export function scrubHooksJson(
     delete root.hooks;
   } else {
     root.hooks = hooksObj;
-  }
-
-  const fullyEmpty = Object.keys(root).length === 0;
-  return {
-    content: JSON.stringify(root, null, 2) + "\n",
-    fullyEmpty,
-  };
-}
-
-/**
- * Scrub `.opencode/package.json`:
- * - remove `dependencies["@opencode-ai/plugin"]`
- * - if `dependencies` ends up empty → drop the field
- * - fully empty when nothing is left in the object
- */
-export function scrubOpencodePackageJson(content: string): ScrubResult {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    return { content, fullyEmpty: false };
-  }
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { content, fullyEmpty: false };
-  }
-
-  const root = parsed as Record<string, unknown>;
-  const deps = root.dependencies;
-
-  if (deps !== null && typeof deps === "object" && !Array.isArray(deps)) {
-    const depsObj = deps as Record<string, unknown>;
-    if ("@opencode-ai/plugin" in depsObj) {
-      delete depsObj["@opencode-ai/plugin"];
-    }
-    if (Object.keys(depsObj).length === 0) {
-      delete root.dependencies;
-    } else {
-      root.dependencies = depsObj;
-    }
   }
 
   const fullyEmpty = Object.keys(root).length === 0;

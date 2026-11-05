@@ -27,10 +27,18 @@ program
   .description("Initialize mini-trellis in the current project")
   .option("--claude", "Include Claude Code commands")
   .option("--opencode", "Include OpenCode commands")
+  .option(
+    "--opencode-version <1|2>",
+    "Choose the OpenCode plugin protocol (new projects default to V2; existing assets are preserved)",
+  )
   .option("--codex", "Include Codex skills")
   .option("--pi", "Include Pi Agent extension assets")
   .option("--dsh", "Include DeepSeek Harness skills")
   .option("--cursor", "Include Cursor skills and local sessionStart")
+  .option(
+    "--codebuddy",
+    "Include CodeBuddy CLI / IDE commands, skills and SessionStart",
+  )
   .option("-y, --yes", "Skip prompts and use defaults")
   .option(
     "-u, --user <name>",
@@ -55,6 +63,10 @@ program
 
 program
   .command("migrate")
+  .option(
+    "--opencode-version <1|2>",
+    "Choose the OpenCode protocol when migrating OpenCode assets",
+  )
   .description(
     "Switch a project set up by Trellis over to mini-trellis (removes the Trellis instruction surface and converges .trellis/tasks/ into research topics)",
   )
@@ -71,6 +83,7 @@ program
       await migrate({
         yes: options.yes as boolean,
         dryRun: options.dryRun as boolean,
+        opencodeVersion: options.opencodeVersion as string | undefined,
       });
     } catch (error) {
       console.error(
@@ -176,9 +189,14 @@ program
   .option("--claude", "Refresh Claude Code assets")
   .option("--codex", "Refresh Codex assets")
   .option("--opencode", "Refresh OpenCode assets")
+  .option(
+    "--opencode-version <1|2>",
+    "Explicitly switch OpenCode plugin protocol; ordinary refresh preserves it",
+  )
   .option("--pi", "Refresh Pi Agent assets")
   .option("--dsh", "Refresh DeepSeek Harness skills")
   .option("--cursor", "Refresh Cursor skills and local sessionStart")
+  .option("--codebuddy", "Refresh CodeBuddy CLI / IDE assets")
   .option("--dry-run", "Preview changes without writing files")
   .option("--json", "Output machine-readable JSON")
   .action((options: Record<string, unknown>) => {
@@ -189,6 +207,8 @@ program
       pi: options.pi as boolean,
       dsh: options.dsh as boolean,
       cursor: options.cursor as boolean,
+      codebuddy: options.codebuddy as boolean,
+      opencodeVersion: options.opencodeVersion as string | undefined,
       dryRun: options.dryRun as boolean,
       json: options.json as boolean,
     });

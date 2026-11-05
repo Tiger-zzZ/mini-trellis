@@ -53,8 +53,13 @@ export function writeManifest(
 export function updateManifestForTemplates(
   cwd: string,
   templates: Map<string, string>,
+  removedPaths: readonly string[] = [],
 ): MiniTrellisManifest {
   const manifest = readManifest(cwd);
+  for (const relative of removedPaths) {
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+    delete manifest.files[relative];
+  }
   for (const [relative, content] of templates) {
     const actual = hashFile(path.join(cwd, ...relative.split("/")));
     if (actual === hashContent(content)) manifest.files[relative] = actual;

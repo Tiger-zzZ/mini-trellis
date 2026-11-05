@@ -108,9 +108,46 @@ const SQLITE_WARNINGS: SqliteWarningCopy = {
     `unsupported OpenCode session schema (${dbPath}): ${error.message}`,
 };
 
-type ReadOnlyDb = Parameters<
-  typeof findTable
->[0];
+type ReadOnlyDb = Parameters<typeof findTable>[0];
+
+/** V2 uses an event/projection store, not V1's message/part schema. */
+function warnUnsupportedV2(
+  db: ReadOnlyDb,
+  warnings: MemWarning[],
+  filter?: MemFilter,
+): boolean {
+  const names = new Set(db.listTables().map((table) => table.name));
+  if (!names.has("session_v2") || !names.has("session_message")) return false;
+  let relevant = false;
+  db.scanTable("session_v2", (row) => {
+    const directory =
+      typeof row.directory === "string" ? row.directory : undefined;
+    if (
+      (!filter?.cwd || sameProject(directory, filter.cwd)) &&
+      (!filter ||
+        inRangeOverlap(
+          toIso(row.time_created),
+          toIso(row.time_updated),
+          filter,
+        ))
+    )
+      relevant = true;
+    return false;
+  });
+  if (
+    relevant &&
+    !warnings.some(
+      (warning) => warning.code === "opencode-v2-history-unsupported",
+    )
+  ) {
+    warnings.push({
+      code: "opencode-v2-history-unsupported",
+      message:
+        "OpenCode V2 conversation history is not parsed; project documents and legacy V1 history remain available",
+    });
+  }
+  return true;
+}
 
 // ---------- message / part store ----------
 
@@ -255,7 +292,12 @@ function loadSessionStore(
     warnings,
     SQLITE_WARNINGS,
     emptySessionStore(),
-    (db) => scanMessagesAndParts(db, sessionId),
+    (db) => {
+      const v2 = warnUnsupportedV2(db, warnings);
+      if (v2 && !db.listTables().some((table) => table.name === MESSAGE_TABLE))
+        return emptySessionStore();
+      return scanMessagesAndParts(db, sessionId);
+    },
   );
 }
 
@@ -389,7 +431,8 @@ const MAX_TIME_VALUE = 8.64e15;
 function toIso(epochMs: unknown): string | undefined {
   // A corrupt or hostile timestamp must degrade to "no timestamp", not throw
   // RangeError out of the row loop and fail the whole command.
-  if (typeof epochMs !== "number" || !Number.isFinite(epochMs)) return undefined;
+  if (typeof epochMs !== "number" || !Number.isFinite(epochMs))
+    return undefined;
   if (epochMs <= 0 || epochMs > MAX_TIME_VALUE) return undefined;
   return new Date(epochMs).toISOString();
 }
@@ -412,6 +455,9 @@ export function opencodeListSessions(
     SQLITE_WARNINGS,
     null as { rows: SqliteRow[]; cwdColumn: string } | null,
     (db) => {
+      const v2 = warnUnsupportedV2(db, warnings, f);
+      if (v2 && !db.listTables().some((table) => table.name === SESSION_TABLE))
+        return null;
       const table = findTable(db, SESSION_TABLE);
       requireColumns(table, ["id", "time_created", "time_updated"]);
       const cwdColumn = requireOneOfColumns(table, SESSION_CWD_COLUMNS);

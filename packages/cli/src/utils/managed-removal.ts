@@ -12,7 +12,6 @@ import {
   scrubCodexConfigToml,
   scrubHooksJson,
   scrubManagedMarkdownBlock,
-  scrubOpencodePackageJson,
   scrubPiSettings,
   type ScrubResult,
 } from "./uninstall-scrubbers.js";
@@ -21,6 +20,16 @@ import {
   TRELLIS_BLOCK_END,
   TRELLIS_BLOCK_START,
 } from "./managed-paths.js";
+
+import {
+  assertSafeManagedPath,
+  lstatIfPresent,
+} from "./managed-path-safety.js";
+export {
+  assertSafeManagedPath,
+  lstatIfPresent,
+  validateManagedRelativePath,
+} from "./managed-path-safety.js";
 
 export interface StructuredFileSpec {
   posixPath: string;
@@ -52,90 +61,15 @@ export interface BuildManagedRemovalPlanOptions {
   strictPaths?: boolean;
 }
 
-export function lstatIfPresent(absPath: string): fs.Stats | null {
-  try {
-    return fs.lstatSync(absPath);
-  } catch (error) {
-    if (isMissingPathError(error)) return null;
-    throw error;
-  }
-}
-
-function isMissingPathError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error as NodeJS.ErrnoException).code === "ENOENT"
-  );
-}
-
-function assertWithinProject(projectRoot: string, absPath: string): void {
-  let root = path.resolve(projectRoot);
-  let resolved = path.resolve(absPath);
-  if (process.platform === "win32") {
-    root = root.toLowerCase();
-    resolved = resolved.toLowerCase();
-  }
-  if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) {
-    throw new Error(`Managed path escapes project root: ${absPath}`);
-  }
-}
-
-export function validateManagedRelativePath(posixPath: string): void {
-  if (
-    posixPath.length === 0 ||
-    posixPath.includes("\0") ||
-    posixPath.includes("\\") ||
-    path.posix.isAbsolute(posixPath) ||
-    path.win32.isAbsolute(posixPath) ||
-    /^[A-Za-z]:/.test(posixPath)
-  ) {
-    throw new Error(
-      `Invalid managed manifest path: ${JSON.stringify(posixPath)}`,
-    );
-  }
-
-  const segments = posixPath.split("/");
-  if (
-    segments.some(
-      (segment) => segment.length === 0 || segment === "." || segment === "..",
-    )
-  ) {
-    throw new Error(
-      `Invalid managed manifest path: ${JSON.stringify(posixPath)}`,
-    );
-  }
-}
-
-export function assertSafeManagedPath(
-  projectRoot: string,
-  posixPath: string,
-): string {
-  validateManagedRelativePath(posixPath);
-  const root = path.resolve(projectRoot);
-  const segments = posixPath.split("/");
-  let current = root;
-
-  for (let index = 0; index < segments.length; index += 1) {
-    current = path.join(current, segments[index] ?? "");
-    assertWithinProject(root, current);
-    const stat = lstatIfPresent(current);
-    if (!stat || index === segments.length - 1) continue;
-    if (stat.isSymbolicLink()) {
-      const realParent = fs.realpathSync(current);
-      assertWithinProject(root, realParent);
-    }
-    if (!stat.isDirectory() && !stat.isSymbolicLink()) {
-      throw new Error(`Managed path parent is not a directory: ${posixPath}`);
-    }
-  }
-
-  return current;
-}
-
 export function buildStructuredFileSpecs(): Map<string, StructuredFileSpec> {
   const specs: StructuredFileSpec[] = [
-    ...([".claude/settings.json", ".codex/hooks.json"] as const).map(
+    ...(
+      [
+        ".claude/settings.json",
+        ".codex/hooks.json",
+        ".codebuddy/settings.json",
+      ] as const
+    ).map(
       (posixPath): StructuredFileSpec => ({
         posixPath,
         reason: "Strip mini-trellis hooks; preserve user fields",
@@ -151,8 +85,11 @@ export function buildStructuredFileSpecs(): Map<string, StructuredFileSpec> {
     },
     {
       posixPath: ".opencode/package.json",
-      reason: "Remove @opencode-ai/plugin dep; preserve other deps",
-      scrub: (content) => scrubOpencodePackageJson(content),
+      reason:
+        "Preserve shared OpenCode package configuration and host SDK dependencies",
+      // The host pins this SDK and user plugins can import it. It is not
+      // exclusively owned by mini-trellis, even if init first added it.
+      scrub: (content) => ({ content, fullyEmpty: false }),
     },
     {
       posixPath: ".pi/settings.json",
@@ -218,14 +155,12 @@ export function buildManagedRemovalPlan(
 
     const content = fs.readFileSync(absPath, "utf-8");
     const result = spec.scrub(content, allPosixPaths);
-    if (
-      options.strictPaths &&
-      !result.fullyEmpty &&
-      result.content === content
-    ) {
-      throw new Error(
-        `Cannot prove Trellis content was removed from structured file: ${posixPath}`,
-      );
+    if (!result.fullyEmpty && result.content === content) {
+      if (options.strictPaths)
+        throw new Error(
+          `Cannot prove Trellis content was removed from structured file: ${posixPath}`,
+        );
+      continue;
     }
     if (result.fullyEmpty) {
       deletions.push({ posixPath, absPath, missing: false });

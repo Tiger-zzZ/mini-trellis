@@ -9,11 +9,12 @@ mini-trellis migrate --dry-run   # 预览迁移变更
 mini-trellis migrate             # 确认迁移，默认 no
 ```
 
-迁移会将四个宿主的 hook、settings、skill 和命令替换为 mini-trellis 版本，移除 Trellis 专用的流程文件（skill、命令、agent、每轮注入插件、`workflow.md`、`task.py`），替换 `AGENTS.md` 中的 Trellis 管理块，并移除 `.trellis/.version`，停止 Trellis CLI 在该项目中的更新提示。
+迁移会将检测到的宿主的 hook、settings、skill 和命令替换为 mini-trellis 版本，移除 Trellis 专用的流程文件（skill、命令、agent、每轮注入插件、`workflow.md`、`task.py`），替换 `AGENTS.md` 中的 Trellis 管理块，并移除 `.trellis/.version`，停止 Trellis CLI 在该项目中的更新提示。
 
 宿主配置不是整文件覆盖：
 
 - `.claude/settings.json` 和 `.codex/hooks.json` 会先去掉指向 `inject-*.py`、`statusline.py` 和旧 `session-start.py` 的 Trellis hook，再写入 mini-trellis 的 SessionStart。用户自己的 hook、`env` 和其他字段保留。
+- 0.3.5 同样合并 `.codebuddy/settings.json`。已识别的 Trellis 阶段 hook 即使脚本已丢失也会清理，同事件下的用户 hook 保留。配置无效时在修改文件前停止迁移。
 - `.pi/settings.json` 会去掉 `./extensions/trellis/index.ts` 和 `npm:pi-subagents`，保留其他 extension 与 package。
 - `.codex/config.toml` 会去掉 Trellis 写入的说明和 `[agents] max_depth = 1`，再写上 mini-trellis 的项目配置。用户自己的键会附在后面。
 
@@ -37,3 +38,7 @@ mini-trellis migrate             # 确认迁移，默认 no
 - 缺少 `.trellis/.gitignore` 时会补上，让本地身份与运行状态保持在 Git 之外，已有用户规则保留。不会取消 Git 对已跟踪文件的跟踪。
 - 迁移后的任务目录是 `.trellis/research/` 下的 topic，`mem recall` 可查活跃和归档笔记，启动时不枚举全部主题；只有没有未处理条目时才删除 `.trellis/tasks/`。
 - `.trellis/.version` 被移除，mini-trellis 自己不会再写这个文件，Trellis CLI 在这个项目里不会再有更新提示。
+
+## 迁移时的 OpenCode 协议
+
+0.3.5 新项目默认 V2；迁移保留已有的 V1 入口作为兼容，不静默跨协议升级。迁移需要明确选择协议时，用 `migrate --opencode-version 1|2 --dry-run` 预览。未托管的 Trellis 入口不能直接跨协议替换：先原地迁移，再检查 `refresh --opencode --opencode-version 2 --dry-run`。切换只移除 manifest 证明未修改的旧托管入口，其他插件保留；迁移和刷新均不修改宿主二进制、API、模型或全局信任。

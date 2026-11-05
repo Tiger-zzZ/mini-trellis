@@ -12,17 +12,31 @@ import {
 } from "../types/ai-tools.js";
 
 import { collectClaudeTemplates, configureClaude } from "./claude.js";
-import { collectOpenCodeTemplates } from "./opencode.js";
+import { collectOpenCodeTemplates, configureOpenCode } from "./opencode.js";
 import { collectCodexTemplates, configureCodex } from "./codex.js";
 import { collectPiTemplates } from "./pi.js";
 import { collectDshTemplates } from "./dsh.js";
 import { collectCursorTemplates } from "./cursor.js";
+import { collectCodeBuddyTemplates } from "./codebuddy.js";
 
-import { writeTemplateMap, type PlatformConfigureOptions } from "./shared.js";
+import {
+  writeTemplateMap,
+  renderTemplateMap,
+  assertProjectTemplatePaths,
+  type PlatformConfigureOptions,
+} from "./shared.js";
+import {
+  openCodeSwitchFiles,
+  parseOpenCodeVersion,
+  resolveOpenCodeVersion,
+} from "../utils/opencode-version.js";
+import { readCodeBuddySettingsIssue } from "../utils/codebuddy-settings.js";
 
 interface PlatformFunctions {
   configure: (cwd: string, options?: PlatformConfigureOptions) => Promise<void>;
-  collectTemplates?: () => Map<string, string>;
+  collectTemplates?: (
+    options?: PlatformConfigureOptions,
+  ) => Map<string, string>;
 }
 
 function fromTemplates(
@@ -39,11 +53,15 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
     configure: configureClaude,
     collectTemplates: collectClaudeTemplates,
   },
-  opencode: fromTemplates(collectOpenCodeTemplates),
+  opencode: {
+    configure: configureOpenCode,
+    collectTemplates: collectOpenCodeTemplates,
+  },
   codex: { configure: configureCodex, collectTemplates: collectCodexTemplates },
   pi: fromTemplates(collectPiTemplates),
   dsh: fromTemplates(collectDshTemplates),
   cursor: fromTemplates(collectCursorTemplates),
+  codebuddy: fromTemplates(collectCodeBuddyTemplates),
 };
 
 export const PLATFORM_IDS = Object.keys(AI_TOOLS) as AITool[];
@@ -62,10 +80,18 @@ const DETECT_FILES: Record<AITool, string[]> = {
     ".claude/commands/mini-trellis/remember.md",
   ],
   codex: [".codex/hooks.json", ".codex/hooks/session-start.py"],
-  opencode: [".opencode/plugins/session-start.js"],
+  opencode: [
+    ".opencode/plugins/session-start.js",
+    ".opencode/plugins/mini-trellis/index.js",
+  ],
   pi: [".pi/extensions/mini-trellis/index.ts", ".pi/settings.json"],
   dsh: [".dsh/skills/mini-trellis-remember/SKILL.md"],
   cursor: [".cursor/hooks.json", ".cursor/hooks/session-start.py"],
+  codebuddy: [
+    ".codebuddy/settings.json",
+    ".codebuddy/hooks/session-start.py",
+    ".codebuddy/commands/mini-trellis/remember.md",
+  ],
 };
 
 export function getConfiguredPlatforms(cwd: string): Set<AITool> {
@@ -108,8 +134,38 @@ export function configurePlatform(
 
 export function collectPlatformTemplates(
   platformId: AITool,
+  options?: PlatformConfigureOptions,
 ): Map<string, string> | undefined {
-  return PLATFORM_FUNCTIONS[platformId].collectTemplates?.();
+  return PLATFORM_FUNCTIONS[platformId].collectTemplates?.(options);
+}
+
+/** Resolve once before any project writes; reuse for preview, install and manifest. */
+export function resolvePlatformOptions(
+  cwd: string,
+  platforms: readonly AITool[],
+  options: { opencodeVersion?: unknown } = {},
+): PlatformConfigureOptions {
+  const explicit = parseOpenCodeVersion(options.opencodeVersion);
+  if (explicit && !platforms.includes("opencode"))
+    throw new Error("--opencode-version requires selecting OpenCode");
+  const resolved: PlatformConfigureOptions = {};
+  if (platforms.includes("opencode")) {
+    resolved.opencodeVersion = resolveOpenCodeVersion(cwd, explicit);
+    const templates = renderTemplateMap(collectOpenCodeTemplates(resolved));
+    assertProjectTemplatePaths(cwd, templates);
+    openCodeSwitchFiles(cwd, resolved.opencodeVersion, templates);
+  }
+  const settings = path.join(cwd, ".codebuddy/settings.json");
+  if (platforms.includes("codebuddy"))
+    assertProjectTemplatePaths(cwd, collectCodeBuddyTemplates());
+  if (platforms.includes("codebuddy") && fs.existsSync(settings)) {
+    const issue = readCodeBuddySettingsIssue(settings);
+    if (issue)
+      throw new Error(
+        `.codebuddy/settings.json: ${issue}; no CodeBuddy assets changed`,
+      );
+  }
+  return resolved;
 }
 
 export function getInitToolChoices(): {

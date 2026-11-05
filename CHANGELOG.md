@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.5 — 2026-11-05
+
+- Defaults new OpenCode projects to V2 context hooks while preserving existing V1 projects and explicit V1 compatibility. Init, refresh and migrate accept `--opencode-version 1|2`; ordinary refresh follows installed assets. Explicit switches preview file changes, reject edited or unowned entries, and preserve user plugins. OpenCode package configuration merges preserve host SDK pins and user dependencies; uninstall also preserves this shared package configuration.
+- Adds one `--codebuddy` integration shared by CLI and IDE: project SessionStart, remember and shared skills. Settings merge preserves user hooks, environment and permissions; invalid configuration stops updates before writes. Migration removes known Trellis registrations and uninstall preserves unrelated settings.
+- Distinguishes generated assets, observed hook execution and model delivery in diagnostics. OpenCode runs in headless mode and refreshes retained ephemeral entries without changing stored user messages.
+- Reports unsupported OpenCode V2 conversation history explicitly while retaining V1 history and project-document recall. CodeBuddy conversation history is not parsed.
+- Normalizes retained OpenCode V1 context to one current entry; rejects non-file host asset destinations before installation and avoids treating path mentions as CodeBuddy hook registrations.
+
+Setup, protocol selection and history boundaries are in the [release notes](docs/releases/v0.3.5.md).
+
 ## v0.3.4 — 2026-11-04
 
 - Migration and adding a host restore a missing `.trellis/.gitignore`, keeping developer identity and runtime state local without replacing existing user ignore rules.

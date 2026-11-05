@@ -9,11 +9,12 @@ mini-trellis migrate --dry-run   # preview migration changes
 mini-trellis migrate             # confirm migration; defaults to no
 ```
 
-It rewrites the four host surfaces with mini-trellis's versions, deletes the Trellis-only instruction files (skills, commands, agents, per-turn injectors, `workflow.md`, `task.py`), replaces the Trellis block in `AGENTS.md`, and drops `.trellis/.version` so the Trellis CLI stops offering to update the project back to the four-phase workflow.
+It rewrites the detected host surfaces with mini-trellis's versions, deletes the Trellis-only instruction files (skills, commands, agents, per-turn injectors, `workflow.md`, `task.py`), replaces the Trellis block in `AGENTS.md`, and drops `.trellis/.version` so the Trellis CLI stops offering to update the project back to the four-phase workflow.
 
 Host configuration is not replaced as a whole file:
 
 - `.claude/settings.json` and `.codex/hooks.json` lose Trellis hooks that point at `inject-*.py`, `statusline.py`, or an old `session-start.py`, then receive mini-trellis's SessionStart entry. User hooks, `env`, and other fields stay.
+- `.codebuddy/settings.json` is merged the same way in 0.3.5. Known Trellis stage hooks are removed even if their scripts are already missing; user hooks in the same event remain. Invalid settings stop migration before file changes.
 - `.pi/settings.json` loses `./extensions/trellis/index.ts` and `npm:pi-subagents`. Other extensions and packages stay.
 - `.codex/config.toml` loses the Trellis notes and `[agents] max_depth = 1`, then receives the mini-trellis project config. User-owned keys are appended after it.
 
@@ -37,3 +38,7 @@ Before migration, back up project knowledge and custom configuration, including 
 - A missing `.trellis/.gitignore` is added to keep local identity and runtime state out of Git. Existing user ignore rules are kept. This does not untrack files already in Git.
 - Migrated task directories are topics under `.trellis/research/` now; `mem recall` searches active and archived notes without listing all topics at startup. `.trellis/tasks/` is removed only if no unprocessed entries remain.
 - `.trellis/.version` is removed and mini-trellis never writes one, so the Trellis CLI stays quiet in that project.
+
+## OpenCode protocol on migration
+
+In 0.3.5, new OpenCode projects default to V2; migration preserves an existing V1 entry for compatibility. Use `migrate --opencode-version 1|2 --dry-run` to choose when migration needs a protocol. Switching an existing unowned Trellis entry directly is blocked: migrate it in place first, then review `refresh --opencode --opencode-version 2 --dry-run`. A protocol switch removes only an unchanged manifest-owned entry and preserves other plugins. Neither migration nor refresh changes the host binary, API, model or global trust.

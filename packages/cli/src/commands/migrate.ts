@@ -42,6 +42,8 @@ import {
 import {
   configurePlatform,
   getConfiguredPlatforms,
+  collectPlatformTemplates,
+  resolvePlatformOptions,
 } from "../configurators/index.js";
 import {
   scrubCodexConfigToml,
@@ -49,12 +51,18 @@ import {
   scrubLegacyTrellisPiSettings,
   scrubManagedMarkdownBlock,
   type ScrubResult,
+  commandMatchesDeletedPath,
 } from "../utils/uninstall-scrubbers.js";
 import {
   TRELLIS_BLOCK_END,
   TRELLIS_BLOCK_START,
 } from "../utils/managed-paths.js";
 import { AI_TOOLS, type AITool } from "../types/ai-tools.js";
+import { updateManifestForTemplates } from "../utils/managed-manifest.js";
+import { collectTrellisScriptTemplates } from "../templates/extract.js";
+import { renderTemplateMap } from "../configurators/shared.js";
+import { parseOpenCodeVersion } from "../utils/opencode-version.js";
+import { assertSafeManagedPath } from "../utils/managed-path-safety.js";
 import {
   RESEARCH_REL,
   buildTasksConvergePlan,
@@ -67,6 +75,7 @@ import {
 export interface MigrateOptions {
   yes?: boolean;
   dryRun?: boolean;
+  opencodeVersion?: string;
 }
 
 export interface MigratePlan {
@@ -98,6 +107,13 @@ const SCAN_RULES: { dir: string; match: (name: string) => boolean }[] = [
   },
   { dir: ".codex/agents", match: (n) => /^trellis-.*\.toml$/.test(n) },
   { dir: ".codex/hooks", match: (n) => /^inject-.*\.py$/.test(n) },
+  { dir: ".codebuddy/agents", match: (n) => /^trellis-.*\.md$/.test(n) },
+  { dir: ".codebuddy/commands", match: (n) => n === "trellis" },
+  { dir: ".codebuddy/skills", match: (n) => n.startsWith("trellis-") },
+  {
+    dir: ".codebuddy/hooks",
+    match: (n) => /^(?:inject-.*|statusline)\.py$/.test(n),
+  },
   { dir: ".opencode/agents", match: (n) => /^trellis-.*\.md$/.test(n) },
   { dir: ".opencode/commands", match: (n) => n === "trellis" },
   { dir: ".opencode/skills", match: (n) => n.startsWith("trellis-") },
@@ -184,6 +200,10 @@ const CODEX_LEGACY_HOOKS = [
   ".codex/hooks/inject-shell-session-context.py",
 ];
 
+const CODEBUDDY_LEGACY_HOOKS = CLAUDE_LEGACY_HOOKS.map((relative) =>
+  relative.replace(".claude/", ".codebuddy/"),
+);
+
 function readText(abs: string): string | null {
   try {
     return fs.readFileSync(abs, "utf-8");
@@ -205,6 +225,35 @@ export function legacyHostPlatforms(cwd: string): AITool[] {
   }
   const codexHooks = readText(path.join(cwd, ".codex/hooks.json"));
   if (codexHooks && /inject-/.test(codexHooks)) ids.add("codex");
+  const codebuddy = readText(path.join(cwd, ".codebuddy/settings.json"));
+  if (codebuddy) {
+    try {
+      const value = JSON.parse(codebuddy) as {
+        hooks?: Record<string, { hooks?: { command?: unknown }[] }[]>;
+      };
+      if (
+        Object.values(value?.hooks ?? {}).some(
+          (groups) =>
+            Array.isArray(groups) &&
+            groups.some(
+              (group) =>
+                Array.isArray(group?.hooks) &&
+                group.hooks.some(
+                  (hook) =>
+                    typeof hook?.command === "string" &&
+                    commandMatchesDeletedPath(
+                      hook.command,
+                      CODEBUDDY_LEGACY_HOOKS.slice(1),
+                    ),
+                ),
+            ),
+        )
+      )
+        ids.add("codebuddy");
+    } catch {
+      /* Invalid config is diagnosed before installation. */
+    }
+  }
   const pi = readText(path.join(cwd, ".pi/settings.json"));
   if (
     pi &&
@@ -293,6 +342,16 @@ function scrubLegacyHostConfig(
         before,
       );
     }
+  }
+  if (platforms.includes("codebuddy")) {
+    const abs = path.join(cwd, ".codebuddy/settings.json");
+    const before = readText(abs);
+    if (before !== null)
+      rewriteScrubbed(
+        abs,
+        scrubHooksJson(before, CODEBUDDY_LEGACY_HOOKS, "nested"),
+        before,
+      );
   }
 
   let codexUserToml = "";
@@ -516,6 +575,7 @@ function executePlan(cwd: string, plan: MigratePlan): void {
 }
 
 export async function migrate(options: MigrateOptions = {}): Promise<void> {
+  parseOpenCodeVersion(options.opencodeVersion);
   if (isCwdHomedir() && !homedirBypassEnabled()) {
     console.error(chalk.red(homedirGuardMessage("migrate")));
     process.exit(1);
@@ -556,6 +616,13 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
   }
 
   renderPlan(cwd, plan, converge);
+  const context = resolvePlatformOptions(cwd, plan.reconfigure, options);
+  for (const relative of plan.deletions) {
+    if (relative.startsWith(".codebuddy/") || relative.startsWith(".opencode/"))
+      assertSafeManagedPath(fs.realpathSync(cwd), relative);
+  }
+  if (context.opencodeVersion)
+    console.log(`OpenCode plugin protocol: V${context.opencodeVersion}`);
   console.log(
     chalk.red.bold(
       "\n⚠ Deletion is permanent: migrate makes no backup. " +
@@ -601,9 +668,17 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
   if (plan.rewritesAgents) rewriteAgentsMd(cwd);
   for (const id of plan.reconfigure) {
     setWriteMode("force");
-    await configurePlatform(id, cwd);
+    await configurePlatform(id, cwd, context);
   }
   restoreCodexUserToml(cwd, codexUserToml);
+  const templates = collectTrellisScriptTemplates();
+  for (const id of plan.reconfigure) {
+    for (const [relative, content] of renderTemplateMap(
+      collectPlatformTemplates(id, context) ?? new Map(),
+    ))
+      templates.set(relative, content);
+  }
+  updateManifestForTemplates(cwd, templates);
 
   const report = convergeTasks(cwd, converge, disposition);
 

@@ -133,6 +133,15 @@ export function prependEphemeralText(messages, text) {
   if (typeof text !== "string") return false
   const index = findLatestUserMessageIndex(messages)
   if (index < 0) return false
+  // A retained outgoing payload may contain an older entry. Replace only our
+  // synthetic parts, cloning messages so stored conversation objects stay intact.
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i]
+    if (!Array.isArray(message?.parts)) continue
+    const parts = message.parts.filter(part => !(part?.synthetic === true &&
+      typeof part.text === "string" && part.text.startsWith("<session-context>\nmini-trellis SessionStart context.")))
+    if (parts.length !== message.parts.length) messages[i] = { ...message, parts }
+  }
   const original = messages[index]
   const parts = Array.isArray(original.parts) ? original.parts.slice() : []
   parts.unshift({

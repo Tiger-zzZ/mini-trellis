@@ -17,10 +17,12 @@ import {
   collectPlatformTemplates,
   getConfiguredPlatforms,
   getPlatformsWithPythonHooks,
+  resolvePlatformOptions,
 } from "../configurators/index.js";
 import {
   getPythonCommandForPlatform,
   setResolvedPythonCommand,
+  type PlatformConfigureOptions,
 } from "../configurators/shared.js";
 import { AI_TOOLS, type CliFlag } from "../types/ai-tools.js";
 import { DIR_NAMES, FILE_NAMES, PATHS } from "../constants/paths.js";
@@ -29,6 +31,7 @@ import { collectTrellisScriptTemplates } from "../templates/extract.js";
 import { setWriteMode, type WriteMode } from "../utils/file-writer.js";
 import { mergeManagedBlockFile } from "../utils/managed-merge.js";
 import { updateManifestForTemplates } from "../utils/managed-manifest.js";
+import { parseOpenCodeVersion } from "../utils/opencode-version.js";
 import {
   isCwdHomedir,
   homedirGuardMessage,
@@ -218,6 +221,8 @@ export interface InitOptions {
   pi?: boolean;
   dsh?: boolean;
   cursor?: boolean;
+  codebuddy?: boolean;
+  opencodeVersion?: string;
   yes?: boolean;
   user?: string;
   force?: boolean;
@@ -273,18 +278,34 @@ function initDeveloper(cwd: string, pythonCmd: string, name: string): void {
   }
 }
 
-function updateManagedManifest(cwd: string, tools: string[]): void {
+function updateManagedManifest(
+  cwd: string,
+  tools: string[],
+  context: PlatformConfigureOptions = {},
+): void {
   const managedTemplates = collectTrellisScriptTemplates();
   for (const tool of tools) {
     const platformId = resolveCliFlag(tool);
     if (!platformId) continue;
-    const templates = collectPlatformTemplates(platformId);
+    const templates = collectPlatformTemplates(platformId, context);
     if (!templates) continue;
     for (const [relative, content] of templates) {
       managedTemplates.set(relative, content);
     }
   }
   updateManifestForTemplates(cwd, managedTemplates);
+}
+
+function preparePlatforms(
+  cwd: string,
+  tools: string[],
+  options: InitOptions,
+): PlatformConfigureOptions {
+  const platforms = tools.flatMap((tool) => {
+    const id = resolveCliFlag(tool);
+    return id ? [id] : [];
+  });
+  return resolvePlatformOptions(cwd, platforms, options);
 }
 
 async function handleReinit(
@@ -306,9 +327,11 @@ async function handleReinit(
   let doAddPlatforms = explicitTools.length > 0;
   let doAddDeveloper = !!options.user;
   let platformsToAdd: string[] = explicitTools;
+  let context: PlatformConfigureOptions = {};
 
   if (!doAddPlatforms && !doAddDeveloper) {
     if (options.yes) {
+      ensureTrellisGitignore(cwd);
       console.log(chalk.gray(`Already initialized with: ${configuredNames}`));
       console.log(
         chalk.gray(
@@ -373,6 +396,8 @@ async function handleReinit(
       }
     }
 
+    context = preparePlatforms(cwd, platformsToAdd, options);
+    ensureTrellisGitignore(cwd);
     for (const tool of platformsToAdd) {
       const platformId = resolveCliFlag(tool as CliFlag);
       if (!platformId) continue;
@@ -391,11 +416,12 @@ async function handleReinit(
         continue;
       }
       console.log(chalk.blue(`📝 Configuring ${AI_TOOLS[platformId].name}...`));
-      await configurePlatform(platformId, cwd);
+      await configurePlatform(platformId, cwd, context);
     }
   }
 
   if (doAddDeveloper) {
+    if (!doAddPlatforms) ensureTrellisGitignore(cwd);
     let devName = developerName;
     if (!devName) {
       devName = await askInput("Your name: ");
@@ -410,7 +436,7 @@ async function handleReinit(
 
   // Keep the shared instruction block in sync on an incremental init too.
   // mergeManagedBlockFile preserves everything outside the markers.
-  updateManagedManifest(cwd, platformsToAdd);
+  updateManagedManifest(cwd, platformsToAdd, context);
   await createRootFiles(cwd);
   return true;
 }
@@ -424,6 +450,9 @@ function printRecallHint(): void {
 }
 
 export async function init(options: InitOptions): Promise<void> {
+  const explicitVersion = parseOpenCodeVersion(options.opencodeVersion);
+  if (explicitVersion && !options.opencode)
+    throw new Error("--opencode-version requires --opencode during init");
   if (isCwdHomedir() && !homedirBypassEnabled()) {
     console.error(chalk.red(homedirGuardMessage("init")));
     process.exit(1);
@@ -474,8 +503,6 @@ export async function init(options: InitOptions): Promise<void> {
   }
 
   const { command: pythonCmd } = resolveSupportedPython();
-
-  if (!isFirstInit) ensureTrellisGitignore(cwd);
 
   if (!isFirstInit && !options.force && !options.skipExisting) {
     const reinitDone = await handleReinit(
@@ -539,6 +566,8 @@ export async function init(options: InitOptions): Promise<void> {
     return;
   }
 
+  const context = preparePlatforms(cwd, tools, options);
+
   console.log(chalk.blue("📁 Creating memory skeleton..."));
   await createWorkflowStructure(cwd);
 
@@ -546,11 +575,11 @@ export async function init(options: InitOptions): Promise<void> {
     const platformId = resolveCliFlag(tool);
     if (platformId) {
       console.log(chalk.blue(`📝 Configuring ${AI_TOOLS[platformId].name}...`));
-      await configurePlatform(platformId, cwd);
+      await configurePlatform(platformId, cwd, context);
     }
   }
 
-  updateManagedManifest(cwd, tools);
+  updateManagedManifest(cwd, tools, context);
 
   const pythonPlatforms = getPlatformsWithPythonHooks();
   const hasSelectedPythonPlatform = pythonPlatforms.some((id) =>
@@ -578,6 +607,12 @@ export async function init(options: InitOptions): Promise<void> {
       chalk.gray(`  Record sessions with ${recordCommands.join(", ")}.`),
     );
   }
+  if (tools.includes("codebuddy"))
+    console.log(
+      chalk.gray(
+        "  CodeBuddy: use the mini-trellis-remember skill (CLI also supports /mini-trellis:remember).",
+      ),
+    );
   const skillHosts = [
     tools.includes("dsh") ? "DeepSeek Harness" : "",
     tools.includes("cursor") ? "Cursor" : "",

@@ -25,7 +25,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 license" /></a>
 </p>
 
-> **v0.3.4:** Keep the current project description in its existing file, record it from Cursor, and preserve user hooks when configuring the project. See the [release notes](./docs/releases/v0.3.4.md).
+> **v0.3.5:** OpenCode V2 by default, V1 compatibility, and shared CodeBuddy CLI/IDE integration. See the [release notes](./docs/releases/v0.3.5.md).
 
 ![Conventions, research and verified fixes accumulate in project Markdown, inform later work, and are updated with new evidence.](./docs/assets/knowledge-en.svg)
 
@@ -43,9 +43,9 @@ AI coding workflows often fall into one of two traps: **starting every session w
 
 | Dimension | Hand-maintained `CLAUDE.md` | Vector DB / RAG Memory MCP | Phase-Gated Workflow (Trellis) | **mini-trellis** |
 | --- | --- | --- | --- | --- |
-| **Startup & per-turn injection** | Grows unbounded; loaded into every session | Plugin-dependent; extra indexing & network latency | ~8.6k chars at startup + per-turn state + sub-agent re-injection | **~1.1k chars at startup; 0 per-turn injection** |
+| **Startup & per-turn injection** | Grows unbounded; loaded into every session | Plugin-dependent; extra indexing & network latency | ~8.6k chars at startup + per-turn state + sub-agent re-injection | **~1.1k-char memory entry; no per-turn workflow payload** |
 | **How specs & notes are loaded** | Always in context, even when irrelevant | Opaque similarity chunks; easy to miss exact contracts | Cold-start sub-agents re-read specs repeatedly | **On-demand `mem recall` excerpts; `mem read` only when needed** |
-| **Past conversation lookup** | None—lost when the chat closes | Requires syncing chats into an external store | Relies on manual task directory artifacts | **Searches local Claude / Codex / OpenCode / Pi sessions in place** |
+| **Past conversation lookup** | None—lost when the chat closes | Requires syncing chats into an external store | Relies on manual task directory artifacts | **Searches local Claude / Codex / OpenCode V1 / Pi sessions in place** |
 | **Knowledge evolution** | Manual pruning; stale rules linger | Old and updated decisions collide in vector space | Scattered across archived task folders | **Built-in `superseded` lineage lifts current rules above old ones** |
 | **Infrastructure & ceremony** | Plain file, no search | Database, embeddings, and service config | Mandatory phase gates and sub-agent templates | **Plain Git-friendly Markdown + lightweight CLI; no forced workflow** |
 
@@ -107,12 +107,12 @@ npm install -g mini-trellis
 mini-trellis init -u your-name --claude
 ```
 
-Choose or combine flags for the agents you use (`--claude`, `--cursor`, `--codex`, `--opencode`, `--pi`, `--dsh`). You can also hand this prompt directly to your agent to install or migrate from Trellis:
+Choose or combine flags for the agents you use (`--claude`, `--cursor`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--codebuddy`). You can also hand this prompt directly to your agent to install or migrate from Trellis:
 
 ```text
 Install or migrate mini-trellis in this project. If the command is missing, run npm install -g mini-trellis first.
 If this project has legacy workflow files (for example .trellis/workflow.md, .trellis/scripts/task.py, or inject-*.py), run mini-trellis migrate --dry-run, show me the plan, and run mini-trellis migrate -y after I confirm.
-If this is a new project, run mini-trellis init -u <name> -y with only the tools I actually use (--claude, --codex, --opencode, --pi, --dsh, --cursor).
+If this is a new project, run mini-trellis init -u <name> -y with only the tools I actually use (--claude, --codex, --opencode, --pi, --dsh, --cursor, --codebuddy). For OpenCode, new projects default to V2; existing entries are preserved. Use --opencode-version 1 only for a V1 host.
 Then run mini-trellis doctor and report the result. Do not delete .trellis/spec, .trellis/research, or .trellis/workspace.
 ```
 
@@ -187,7 +187,8 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
 | **Claude Code** | `--claude` | `/mini-trellis:remember` | `SessionStart` injects the short entry; searches project docs and `~/.claude/projects` history |
 | **Cursor** | `--cursor` | `mini-trellis-remember` | Installs `.cursor/skills/` and a local `sessionStart` entry, verified on Cursor 3.27.22. Uses `AGENTS.md` and `mem recall` for project knowledge. Cursor-managed cloud agents do not run `sessionStart`. Conversation history is not parsed |
 | **Codex** | `--codex` | `$mini-trellis-remember` | Project hook injection and local session history search |
-| **OpenCode** | `--opencode` | `/mini-trellis:remember` | Startup entry and local session search (including `--include-children` sub-agent merging) |
+| **OpenCode V1/V2** | `--opencode` | `/mini-trellis:remember` | New projects default to V2; existing V1 entries are preserved. `--opencode-version 1` explicitly selects legacy compatibility. V1 local history is searchable; V2 history is not parsed and produces a warning |
+| **CodeBuddy CLI / IDE** | `--codebuddy` | `mini-trellis-remember` skill; CLI also `/mini-trellis:remember` | Shared project settings, skills and SessionStart entry. Project knowledge is searchable; CodeBuddy conversation history is not parsed |
 | **Pi** | `--pi` | `/mini-trellis-remember` | Startup entry and local session search |
 | **DeepSeek Harness** | `--dsh` | `mini-trellis-remember` | Installs `.dsh/skills/`; no project `SessionStart` hook—the model calls `mem recall` / `mem read` when needed |
 
@@ -202,7 +203,9 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
 - **Host boundaries**:
   - DeepSeek Harness has no project-level `SessionStart` hook and does not parse compressed transcripts in `~/.dsh/sessions`;
   - Cursor's generated local `sessionStart` entry is verified on Cursor 3.27.22. A successful hook log alone does not prove model delivery or use. Use `AGENTS.md`, the `mini-trellis-remember` skill, and `mini-trellis mem recall`. Cursor-managed cloud agents do not run `sessionStart`; self-hosted machines remain unverified. Cursor conversation history is not parsed;
-  - OpenCode and Pi support session listing and search without precise compact boundary recovery. See the [v0.3.1 release notes](./docs/releases/v0.3.1.md).
+  - OpenCode V2 (tested on 2.2.0) is the default development target. V1 (tested on 1.18.29) remains a legacy compatibility option with a separate plugin protocol. Ordinary refresh preserves the installed protocol. V2 rebuilds a bounded entry in each outgoing request without saving it to conversation history. Only V1 history is parsed; neither protocol provides precise compact recovery.
+  - CodeBuddy CLI and IDE share `.codebuddy/settings.json` and `.codebuddy/skills/`. See [setup](./docs/using.md#codebuddy-cli-and-ide).
+  - Pi supports session listing and search without precise compact boundary recovery.
 
 </details>
 

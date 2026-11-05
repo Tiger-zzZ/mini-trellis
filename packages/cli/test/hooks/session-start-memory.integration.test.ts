@@ -99,6 +99,17 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
       ),
       "{}",
     );
+    if (host === "codebuddy") {
+      const command = path.join(
+        tmpDir,
+        ".codebuddy/commands/mini-trellis/remember.md",
+      );
+      fs.mkdirSync(path.dirname(command), { recursive: true });
+      fs.writeFileSync(command, "# Remember\n");
+      const skill = path.join(tmpDir, ".codebuddy/skills/mini-trellis-remember/SKILL.md");
+      fs.mkdirSync(path.dirname(skill), { recursive: true });
+      fs.writeFileSync(skill, "# Remember\n");
+    }
     const env = Object.fromEntries(
       Object.entries(process.env).filter(
         ([key]) =>
@@ -134,13 +145,13 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it.each(["claude", "codex"])(
+  it.each(["claude", "codex", "codebuddy"])(
     "%s deduplicates startup and restores context after compact, clear and resume",
     (host) => {
       const first = hook(host, "same");
       assertMemoryPayload(first.text);
       const remember =
-        host === "codex" ? "$mini-trellis-remember" : "/mini-trellis:remember";
+        host === "codex" ? "$mini-trellis-remember" : host === "codebuddy" ? "mini-trellis-remember" : "/mini-trellis:remember";
       const other =
         host === "codex" ? "/mini-trellis:remember" : "$mini-trellis-remember";
       expect(first.text).toContain(remember);
@@ -343,40 +354,60 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
     expect(text).not.toContain("$mini-trellis-remember");
   });
 
-  it("OpenCode deduplicates the model payload, restores compacted context, and preserves stored user text", () => {
-    const moduleUrl = pathToFileURL(
-      path.join(CLI_ROOT, "src/templates/opencode/plugins/session-start.js"),
-    ).href;
-    const result = execFileSync(process.execPath, ["--input-type=module"], {
-      cwd: tmpDir,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        TRELLIS_HOOKS: "1",
-        TRELLIS_DISABLE_HOOKS: "0",
-        OPENCODE_NON_INTERACTIVE: "0",
-      },
-      input: `
+  it.each(["0", "1"])(
+    "OpenCode deduplicates and restores ephemeral context in headless=%s without changing stored user text",
+    (nonInteractive) => {
+      const moduleUrl = pathToFileURL(
+        path.join(CLI_ROOT, "src/templates/opencode/plugins/session-start.js"),
+      ).href;
+      const result = execFileSync(process.execPath, ["--input-type=module"], {
+        cwd: tmpDir,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          TRELLIS_HOOKS: "1",
+          TRELLIS_DISABLE_HOOKS: "0",
+          OPENCODE_NON_INTERACTIVE: nonInteractive,
+        },
+        input: `
         import plugin from ${JSON.stringify(moduleUrl)};
+        import { writeFileSync, readFileSync } from 'node:fs';
         const handlers = await plugin({ directory: process.cwd() });
         const transform = handlers['experimental.chat.messages.transform'];
+        await transform({}, { messages: [] });
+        const emptyRuntime = JSON.parse(readFileSync('.trellis/.runtime/hooks/opencode.json', 'utf8'));
         const original = { info: { role: 'user', sessionID: 'fixture', agent: 'build' }, parts: [{ type: 'text', text: 'User request' }] };
         const output = { messages: [original] };
         await transform({}, output);
         await transform({}, output);
         const compacted = { messages: [original] };
         await transform({}, compacted);
-        process.stdout.write(JSON.stringify({ original, messages: output.messages, compacted: compacted.messages }));
+        const stale = { type: 'text', synthetic: true, text: '<session-context>\\nmini-trellis SessionStart context. stale' };
+        const retained = { messages: [{ ...original, parts: [stale, ...output.messages[0].parts] }] };
+        const storedParts = retained.messages[0].parts;
+        await transform({}, retained);
+        writeFileSync('.trellis/.developer', 'name=changed-entry\\n');
+        await transform({}, output);
+        process.stdout.write(JSON.stringify({ original, emptyRuntime, messages: output.messages, compacted: compacted.messages, retained: retained.messages, storedParts }));
       `,
-    });
-    const value = JSON.parse(result);
-    expect(value.original.parts).toEqual([
-      { type: "text", text: "User request" },
-    ]);
-    expect(value.messages[0].parts).toHaveLength(2);
-    expect(value.compacted[0].parts).toHaveLength(2);
-    assertMemoryPayload(value.messages[0].parts[0].text);
-  });
+      });
+      const value = JSON.parse(result);
+      expect(value.emptyRuntime.last_status).toBe("skipped");
+      expect(value.emptyRuntime.last_output_chars).toBe(0);
+      expect(value.original.parts).toEqual([
+        { type: "text", text: "User request" },
+      ]);
+      expect(value.messages[0].parts).toHaveLength(2);
+      expect(value.messages[0].parts[0].text).toContain(
+        "Developer: changed-entry",
+      );
+      expect(value.compacted[0].parts).toHaveLength(2);
+      expect(value.retained[0].parts).toHaveLength(2);
+      expect(value.retained[0].parts[0].text).not.toContain("context. stale");
+      expect(value.storedParts).toHaveLength(3);
+      assertMemoryPayload(value.messages[0].parts[0].text);
+    },
+  );
 
   it("Pi reuses present context and restores it after compaction", () => {
     const source = fs.readFileSync(

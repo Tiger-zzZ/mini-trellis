@@ -139,6 +139,7 @@ describe("migrate", () => {
       claude: true,
       codex: true,
       opencode: true,
+      opencodeVersion: "1",
       pi: true,
     });
     plantAll(tmpDir);

@@ -25,6 +25,7 @@ import {
   executeManagedRemovalPlan,
   type ManagedRemovalPlan,
 } from "../utils/managed-removal.js";
+import { installedOpenCodeVersions } from "../utils/opencode-version.js";
 
 export interface UninstallOptions {
   yes?: boolean;
@@ -111,10 +112,14 @@ function collectOwnedPaths(cwd: string): Record<string, string> {
   hashes[FILE_NAMES_AGENTS] = "";
   const platforms = getConfiguredPlatforms(cwd);
   for (const id of platforms) {
-    const templates = collectPlatformTemplates(id);
-    if (!templates) continue;
-    for (const rel of templates.keys()) {
-      hashes[rel] = "";
+    const versions =
+      id === "opencode" ? installedOpenCodeVersions(cwd) : [undefined];
+    for (const version of versions) {
+      const templates = collectPlatformTemplates(id, {
+        opencodeVersion: version,
+      });
+      if (!templates) continue;
+      for (const rel of templates.keys()) hashes[rel] = "";
     }
   }
   return hashes;
