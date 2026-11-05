@@ -127,6 +127,10 @@ mini-trellis init -u your-name --claude
 
 Agent 会更新已有主题文件，也可以是根目录的 `README*.md` 或 `docs/`、`doc/` 下的 Markdown，并在 `.trellis/workspace/<你>/` 的开发日志里留下简短记录与文件链接。
 
+### 已有聊天记录，还没有项目文档？
+
+尚未发布的 0.3.6 源码中，可让 `mini-trellis-session-insight` 整理选定会话或提供的 Markdown/文本导出：更新已有 README/docs/spec/research，保留来源与纠正，核验实际文件后留下 journal 链接。相同材料没有新知识时不重复记日志。下一次会话用 `mem recall` 取回并用于开发。见[选定历史 → 项目文档 → 新会话复用](docs/using_CN.md#把选定历史整理成项目知识)。
+
 ### 3. 在后续会话按需找回
 
 下次新开会话改到相关模块、或者你想在终端查证当时的决定时，用 `recall` 同时检索项目 Markdown 和本地对话历史：

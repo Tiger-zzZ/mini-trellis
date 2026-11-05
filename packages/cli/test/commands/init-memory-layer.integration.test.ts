@@ -21,6 +21,16 @@ import inquirer from "inquirer";
 import { init } from "../../src/commands/init.js";
 import { setWriteMode } from "../../src/utils/file-writer.js";
 import { resetResolvedPythonCommand } from "../../src/configurators/shared.js";
+import {
+  collectPlatformTemplates,
+  PLATFORM_IDS,
+} from "../../src/configurators/index.js";
+import { runRefresh } from "../../src/commands/refresh.js";
+import {
+  hashContent,
+  readManifest,
+  writeManifest,
+} from "../../src/utils/managed-manifest.js";
 
 function has(cmd: string, args: string[]): boolean {
   try {
@@ -233,6 +243,82 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
     execFileSync("python3", [".trellis/scripts/add_session.py", "--title", "Synthetic confirmed decision"], { cwd: tmpDir, stdio: "pipe" });
     expect(count()).toBe(before);
     expect(fs.readFileSync(path.join(tmpDir, ".trellis/workspace/tester/journal-1.md"), "utf8")).toContain("Synthetic confirmed decision");
+  });
+
+  it("installs and refreshes the same history reference for every host without touching knowledge", async () => {
+    await init({
+      yes: true,
+      user: "tester",
+      dsh: true,
+      cursor: true,
+      codebuddy: true,
+    });
+    const surfaces = PLATFORM_IDS.map((host) => {
+      const templates = collectPlatformTemplates(host);
+      const entry = [...(templates ?? [])].find(([rel]) =>
+        rel.endsWith("mini-trellis-session-insight/SKILL.md"),
+      );
+      if (!entry) throw new Error(`Missing session-insight for ${host}`);
+      const [relative, content] = entry;
+      const reference = path.posix.join(
+        path.posix.dirname(relative),
+        "references/organize-history.md",
+      );
+      const expected = templates?.get(reference);
+      expect(expected).toBeDefined();
+      expect(fs.readFileSync(path.join(tmpDir, relative), "utf8")).toBe(content);
+      expect(fs.readFileSync(path.join(tmpDir, reference), "utf8")).toBe(
+        expected,
+      );
+      // This checks installation/link resolution, not model compliance.
+      expect(content).toContain("(references/organize-history.md)");
+      return { relative, content, reference, expected };
+    });
+    expect(new Set(surfaces.map((surface) => surface.expected)).size).toBe(1);
+    const kept = [
+      "README.md",
+      ".trellis/workspace/tester/journal-1.md",
+      ".trellis/workspace/tester/index.md",
+    ];
+    fs.writeFileSync(
+      path.join(tmpDir, "README.md"),
+      "# Existing English project description\n",
+    );
+    const before = kept.map((rel) =>
+      fs.readFileSync(path.join(tmpDir, rel), "utf8"),
+    );
+    const manifest = readManifest(tmpDir);
+    const uniqueSurfaces = [
+      ...new Map(surfaces.map((surface) => [surface.relative, surface])).values(),
+    ];
+    for (const { relative, reference } of uniqueSurfaces) {
+      const previous = "# Session Insight\n\nPrevious lookup-only entry.\n";
+      fs.writeFileSync(path.join(tmpDir, relative), previous);
+      manifest.files[relative] = hashContent(previous);
+      fs.rmSync(path.join(tmpDir, reference));
+      manifest.files = Object.fromEntries(
+        Object.entries(manifest.files).filter(([rel]) => rel !== reference),
+      );
+    }
+    writeManifest(tmpDir, manifest);
+    expect(runRefresh({ cwd: tmpDir, dryRun: true, json: true }).ok).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, surfaces[0].reference))).toBe(false);
+    expect(runRefresh({ cwd: tmpDir, json: true }).ok).toBe(true);
+    for (const { relative, content, reference, expected } of surfaces) {
+      expect(fs.readFileSync(path.join(tmpDir, relative), "utf8")).toBe(content);
+      expect(fs.readFileSync(path.join(tmpDir, reference), "utf8")).toBe(
+        expected,
+      );
+    }
+    kept.forEach((rel, index) =>
+      expect(fs.readFileSync(path.join(tmpDir, rel), "utf8")).toBe(before[index]),
+    );
+    const again = runRefresh({ cwd: tmpDir, json: true });
+    expect(
+      again.items
+        .filter((item) => item.path.includes("mini-trellis-session-insight"))
+        .every((item) => item.action === "unchanged"),
+    ).toBe(true);
   });
 
   it("refreshes selected templates through full re-initialize while keeping custom memory files", async () => {

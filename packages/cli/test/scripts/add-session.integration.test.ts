@@ -163,6 +163,56 @@ describe.skipIf(!hasPython())("recording diagnostics", () => {
   });
   afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
+  it("retries historical recording without duplicating links and accepts a later correction in the same topic", () => {
+    const relative = "docs/callbacks.md";
+    const topic = path.join(tmp, relative);
+    fs.mkdirSync(path.dirname(topic), { recursive: true });
+    const original =
+      "# Callback policy\n\nTransient failures: 2 attempts; permanent: 1.\nSource: supplied export A, messages 1–3.\n";
+    fs.writeFileSync(topic, original);
+    // --no-commit must also work in a migrated project with auto-commit enabled.
+    fs.writeFileSync(
+      path.join(tmp, ".trellis/config.yaml"),
+      "session_auto_commit: true\n",
+    );
+    git(tmp, "add", ".");
+    git(tmp, "-c", "commit.gpgsign=false", "commit", "-qm", "synthetic baseline");
+    const head = git(tmp, "rev-parse", "HEAD");
+    const args = [
+      "--no-commit",
+      "--summary",
+      "Organized export A",
+      "--topic",
+      relative,
+    ];
+    expect(tryAddSession(tmp, "Callback history", args).status).toBe(0);
+    const journal = readJournal(tmp);
+    const index = readIndex(tmp);
+    expect(tryAddSession(tmp, "Callback history", args).status).toBe(0);
+    expect(readJournal(tmp)).toBe(journal);
+    expect(readIndex(tmp)).toBe(index);
+    expect(fs.readFileSync(topic, "utf8")).toBe(original);
+
+    const corrected = original
+      .replace("2 attempts", "4 attempts")
+      .replace("1–3", "1–5");
+    fs.writeFileSync(topic, corrected);
+    expect(
+      tryAddSession(tmp, "Callback correction", [
+        "--no-commit",
+        "--summary",
+        "Export A message 5 corrects transient attempts to 4",
+        "--topic",
+        relative,
+      ]).status,
+    ).toBe(0);
+    expect(sessionNumbers(tmp)).toEqual([1, 2]);
+    expect(readIndex(tmp)).toContain("**Total Sessions**: 2");
+    expect(readJournal(tmp).match(/\[docs\/callbacks.md\]\(/g)).toHaveLength(2);
+    expect(fs.readFileSync(topic, "utf8")).toBe(corrected);
+    expect(git(tmp, "rev-parse", "HEAD")).toBe(head);
+  });
+
   it("reports actual failure and recovery without saving note content", () => {
     const before = fs.readFileSync(indexPath(tmp), "utf8");
     fs.writeFileSync(

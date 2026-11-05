@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — 0.3.6
+
+- Extends the shared `mini-trellis-session-insight` skill to organize explicitly selected supported sessions or supplied Markdown/text exports into existing project documents. No new service, command, native history format or automatic scan.
+- Preserves source attribution, user confirmations, corrections, negations and scope; distinguishes implemented behavior from agreed requirements and suggestions. Reports material conflicts and incomplete evidence instead of silently promoting them to current rules.
+- Verifies actual topic, journal and index writes; keeps the original document language, skips unchanged repeat material, and uses `--no-commit` for historical organizing even with legacy auto-commit enabled.
+- Ships the same on-demand reference through fresh install and refresh for every host, with updated discovery hints and bilingual usage examples.
+
+See the [0.3.6 draft release notes](docs/releases/v0.3.6.md).
+
 ## v0.3.5 — 2026-11-05
 
 - Defaults new OpenCode projects to V2 context hooks while preserving existing V1 projects and explicit V1 compatibility. Init, refresh and migrate accept `--opencode-version 1|2`; ordinary refresh follows installed assets. Explicit switches preview file changes, reject edited or unowned entries, and preserve user plugins. OpenCode package configuration merges preserve host SDK pins and user dependencies; uninstall also preserves this shared package configuration.

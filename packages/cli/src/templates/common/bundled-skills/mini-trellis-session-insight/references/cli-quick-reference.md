@@ -47,3 +47,7 @@ For an explicit conversation-only lookup:
 mini-trellis mem search "deadlock"
 mini-trellis mem context <session-id> --grep "lock" --turns 3 --around 1
 ```
+
+## Organizing selected history
+
+Use [Organize selected history](organize-history.md) for the writing flow. Select full ids with project-scoped `list --json --limit 10`; `context` returns a bounded excerpt, not the complete session. To review an entire selected session, redirect `extract` to a fresh temporary file and read bounded pages with the host's file tools; check stderr and exit status. `extract` has no `--max-chars` support. Cite the original platform/full session id and turn or passage, not just the temporary file. Read supplied Markdown/text exports as files, preserving their source labels. Unsupported raw formats are not exports.

@@ -613,6 +613,14 @@ examples:
   mini-trellis mem extract 5842592d --grep memory
   mini-trellis mem recall "release cadence"
   mini-trellis mem read "<ref copied from recall>"
+
+organize selected history:
+  Ask the mini-trellis-session-insight skill to organize selected sessions or
+  supplied Markdown/text exports into existing project documents.
+  context is an excerpt; extract is unbounded (redirect large sessions to a
+  temporary file and read bounded pages). No automatic history scan or commit.
+  Native history: Claude, Codex, OpenCode V1, Pi. OpenCode V2, CodeBuddy,
+  Cursor and DeepSeek Harness raw history are not parsed.
 `);
 }
 

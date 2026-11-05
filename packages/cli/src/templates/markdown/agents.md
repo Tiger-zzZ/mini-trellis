@@ -17,6 +17,8 @@ For a confirmed update, follow this short order: read the existing topic; edit t
 
 When recall excerpts already answer the question with source and qualifiers, cite them and stop. Expand only missing context; do not repeat a lookup or fall back to dialogue-only `search` merely to reconfirm sufficient evidence.
 
+For an explicit request to organize selected past sessions or supplied Markdown/text exports into project knowledge, use `mini-trellis-session-insight`; update existing documents and preserve sources.
+
 mini-trellis does not create or drive tasks.
 
 Managed by mini-trellis. Edits outside this block are preserved.

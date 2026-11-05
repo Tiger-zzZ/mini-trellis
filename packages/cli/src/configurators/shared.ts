@@ -245,9 +245,9 @@ export function resolvePlaceholdersNeutral(
 /** Skill description registry — maps template name to auto-trigger description. */
 const SKILL_DESCRIPTIONS: Record<string, string> = {
   remember:
-    "Save confirmed decisions, rejected approaches worth not retrying, and reusable findings. Update an existing README, docs page, or spec instead of copying it, and link that file from the journal. Use when asked to remember, to update the project description from current code, when a decision is confirmed, or for a useful session/compact handoff.",
+    "Save confirmed decisions, rejected approaches worth not retrying, and reusable findings. Update an existing README, docs page, or spec instead of copying it, and link that file from the journal. Use when asked to remember, to update the project description from current code, when a decision is confirmed, for a useful session/compact handoff, or to save knowledge from selected history via session-insight.",
   "update-spec":
-    "Captures durable contracts into .trellis/spec/ as short markdown, or updates the README or docs section that already states them. Use when a boundary should still hold next session, or when asked to refresh the project description from current code without turning plans into implemented features.",
+    "Captures durable contracts into .trellis/spec/ as short markdown, or updates the README or docs section that already states them. Use when a boundary should still hold next session, or when asked to refresh the project description from current code without turning plans into implemented features, or to consolidate selected history with source attribution.",
 };
 
 /**

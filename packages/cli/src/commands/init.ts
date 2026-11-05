@@ -444,7 +444,8 @@ async function handleReinit(
 function printRecallHint(): void {
   console.log(
     chalk.gray(
-      "  Recall project knowledge with: mini-trellis mem recall <query>\n",
+      "  Organize selected history or text exports with the mini-trellis-session-insight skill.\n" +
+        "  Recall project knowledge with: mini-trellis mem recall <query>\n",
     ),
   );
 }

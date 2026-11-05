@@ -42,3 +42,7 @@ mini-trellis migrate             # 确认迁移，默认 no
 ## 迁移时的 OpenCode 协议
 
 0.3.5 新项目默认 V2；迁移保留已有的 V1 入口作为兼容，不静默跨协议升级。迁移需要明确选择协议时，用 `migrate --opencode-version 1|2 --dry-run` 预览。未托管的 Trellis 入口不能直接跨协议替换：先原地迁移，再检查 `refresh --opencode --opencode-version 2 --dry-run`。切换只移除 manifest 证明未修改的旧托管入口，其他插件保留；迁移和刷新均不修改宿主二进制、API、模型或全局信任。
+
+## 迁移后整理已有历史
+
+迁移保留项目知识，不会把所有旧聊天自动变成 spec。安装尚未发布的 0.3.6 源码并刷新技能后，可明确要求 `mini-trellis-session-insight` 整理选定的已支持会话或提供的 Markdown/文本导出，更新已有文档、保留来源，未解决冲突保持开放。该整理流程使用 `--no-commit`，即使旧配置开启自动提交也不自动提交。见[历史整理示例](using_CN.md#把选定历史整理成项目知识)。

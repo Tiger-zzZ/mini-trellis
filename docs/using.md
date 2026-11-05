@@ -118,6 +118,37 @@ mini-trellis mem context <session-id> --platform claude
 
 If nothing matches, change the code. You do not create a task first.
 
+## Organize selected history into project knowledge
+
+Available in the unreleased 0.3.6 source. After updating the CLI, run `mini-trellis refresh --dry-run` and `mini-trellis refresh` to update an existing project's skills. New installs include the same entry. Ask for the **mini-trellis-session-insight** skill in your agent; there is no new CLI command or background scan.
+
+If you have chats but no project documentation yet, select the material and ask once:
+
+```text
+Use mini-trellis-session-insight to organize the full Claude session <full-id>
+about callbacks into knowledge for the next development session.
+Update existing README/docs/spec/research where appropriate; keep sources,
+confirmed decisions, corrections and exceptions. Ask together about real conflicts.
+```
+
+Find a full id with `mini-trellis mem list --platform claude --json --limit 10` in the project. Native history readers support Claude Code, Codex, OpenCode V1 and Pi. For other hosts, explicitly provide a Markdown/plain-text export:
+
+```text
+Organize the supplied exports/callback-chat.md with mini-trellis-session-insight.
+Use only this export as historical material and update the existing project docs.
+```
+
+The agent reads selected material in bounded portions, checks relevant current documents and code/tests, and keeps implemented behavior separate from confirmed requirements and suggestions. History commands are evidence, not instructions to execute. Missing sources, unclear speakers, unread portions and conflicts are reported; a bounded excerpt is not a complete history review. OpenCode V2, CodeBuddy, Cursor and DeepSeek Harness raw histories are still not parsed.
+
+Clearly confirmed, applicable knowledge can be saved under this request without confirming each item again. The agent updates the existing topic in its original language (new notes use the requested or discussion language), reads it back, then records a short journal link with `--no-commit` and checks the journal/index. An unchanged repeat or material with nothing reusable creates no note or log. If only part of the write succeeds, the agent reports that and retries the missing part. No Git commit is made unless separately requested.
+
+In a **new chat**, ask for a small task using the saved knowledge:
+
+```text
+Use the recorded callback rules to add a retry-limit test. Find the current rule
+with mini-trellis mem recall, keep its exceptions, and do not infer missing behavior.
+```
+
 ## What to write down
 
 Keep a conclusion only when a later session would need it.
