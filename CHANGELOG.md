@@ -6,6 +6,7 @@
 - Preserves source attribution, user confirmations, corrections, negations and scope; distinguishes implemented behavior from agreed requirements and suggestions. Reports material conflicts and incomplete evidence instead of silently promoting them to current rules.
 - Verifies actual topic, journal and index writes; keeps the original document language, skips unchanged repeat material, and uses `--no-commit` for historical organizing even with legacy auto-commit enabled.
 - Ships the same on-demand reference through fresh install and refresh for every host, with updated discovery hints and bilingual usage examples.
+- Fixes OpenCode V1 recall repeatedly scanning the shared SQLite message/part tables for each candidate session. Each recall now prepares the shared store once and releases it after traversal, including on extraction failure.
 
 See the [0.3.6 draft release notes](docs/releases/v0.3.6.md).
 
