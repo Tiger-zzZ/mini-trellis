@@ -65,6 +65,80 @@ function claudeSessions(
   });
 }
 
+describe("SQLite recall lifecycle", () => {
+  function openCodeSessions(): void {
+    vi.mocked(MEM_PLATFORMS.opencode.list).mockReturnValue(
+      ["one", "two", "three"].map((id, index) => ({
+        id,
+        platform: "opencode" as const,
+        cwd: root,
+        filePath: "shared-opencode.db",
+        updated: `2026-11-06T00:00:0${index * 2}Z`,
+      })),
+    );
+  }
+
+  it("scans a shared database once across interleaved sessions and refreshes on the next recall", () => {
+    openCodeSessions();
+    claudeSessions([
+      {
+        id: "other-host",
+        created: "2026-11-06T00:00:03Z",
+        turns: [{ role: "assistant", text: "注释规范：说明业务约束。" }],
+      },
+    ]);
+    const adapter = MEM_PLATFORMS.opencode;
+    const prepare = vi.spyOn(adapter, "prepare").mockReturnValue(undefined);
+    const release = vi.spyOn(adapter, "release").mockReturnValue(undefined);
+    const extract = vi
+      .spyOn(adapter, "extract")
+      .mockImplementation((session) => [
+        {
+          role: "assistant",
+          text: `注释规范：记录 ${session.id} 的业务约束。`,
+        },
+      ]);
+
+    const first = recallMem({ cwd: root, query: "注释 规范", limit: 10 });
+    expect(first.hits.map((hit) => hit.sessionId).sort()).toEqual([
+      "one",
+      "other-host",
+      "three",
+      "two",
+    ]);
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(extract).toHaveBeenCalledTimes(3);
+
+    extract.mockReturnValue([
+      { role: "assistant", text: "注释规范：更新后的约束。" },
+    ]);
+    const second = recallMem({ cwd: root, query: "注释 规范", limit: 10 });
+    expect(
+      second.hits.some((hit) => hit.excerpt.includes("更新后的约束")),
+    ).toBe(true);
+    expect(prepare).toHaveBeenCalledTimes(2);
+    expect(release).toHaveBeenCalledTimes(2);
+  });
+
+  it("releases the prepared database when reading a later session fails", () => {
+    openCodeSessions();
+    const adapter = MEM_PLATFORMS.opencode;
+    const prepare = vi.spyOn(adapter, "prepare").mockReturnValue(undefined);
+    const release = vi.spyOn(adapter, "release").mockReturnValue(undefined);
+    vi.spyOn(adapter, "extract")
+      .mockReturnValueOnce([{ role: "assistant", text: "注释规范。" }])
+      .mockImplementationOnce(() => {
+        throw new Error("synthetic read failure");
+      });
+    expect(() => recallMem({ cwd: root, query: "注释 规范" })).toThrow(
+      "synthetic read failure",
+    );
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("0.3.2 recall", () => {
   it("keeps the answer document when repeated user questions match every query term", () => {
     write(

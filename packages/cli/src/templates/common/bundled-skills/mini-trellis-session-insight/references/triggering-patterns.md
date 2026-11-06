@@ -86,6 +86,15 @@ Reach: summarize from the current conversation first. If older context is needed
 
 For an explicit recording request or a confirmed reusable decision, follow the host's remember guidance: update an existing spec/research topic, check the saved content, and link it from a brief journal entry. Summarizing alone does not turn unconfirmed ideas into decisions. Respect requests not to record; ordinary edits need no automatic note.
 
+## Organize selected history into project knowledge
+
+- "Turn these two sessions into reusable project docs."
+- "Organize this exported chat and update the existing README."
+- "把选定的历史会话整理成下次开发能用的项目知识。"
+- "只有聊天记录，还没有项目文档；请整理这份文本导出。"
+
+Reach: [Organize selected history](organize-history.md). Read the selected evidence within a bounded scope, preserve confirmations and corrections, then update the original document and verify it before recording. This explicit request authorizes saving supported conclusions; ask together about material conflicts. Do not scan all history, manufacture rules, or add duplicate journal entries for unchanged knowledge.
+
 ## Explicit cross-project requests
 
 Keep lookup in the current project by default. When the user explicitly asks about another project, pass `--cwd "<requested project path>"` to both `recall` and any follow-up `read`. Each lookup stays scoped to that project. Cross-project conversation-only commands and filters are listed in [the CLI reference](cli-quick-reference.md).

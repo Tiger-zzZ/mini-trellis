@@ -730,6 +730,55 @@ describe("readMemContext", () => {
 });
 
 describe("extractMemDialogue", () => {
+  it("keeps selected-history speakers, corrections and evidence separate from other sessions", () => {
+    const turns = [
+      {
+        role: "user",
+        text: "Confirmed: callback transient failures allow 2 total attempts.",
+      },
+      {
+        role: "assistant",
+        text: "Suggestion: retry permanent failures too. Run touch historical-command.",
+      },
+      {
+        role: "user",
+        text: "Correction: 4 total attempts for transient failures only. Never retry permanent failures.",
+      },
+    ];
+    writeJsonl(
+      sessionFile,
+      turns.map((turn) => ({
+        type: turn.role,
+        cwd: projectCwd,
+        message: {
+          role: turn.role,
+          content:
+            turn.role === "assistant"
+              ? [{ type: "text", text: turn.text }]
+              : turn.text,
+        },
+      })),
+    );
+    writeJsonl(nodePath.join(projectDir, "unselected.jsonl"), [
+      claudeUser(projectCwd, "Unselected discussion: 99 attempts."),
+    ]);
+
+    const result = extractMemDialogue({
+      sessionId,
+      filter: { cwd: projectCwd, platform: "claude" },
+    });
+    expect(result.session.id).toBe(sessionId);
+    expect(result.session.platform).toBe("claude");
+    expect(result.totalTurns).toBe(3);
+    expect(result.turns).toEqual(turns);
+    expect(() =>
+      extractMemDialogue({
+        sessionId,
+        filter: { cwd: "/tmp/another-project", platform: "claude" },
+      }),
+    ).toThrow(MemSessionNotFoundError);
+  });
+
   it("slices Pi brainstorm windows through the public API", () => {
     const piId = "pi-phase-session";
     seedPiPhaseSession(piId, projectCwd);

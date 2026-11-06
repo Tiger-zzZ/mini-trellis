@@ -97,7 +97,7 @@ function collectTurnsAndEvents(
   return MEM_PLATFORMS[s.platform].collect(s, warnings);
 }
 
-function prepareSqliteStores(
+export function prepareSqliteStores(
   candidates: readonly MemSessionInfo[],
   warnings: MemWarning[],
 ): (() => void)[] {

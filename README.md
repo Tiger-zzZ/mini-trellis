@@ -127,6 +127,10 @@ Update the existing topic file, or create a spec or research note if none exists
 
 The agent updates the existing topic file, which can also be a root `README*.md` or Markdown under `docs/` or `doc/`, and writes a short entry in `.trellis/workspace/<you>/` linking to that file.
 
+### Already have chats but no project docs?
+
+In the unreleased 0.3.6 source, ask the `mini-trellis-session-insight` skill to organize selected sessions or a supplied Markdown/text export. It updates the existing README/docs/spec/research, preserves sources and corrections, and records a verified topic link. Repeating unchanged material adds no journal entry. In your next chat, use `mem recall` to apply that knowledge. See [selected history → project docs → next session](docs/using.md#organize-selected-history-into-project-knowledge).
+
 ### 3. Recall it in a later session
 
 When a later session touches that area—or when you want to check prior reasoning from the terminal—run `recall` to search project Markdown and local conversation history together:

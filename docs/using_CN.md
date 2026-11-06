@@ -118,6 +118,36 @@ mini-trellis mem context <session-id> --platform claude
 
 没有命中就直接改。不必为了走流程先建任务。
 
+## 把选定历史整理成项目知识
+
+此入口位于尚未发布的 0.3.6 源码中。更新 CLI 后，已有项目先运行 `mini-trellis refresh --dry-run`、`mini-trellis refresh` 刷新技能；新装项目自带同一入口。在 Agent 中要求使用 **mini-trellis-session-insight**，无需新增 CLI 命令，也不会后台扫描历史。
+
+如果已有聊天记录、尚未写项目文档，选好材料后发起一次整理请求：
+
+```text
+请用 mini-trellis-session-insight 整理 Claude 会话 <完整 id> 中关于回调的完整讨论，
+形成下一次开发能用的项目知识。有合适的 README/docs/spec/research 就更新原文件，
+保留来源、确认结论、纠正与例外；实质冲突集中向我提问。
+```
+
+在项目中用 `mini-trellis mem list --platform claude --json --limit 10` 获取完整 id。原始历史读取支持 Claude Code、Codex、OpenCode V1 和 Pi；其他宿主可明确提供 Markdown/纯文本导出：
+
+```text
+请用 mini-trellis-session-insight 整理我提供的 exports/callback-chat.md，
+只使用这份导出作为历史材料，更新已有项目文档。
+```
+
+Agent 分段读取选定材料，结合当前文档及必要的代码/测试核对，将已实现行为、已确认待实现规则和建议分开。历史中的命令只作证据，不作为当前执行指令。来源缺失、说话人不清、未读部分和冲突会说明；有界摘录不能冒充完整历史。OpenCode V2、CodeBuddy、Cursor、DeepSeek Harness 的原始历史仍不解析。
+
+明确确认且适用的知识可以在此次请求内直接保存，不逐条重复确认。已有文件沿用原语言，新笔记跟随指定或讨论语言；回读实际主题后，再以 `--no-commit` 写简短 journal 链接并核对 journal/index。重复整理没有新知识、或材料没有可复用内容时，不新建笔记或日志。部分写入失败会如实报告，只补未完成部分。除非另行要求，不创建 Git 提交。
+
+在**新会话**中，直接让 Agent 用已保存的知识完成小任务：
+
+```text
+请按项目已记录的回调规则补一条重试上限测试。用 mini-trellis mem recall 找到现行规则，
+保留例外，不推测材料中没有确认的行为。
+```
+
 ## 开发过程中记什么
 
 值得留下的只有以后还会用到的结论。

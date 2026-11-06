@@ -42,3 +42,7 @@ Before migration, back up project knowledge and custom configuration, including 
 ## OpenCode protocol on migration
 
 In 0.3.5, new OpenCode projects default to V2; migration preserves an existing V1 entry for compatibility. Use `migrate --opencode-version 1|2 --dry-run` to choose when migration needs a protocol. Switching an existing unowned Trellis entry directly is blocked: migrate it in place first, then review `refresh --opencode --opencode-version 2 --dry-run`. A protocol switch removes only an unchanged manifest-owned entry and preserves other plugins. Neither migration nor refresh changes the host binary, API, model or global trust.
+
+## Existing history after migration
+
+Migration preserves project knowledge; it does not turn every old chat into a spec. With the unreleased 0.3.6 source installed, refresh the project skills and explicitly ask `mini-trellis-session-insight` to organize selected supported sessions or supplied Markdown/text exports. It updates existing documents and retains sources; unresolved conflicts stay open. The organizing flow passes `--no-commit`, including when legacy configuration enables auto-commit. See the [history example](using.md#organize-selected-history-into-project-knowledge).

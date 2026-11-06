@@ -11,7 +11,12 @@ import {
 import { excerptAround, matchTerms, queryTerms, windowAt } from "./lexical.js";
 import { parseDocLineage, parseLineageMarks } from "./lineage.js";
 import { MEM_PLATFORMS } from "./platforms.js";
-import { listAll, resolveFilter, WIDE_LIMIT } from "./sessions.js";
+import {
+  listAll,
+  prepareSqliteStores,
+  resolveFilter,
+  WIDE_LIMIT,
+} from "./sessions.js";
 import type {
   DialogueTurn,
   MemWarning,
@@ -546,10 +551,12 @@ export function recallMem(options: RecallMemOptions): RecallResult {
     platform: options.platform,
     limit: WIDE_LIMIT,
   });
-  for (const session of listAll(filter, warnings)) {
-    const adapter = MEM_PLATFORMS[session.platform];
-    try {
-      adapter.prepare?.(session.filePath, warnings);
+  const sessions = listAll(filter, warnings);
+  // OpenCode sessions share one database; prepare it once per recall, as search does.
+  const releases = prepareSqliteStores(sessions, warnings);
+  try {
+    for (const session of sessions) {
+      const adapter = MEM_PLATFORMS[session.platform];
       const turns = adapter.extract(session, warnings);
       turns.forEach((turn, idx) => {
         if (turn.kind === "marker") return;
@@ -574,9 +581,9 @@ export function recallMem(options: RecallMemOptions): RecallResult {
           },
         );
       });
-    } finally {
-      adapter.release?.();
     }
+  } finally {
+    for (const release of releases) release();
   }
   const strong = candidates.filter((c) => c.hit.strength === "strong");
   // A user question does not by itself drop every weaker document. A current
