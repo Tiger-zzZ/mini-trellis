@@ -18,6 +18,11 @@ import {
 } from "../utils/codebuddy-settings.js";
 import type { OpenCodeVersion } from "../utils/opencode-version.js";
 import { readOpenCodePackageIssue } from "../utils/opencode-package.js";
+import {
+  readZCodeConfigIssue,
+  mergeZCodeConfig,
+  findZCodeSkillConflict,
+} from "../utils/zcode-config.js";
 
 /**
  * Per-platform configure options threaded from `trellis init` flags.
@@ -507,7 +512,11 @@ export function assertProjectTemplatePaths(
 ): void {
   const paths = [...files.keys()].filter(
     (relative) =>
-      relative.startsWith(".codebuddy/") || relative.startsWith(".opencode/"),
+      relative.startsWith(".codebuddy/") ||
+      relative.startsWith(".opencode/") ||
+      relative.startsWith(".zcode/") ||
+      (files.has(".zcode/config.json") &&
+        relative.startsWith(".agents/skills/")),
   );
   if (!paths.length) return;
   const root = realpathSync(cwd);
@@ -520,6 +529,14 @@ export function assertProjectTemplatePaths(
         error instanceof Error ? error.message : String(error),
       );
     }
+  }
+  if (files.has(".zcode/config.json")) {
+    const conflict = findZCodeSkillConflict(cwd, files.keys());
+    if (conflict)
+      throw new ManagedAssetConflict(
+        conflict,
+        "duplicate ZCode skill source; move or rename the existing .zcode skill before installing the shared .agents skill; no files changed",
+      );
   }
 }
 
@@ -535,6 +552,11 @@ export async function writeTemplateMap(
   files: Map<string, string>,
 ): Promise<void> {
   assertProjectTemplatePaths(cwd, files);
+  const zcodeConfig = path.join(cwd, ".zcode/config.json");
+  if (files.has(".zcode/config.json") && existsSync(zcodeConfig)) {
+    const issue = readZCodeConfigIssue(zcodeConfig);
+    if (issue) throw new ManagedAssetConflict(".zcode/config.json", issue);
+  }
   const packageContent = files.get(".opencode/package.json");
   const packagePath = path.join(cwd, ".opencode/package.json");
   if (packageContent && existsSync(packagePath)) {
@@ -559,6 +581,7 @@ export async function writeTemplateMap(
     ".cursor/hooks.json",
     ".pi/settings.json",
     ".codebuddy/settings.json",
+    ".zcode/config.json",
     ".opencode/package.json",
   ]);
   for (const [relPath, content] of renderTemplateMap(files)) {
@@ -577,7 +600,9 @@ export async function writeTemplateMap(
         content,
         relPath === ".codebuddy/settings.json"
           ? mergeCodeBuddySettings
-          : undefined,
+          : relPath === ".zcode/config.json"
+            ? mergeZCodeConfig
+            : undefined,
       );
       if (result === "invalid") {
         console.warn(`  ⚠ Skipped ${relPath}: existing file is not valid JSON`);

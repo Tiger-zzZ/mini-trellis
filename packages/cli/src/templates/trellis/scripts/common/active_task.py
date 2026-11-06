@@ -72,9 +72,13 @@ _ENV_SESSION_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
     # DSH launched from Codex still carries CODEX_THREAD_ID — and the untargeted
     # lookup below walks this table in order, so any earlier entry would claim
     # the session and write a foreign `codex_<thread>` pointer for DSH work.
-    # DSH_SESSION_ID is the only name here no other vendor sets, so first place
+    # DSH_SESSION_ID is vendor-specific, so first place
     # is safe: it cannot mis-claim a non-DSH session.
     ("dsh", ("DSH_SESSION_ID",)),
+    # ZCode 3.17.2 bundles core 0.17.1, whose hook and Bash runners export
+    # ZCODE_SESSION_ID as well as Claude compatibility aliases. Prefer the
+    # native identity so hook stdin and later shell commands share one key.
+    ("zcode", ("ZCODE_SESSION_ID",)),
     # REAL, undocumented (verified 2026-08-05 in a live Claude Code 2.1.221 bash
     # child; absent from code.claude.com/docs/en/env-vars). CLAUDE_SESSION_ID
     # was removed here — verified absent from that same live environment.
@@ -103,16 +107,6 @@ _ENV_SESSION_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
     # `copilot help environment` (the authoritative list per those docs) — not
     # runnable here, the CLI is not installed and copilot-cli ships no source.
     ("copilot", ("COPILOT_SESSION_ID", "COPILOT_SESSIONID")),
-    # REASONED, UNVERIFIED (2026-08-05): ZCode is closed-source and not
-    # installable here. It mirrors Claude's naming elsewhere (CLAUDE_PLUGIN_ROOT
-    # / CLAUDE_PLUGIN_DATA compat aliases are in its docs), and the previously
-    # declared CLAUDE_SESSION_ID does not exist on Claude Code either — so the
-    # name ZCode would actually reuse is CLAUDE_CODE_SESSION_ID. Try that first,
-    # keep the historical name as a fallback: if neither exists nothing changes.
-    # Platform-scoped lookup (_iter_env_keys filters by platform name), so the
-    # entry only fires once the resolver detected "zcode" — no collision with
-    # the claude entry above.
-    ("zcode", ("CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID")),
     # REAL by vendor design (verified 2026-08-05): Snow's sessionIdentityEnv.ts
     # exports SNOW_SESSION_ID into hook/terminal/sub-agent children and names
     # Trellis in its source header. TRELLIS_CONTEXT_ID stays the preferred
@@ -148,11 +142,7 @@ _ENV_PLATFORM_ALIASES = {
     "factory-ai": "droid",
     "github-copilot": "copilot",
 }
-# ZCode intentionally reuses Claude's session env var name. Hooks know the host
-# is ZCode, while later shell commands see only the shared env name and resolve
-# it through the claude entry. Canonicalize both paths to one runtime filename.
 _CONTEXT_KEY_PLATFORM_ALIASES = {
-    "zcode": "claude",
     # Factory Droid's config directory is `.factory/`, so a hook that names its
     # platform after the directory it was installed in reports "factory". Its
     # sibling hooks report "droid". One runtime filename either way.

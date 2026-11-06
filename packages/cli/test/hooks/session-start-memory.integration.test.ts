@@ -95,10 +95,17 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
     fs.writeFileSync(
       path.join(
         tmpDir,
-        `.${host}/${host === "codex" ? "hooks" : "settings"}.json`,
+        `.${host}/${host === "codex" ? "hooks" : host === "zcode" ? "config" : "settings"}.json`,
       ),
       "{}",
     );
+    if (host === "zcode") {
+      for (const name of ["remember", "session-insight", "update-spec"]) {
+        const skill = path.join(tmpDir, `.agents/skills/mini-trellis-${name}/SKILL.md`);
+        fs.mkdirSync(path.dirname(skill), { recursive: true });
+        fs.writeFileSync(skill, `# ${name}\n`);
+      }
+    }
     if (host === "codebuddy") {
       const command = path.join(
         tmpDir,
@@ -145,15 +152,15 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it.each(["claude", "codex", "codebuddy"])(
+  it.each(["claude", "codex", "codebuddy", "zcode"])(
     "%s deduplicates startup and restores context after compact, clear and resume",
     (host) => {
       const first = hook(host, "same");
       assertMemoryPayload(first.text);
       const remember =
-        host === "codex" ? "$mini-trellis-remember" : host === "codebuddy" ? "mini-trellis-remember" : "/mini-trellis:remember";
+        host === "codex" || host === "zcode" ? "$mini-trellis-remember" : host === "codebuddy" ? "mini-trellis-remember" : "/mini-trellis:remember";
       const other =
-        host === "codex" ? "/mini-trellis:remember" : "$mini-trellis-remember";
+        host === "codex" || host === "zcode" ? "/mini-trellis:remember" : "$mini-trellis-remember";
       expect(first.text).toContain(remember);
       expect(first.text).not.toContain(other);
       expect(hook(host, "same").data).toEqual({});
@@ -172,6 +179,11 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
         expect(text).not.toContain(other);
         if (source === "compact") expect(text).toContain("follows compact");
         else expect(text).not.toContain("follows compact");
+        if (host === "zcode") {
+          expect(text).not.toContain("local session history");
+          expect(text).not.toContain("mini-trellis mem context");
+          expect(text).not.toContain("same");
+        }
       }
       expect(first.text).not.toContain("follows compact");
       expect(first.text).not.toContain("read back");

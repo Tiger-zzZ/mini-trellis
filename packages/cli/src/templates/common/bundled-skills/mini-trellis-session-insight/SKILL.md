@@ -9,7 +9,7 @@ How to call `mini-trellis mem` and when that is the right move. Capability, not 
 
 ## What it is
 
-A local CLI that searches project Markdown and Claude Code, Codex, OpenCode V1, and Pi conversation logs. OpenCode V2 and CodeBuddy transcripts are not parsed; their saved project Markdown is still searchable. Documents are discovered automatically; no index service or configuration is needed. Nothing is uploaded.
+A local CLI that searches project Markdown and Claude Code, Codex, OpenCode V1, and Pi conversation logs. OpenCode V2, CodeBuddy, Cursor, DeepSeek Harness and ZCode transcripts are not parsed; their saved project Markdown is still searchable. Documents are discovered automatically; no index service or configuration is needed. Nothing is uploaded.
 
 ```bash
 mini-trellis mem recall "<topic or path>"

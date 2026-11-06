@@ -1,6 +1,6 @@
 # 开发时怎么用
 
-命令在项目根目录执行。Claude Code 和 OpenCode 用 `/mini-trellis:remember`，Codex 用 `$mini-trellis-remember`，Pi 用 `/mini-trellis-remember`。DeepSeek Harness、Cursor 和 CodeBuddy 用技能 `mini-trellis-remember`；CodeBuddy CLI 也可用 `/mini-trellis:remember`。
+命令在项目根目录执行。Claude Code 和 OpenCode 用 `/mini-trellis:remember`，Codex/ZCode 用 `$mini-trellis-remember`，Pi 用 `/mini-trellis-remember`。DeepSeek Harness、Cursor 和 CodeBuddy 用技能 `mini-trellis-remember`；CodeBuddy CLI 也可用 `/mini-trellis:remember`。
 
 ## 从零安装
 
@@ -9,7 +9,7 @@ npm install -g mini-trellis
 mini-trellis init -u 你的名字 --claude
 ```
 
-只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`、`--codebuddy`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 会装上技能和本地 `sessionStart`；Cursor 托管云端不跑这个 hook，本地 hook 跑过也不等于 Agent 提示里收到了 `additional_context`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
+只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`、`--codebuddy`、`--zcode`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 会装上技能和本地 `sessionStart`；Cursor 托管云端不跑这个 hook，本地 hook 跑过也不等于 Agent 提示里收到了 `additional_context`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
 
 ## OpenCode V1 与 V2
 
@@ -55,6 +55,34 @@ mini-trellis init -u 你的名字 --codebuddy -y
 用 `mini-trellis-remember` 技能记录确认的结论（CLI 也可 `/mini-trellis:remember`），优先更新原主题。`mem recall`/`mem read` 可查已保存的项目知识；不解析 CodeBuddy 转录本。
 
 重复 init/refresh 保留用户 hook、环境和权限。非法 JSON、settings 为数组/null、hook 分组或 matcher 无效时，先停止宿主更新，不覆盖原文件。`doctor` 报告注册缺失和最近运行错误；未观察到运行保持 unknown。
+
+<a id="zcode-zai"></a>
+
+## ZCode（智谱/Z.ai）
+
+尚未发布的 0.3.7 源码在 `.agents/skills/` 安装与 Codex 共用的三项技能，并在 `.zcode/config.json` 注册一个项目 hook：
+
+```bash
+mini-trellis init -u 你的名字 --zcode -y
+zcode skills list --cwd . --json
+zcode hooks trust review --workspace . --json
+```
+
+检查返回的命令与 `.zcode/hooks/session-start.py`。接受后，由你授予审查到的精确 `hookDeclarationDigest`，再检查状态并新开会话：
+
+```bash
+zcode hooks trust grant --workspace . --hook-digest <审查到的-hookDeclarationDigest>
+zcode hooks trust status --workspace . --json
+mini-trellis doctor
+```
+
+只注册 startup、clear、compact 的 `SessionStart`。mini-trellis 不自动授予信任，不修改 `~/.zcode` 配置；refresh 或迁移改变声明后需重新审查。已有禁用设置保持禁用。旧构建可能忽略项目 hooks，此时仍可用技能与 `AGENTS.md` 使用项目知识，无需安装用户级桥接插件。
+
+使用 `$mini-trellis-remember`、同名技能，或宿主清单中提供的 `/skill mini-trellis-remember`。自然确认记录沿用同一份规则。`mini-trellis-session-insight` 用 `mem recall`/`mem read` 取回项目知识，也可按明确要求整理提供的 Markdown/文本；不解析 ZCode 原始聊天，compact 后同样如此。新笔记跟随指定或讨论语言，更新保留原文件语言；普通排版修改不产生记忆，新装默认不自动 Git 提交。
+
+官方桌面 3.17.2 发行包内置 core CLI 0.17.1，桌面启动器使用同一份 `zcode.cjs` 运行 app server。本次用该发行包及其 Electron 运行时检查了技能发现和项目 hook 审查；真实模型流程、resume 和 compact 送达因未选择模型/未授予 hook 信任仍待验证，不能据此外推所有独立构建 CLI 或桌面版本。
+
+重复 init/refresh 保留用户配置、hook 和其他技能。已有 `.zcode/skills/` 同名技能时先报冲突，需你自行移动或改名，不覆盖原文件；项目 hook 结构无效时在写入前停止，refresh 对修改过或未托管的同名文件报冲突。`zcode-trust` 保持 unknown，因为 mini-trellis 不检查宿主信任库；`zcode-runtime` 仅反映观察到的执行，不能证明模型收到入口。卸载清理受管 ZCode 资产及注册并保留其他宿主设置；沿用现有命令会明确删除整个 `.trellis/` 的行为，卸载前请备份知识。
 
 ## 在 Cursor 里
 
@@ -120,7 +148,7 @@ mini-trellis mem context <session-id> --platform claude
 
 ## 把选定历史整理成项目知识
 
-此入口位于尚未发布的 0.3.6 源码中。更新 CLI 后，已有项目先运行 `mini-trellis refresh --dry-run`、`mini-trellis refresh` 刷新技能；新装项目自带同一入口。在 Agent 中要求使用 **mini-trellis-session-insight**，无需新增 CLI 命令，也不会后台扫描历史。
+此入口自 0.3.6 提供。更新 CLI 后，已有项目先运行 `mini-trellis refresh --dry-run`、`mini-trellis refresh` 刷新技能；新装项目自带同一入口。在 Agent 中要求使用 **mini-trellis-session-insight**，无需新增 CLI 命令，也不会后台扫描历史。
 
 如果已有聊天记录、尚未写项目文档，选好材料后发起一次整理请求：
 
@@ -137,7 +165,7 @@ mini-trellis mem context <session-id> --platform claude
 只使用这份导出作为历史材料，更新已有项目文档。
 ```
 
-Agent 分段读取选定材料，结合当前文档及必要的代码/测试核对，将已实现行为、已确认待实现规则和建议分开。历史中的命令只作证据，不作为当前执行指令。来源缺失、说话人不清、未读部分和冲突会说明；有界摘录不能冒充完整历史。OpenCode V2、CodeBuddy、Cursor、DeepSeek Harness 的原始历史仍不解析。
+Agent 分段读取选定材料，结合当前文档及必要的代码/测试核对，将已实现行为、已确认待实现规则和建议分开。历史中的命令只作证据，不作为当前执行指令。来源缺失、说话人不清、未读部分和冲突会说明；有界摘录不能冒充完整历史。OpenCode V2、CodeBuddy、Cursor、DeepSeek Harness、ZCode 的原始历史仍不解析。
 
 明确确认且适用的知识可以在此次请求内直接保存，不逐条重复确认。已有文件沿用原语言，新笔记跟随指定或讨论语言；回读实际主题后，再以 `--no-commit` 写简短 journal 链接并核对 journal/index。重复整理没有新知识、或材料没有可复用内容时，不新建笔记或日志。部分写入失败会如实报告，只补未完成部分。除非另行要求，不创建 Git 提交。
 
@@ -229,7 +257,8 @@ mini-trellis doctor
 | `legacy-trellis` | 还留着 Trellis 工作流。先跑 `mini-trellis migrate --dry-run`。 |
 | `memory-layer` | 缺少 `.trellis` 或 `add_session.py`。跑 `mini-trellis init`。 |
 | `instructions` | `AGENTS.md` 没有托管块。再跑一次 init。 |
-| `platforms` | 没有发现宿主。加上 `--claude`、`--codex`、`--opencode`、`--pi`、`--dsh` 或 `--cursor`。 |
+| `platforms` | 没有发现宿主。加上 `--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`、`--codebuddy` 或 `--zcode`。 |
 | `<host>-runtime` 为 unknown | 还没有一次真实 hook 记录。开一轮宿主会话。Codex 要先信任项目 hook。Cursor 还要分开看：hook 记录出现，也不等于短入口进了模型提示。 |
+| `zcode-config` / `zcode-trust` | 项目 hook 无效、禁用、未注册，或尚未检查宿主信任。使用 ZCode review/status；文件存在不等于已送达。 |
 | `cursor-config` | `.cursor/hooks.json` 无效或 mini-trellis 启动 hook 没有注册。按详情处理；无效配置会保留。 |
 | `<host>-runtime` 为 warn | 最近一次 hook 没有干净结束。明细里有状态和错误类别。 |

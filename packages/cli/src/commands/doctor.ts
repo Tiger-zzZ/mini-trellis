@@ -7,6 +7,11 @@ import { needsTrellisMigration } from "./migrate.js";
 import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
 import { readCodeBuddySettingsIssue } from "../utils/codebuddy-settings.js";
 import {
+  readZCodeConfigIssue,
+  zcodeHookReferencesPaths,
+  findZCodeSkillConflict,
+} from "../utils/zcode-config.js";
+import {
   detectOpenCodeVersion,
   installedOpenCodeVersions,
   OPENCODE_ENTRIES,
@@ -98,6 +103,13 @@ const PLATFORM_CHECKS: Record<AITool, string[]> = {
     ".codebuddy/commands/mini-trellis/remember.md",
     ".codebuddy/skills/mini-trellis-remember/SKILL.md",
   ],
+  zcode: [
+    ".zcode/config.json",
+    ".zcode/hooks/session-start.py",
+    ".agents/skills/mini-trellis-remember/SKILL.md",
+    ".agents/skills/mini-trellis-session-insight/SKILL.md",
+    ".agents/skills/mini-trellis-update-spec/SKILL.md",
+  ],
 };
 
 const TRIGGER_MARKERS: Record<AITool, [string, string]> = {
@@ -111,6 +123,7 @@ const TRIGGER_MARKERS: Record<AITool, [string, string]> = {
   ],
   cursor: [".cursor/hooks/session-start.py", "additional_context"],
   codebuddy: [".codebuddy/hooks/session-start.py", "additionalContext"],
+  zcode: [".zcode/hooks/session-start.py", "additionalContext"],
 };
 
 export function buildDoctorReport(cwd: string): DoctorReport {
@@ -202,6 +215,16 @@ export function buildDoctorReport(cwd: string): DoctorReport {
     });
   }
   for (const platform of Object.keys(AI_TOOLS) as AITool[]) {
+    if (platform === "zcode") {
+      if (!platforms.includes("zcode")) continue;
+      const conflict = findZCodeSkillConflict(cwd, PLATFORM_CHECKS.zcode);
+      if (conflict)
+        checks.push({
+          name: "zcode-skills",
+          level: "error",
+          detail: `${conflict}: ZCode-local skill conflicts with the shared .agents destination; existing file was kept. Move or rename it before installation`,
+        });
+    }
     const openCodeVersion = openCodeVersions[0] ?? "1";
     const files =
       platform === "opencode"
@@ -230,6 +253,46 @@ export function buildDoctorReport(cwd: string): DoctorReport {
           level: "error",
           detail: issue,
         });
+    }
+    if (platform === "zcode") {
+      if (exists(".zcode/config.json")) {
+        const file = path.join(cwd, ".zcode/config.json");
+        const issue = readZCodeConfigIssue(file, true);
+        if (issue)
+          checks.push({ name: "zcode-config", level: "error", detail: issue });
+        else {
+          const config = JSON.parse(fs.readFileSync(file, "utf8")) as {
+            hooks?: {
+              enabled?: boolean;
+              events?: { SessionStart?: { hooks: { enabled?: boolean }[] }[] };
+            };
+          };
+          if (
+            config.hooks?.enabled === false ||
+            config.hooks?.events?.SessionStart?.some((group) =>
+              group.hooks.some(
+                (hook) =>
+                  hook.enabled === false &&
+                  zcodeHookReferencesPaths(hook, [
+                    ".zcode/hooks/session-start.py",
+                  ]),
+              ),
+            )
+          )
+            checks.push({
+              name: "zcode-config",
+              level: "warn",
+              detail:
+                "ZCode hooks or a SessionStart declaration is disabled; user choices were preserved",
+            });
+        }
+      }
+      checks.push({
+        name: "zcode-trust",
+        level: "unknown",
+        detail:
+          "project hook trust is owned by ZCode; use `zcode hooks trust review --workspace . --json` and `zcode hooks trust status --workspace . --json`. Review before granting a digest; changed declarations may need new trust. Older builds may ignore project hooks. Skills and project knowledge do not require a user-level bridge",
+      });
     }
     if (complete) {
       const [triggerPath, marker] =
@@ -280,7 +343,9 @@ export function buildDoctorReport(cwd: string): DoctorReport {
               ? "no real hook execution observed; ensure Codex trusts this project, then use /hooks to review/trust the project hook and start a new session"
               : platform === "cursor"
                 ? "no real local hook execution observed; Cursor-managed cloud agents do not run sessionStart"
-                : "no real hook execution observed; run one host session",
+                : platform === "zcode"
+                  ? "no hook execution observed; review/trust the project hook in ZCode, then start a new session. Config presence does not prove trust or model delivery"
+                  : "no real hook execution observed; run one host session",
         });
       } else if (
         runtime.last_status === "ok" ||
@@ -306,7 +371,7 @@ export function buildDoctorReport(cwd: string): DoctorReport {
       level: "warn",
       name: "platforms",
       detail:
-        "no host detected; choose --claude, --codex, --opencode, --pi, --dsh, --cursor, or --codebuddy",
+        "no host detected; choose --claude, --codex, --opencode, --pi, --dsh, --cursor, --codebuddy, or --zcode",
     });
   }
 

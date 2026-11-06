@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased — 0.3.6
+## Unreleased — 0.3.7
+
+- Adds `init --zcode` and `refresh --zcode` for Z.ai ZCode project skills and a trust-gated SessionStart entry. Reuses remember, session-insight, update-spec and project recall/read without a second memory implementation or raw ZCode history reader.
+- Preserves user configuration, hooks and skills across installation and refresh; rejects invalid hook structure and unsafe paths before writing. Migration removes known Trellis workflow registrations; uninstall removes managed entries while retaining unrelated host settings.
+- Keeps host trust separate from asset and execution checks. No user-level configuration, automatic trust grant, per-turn injector, task workflow or model service is added.
+- Uses ZCode's native session identity ahead of Claude compatibility aliases. Compact guidance points to saved project knowledge rather than unsupported raw chats.
+
+See the [0.3.7 release draft](docs/releases/v0.3.7.md) for setup and the verified scope.
+
+## v0.3.6
 
 - Extends the shared `mini-trellis-session-insight` skill to organize explicitly selected supported sessions or supplied Markdown/text exports into existing project documents. No new service, command, native history format or automatic scan.
 - Preserves source attribution, user confirmations, corrections, negations and scope; distinguishes implemented behavior from agreed requirements and suggestions. Reports material conflicts and incomplete evidence instead of silently promoting them to current rules.
@@ -8,7 +17,7 @@
 - Ships the same on-demand reference through fresh install and refresh for every host, with updated discovery hints and bilingual usage examples.
 - Fixes OpenCode V1 recall repeatedly scanning the shared SQLite message/part tables for each candidate session. Each recall now prepares the shared store once and releases it after traversal, including on extraction failure.
 
-See the [0.3.6 draft release notes](docs/releases/v0.3.6.md).
+See the [0.3.6 release notes](docs/releases/v0.3.6.md).
 
 ## v0.3.5 — 2026-11-05
 

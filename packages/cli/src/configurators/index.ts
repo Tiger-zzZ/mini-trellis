@@ -18,6 +18,7 @@ import { collectPiTemplates } from "./pi.js";
 import { collectDshTemplates } from "./dsh.js";
 import { collectCursorTemplates } from "./cursor.js";
 import { collectCodeBuddyTemplates } from "./codebuddy.js";
+import { collectZCodeTemplates } from "./zcode.js";
 
 import {
   writeTemplateMap,
@@ -31,6 +32,8 @@ import {
   resolveOpenCodeVersion,
 } from "../utils/opencode-version.js";
 import { readCodeBuddySettingsIssue } from "../utils/codebuddy-settings.js";
+import { readZCodeConfigIssue } from "../utils/zcode-config.js";
+import { ManagedAssetConflict } from "../utils/managed-path-safety.js";
 
 interface PlatformFunctions {
   configure: (cwd: string, options?: PlatformConfigureOptions) => Promise<void>;
@@ -62,6 +65,7 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
   dsh: fromTemplates(collectDshTemplates),
   cursor: fromTemplates(collectCursorTemplates),
   codebuddy: fromTemplates(collectCodeBuddyTemplates),
+  zcode: fromTemplates(collectZCodeTemplates),
 };
 
 export const PLATFORM_IDS = Object.keys(AI_TOOLS) as AITool[];
@@ -91,6 +95,12 @@ const DETECT_FILES: Record<AITool, string[]> = {
     ".codebuddy/settings.json",
     ".codebuddy/hooks/session-start.py",
     ".codebuddy/commands/mini-trellis/remember.md",
+  ],
+  zcode: [
+    ".zcode/config.json",
+    ".zcode/hooks/session-start.py",
+    // Shared .agents skills alone cannot identify the host; detect local conflicts too.
+    ".zcode/skills/mini-trellis-remember/SKILL.md",
   ],
 };
 
@@ -164,6 +174,12 @@ export function resolvePlatformOptions(
       throw new Error(
         `.codebuddy/settings.json: ${issue}; no CodeBuddy assets changed`,
       );
+  }
+  if (platforms.includes("zcode")) {
+    assertProjectTemplatePaths(cwd, collectZCodeTemplates());
+    const config = path.join(cwd, ".zcode/config.json");
+    const issue = fs.existsSync(config) ? readZCodeConfigIssue(config) : null;
+    if (issue) throw new ManagedAssetConflict(".zcode/config.json", issue);
   }
   return resolved;
 }
