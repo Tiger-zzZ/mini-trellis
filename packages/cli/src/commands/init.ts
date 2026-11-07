@@ -222,6 +222,7 @@ export interface InitOptions {
   dsh?: boolean;
   cursor?: boolean;
   codebuddy?: boolean;
+  zcode?: boolean;
   opencodeVersion?: string;
   yes?: boolean;
   user?: string;
@@ -603,6 +604,14 @@ export async function init(options: InitOptions): Promise<void> {
   }
   if (tools.includes("pi")) recordCommands.push("/mini-trellis-remember");
   if (tools.includes("codex")) recordCommands.push("$mini-trellis-remember");
+  if (tools.includes("zcode")) {
+    if (!tools.includes("codex")) recordCommands.push("$mini-trellis-remember");
+    console.log(
+      chalk.gray(
+        "  ZCode: in Desktop Settings > Hooks, select this project and review/trust its hook; with a standalone CLI, use `zcode hooks trust review --workspace . --json` and grant the reviewed digest yourself. Use the workspace path shown by the host, then start a new session. Older builds may ignore project hooks; skills remain available. No user-level config or trust was changed.",
+      ),
+    );
+  }
   if (recordCommands.length > 0) {
     console.log(
       chalk.gray(`  Record sessions with ${recordCommands.join(", ")}.`),

@@ -25,7 +25,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 license" /></a>
 </p>
 
-> **v0.3.5:** OpenCode V2 by default, V1 compatibility, and shared CodeBuddy CLI/IDE integration. See the [release notes](./docs/releases/v0.3.5.md).
+> **v0.3.7 source (unreleased):** Z.ai ZCode project skills and a trust-gated SessionStart entry. See [setup](./docs/using.md#zcode-zai) and the [release draft](./docs/releases/v0.3.7.md).
 
 ![Conventions, research and verified fixes accumulate in project Markdown, inform later work, and are updated with new evidence.](./docs/assets/knowledge-en.svg)
 
@@ -107,12 +107,12 @@ npm install -g mini-trellis
 mini-trellis init -u your-name --claude
 ```
 
-Choose or combine flags for the agents you use (`--claude`, `--cursor`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--codebuddy`). You can also hand this prompt directly to your agent to install or migrate from Trellis:
+Choose or combine flags for the agents you use (`--claude`, `--cursor`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--codebuddy`, `--zcode`). You can also hand this prompt directly to your agent to install or migrate from Trellis:
 
 ```text
 Install or migrate mini-trellis in this project. If the command is missing, run npm install -g mini-trellis first.
 If this project has legacy workflow files (for example .trellis/workflow.md, .trellis/scripts/task.py, or inject-*.py), run mini-trellis migrate --dry-run, show me the plan, and run mini-trellis migrate -y after I confirm.
-If this is a new project, run mini-trellis init -u <name> -y with only the tools I actually use (--claude, --codex, --opencode, --pi, --dsh, --cursor, --codebuddy). For OpenCode, new projects default to V2; existing entries are preserved. Use --opencode-version 1 only for a V1 host.
+If this is a new project, run mini-trellis init -u <name> -y with only the tools I actually use (--claude, --codex, --opencode, --pi, --dsh, --cursor, --codebuddy, --zcode). For OpenCode, new projects default to V2; existing entries are preserved. Use --opencode-version 1 only for a V1 host.
 Then run mini-trellis doctor and report the result. Do not delete .trellis/spec, .trellis/research, or .trellis/workspace.
 ```
 
@@ -129,7 +129,7 @@ The agent updates the existing topic file, which can also be a root `README*.md`
 
 ### Already have chats but no project docs?
 
-In the unreleased 0.3.6 source, ask the `mini-trellis-session-insight` skill to organize selected sessions or a supplied Markdown/text export. It updates the existing README/docs/spec/research, preserves sources and corrections, and records a verified topic link. Repeating unchanged material adds no journal entry. In your next chat, use `mem recall` to apply that knowledge. See [selected history → project docs → next session](docs/using.md#organize-selected-history-into-project-knowledge).
+Since 0.3.6, ask the `mini-trellis-session-insight` skill to organize selected sessions or a supplied Markdown/text export. It updates the existing README/docs/spec/research, preserves sources and corrections, and records a verified topic link. Repeating unchanged material adds no journal entry. In your next chat, use `mem recall` to apply that knowledge. See [selected history → project docs → next session](docs/using.md#organize-selected-history-into-project-knowledge).
 
 ### 3. Recall it in a later session
 
@@ -193,6 +193,7 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
 | **Codex** | `--codex` | `$mini-trellis-remember` | Project hook injection and local session history search |
 | **OpenCode V1/V2** | `--opencode` | `/mini-trellis:remember` | New projects default to V2; existing V1 entries are preserved. `--opencode-version 1` explicitly selects legacy compatibility. V1 local history is searchable; V2 history is not parsed and produces a warning |
 | **CodeBuddy CLI / IDE** | `--codebuddy` | `mini-trellis-remember` skill; CLI also `/mini-trellis:remember` | Shared project settings, skills and SessionStart entry. Project knowledge is searchable; CodeBuddy conversation history is not parsed |
+| **ZCode (Z.ai)** | `--zcode` | `$mini-trellis-remember` or the skill | Startup, recording and cross-session recall verified in desktop 3.17.2 / core 0.17.1 with GLM-5.3-Flash. This host does not re-trigger the entry after compact. Project knowledge and supplied text only; raw chats are not parsed |
 | **Pi** | `--pi` | `/mini-trellis-remember` | Startup entry and local session search |
 | **DeepSeek Harness** | `--dsh` | `mini-trellis-remember` | Installs `.dsh/skills/`; no project `SessionStart` hook—the model calls `mem recall` / `mem read` when needed |
 
@@ -208,6 +209,7 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
   - DeepSeek Harness has no project-level `SessionStart` hook and does not parse compressed transcripts in `~/.dsh/sessions`;
   - Cursor's generated local `sessionStart` entry is verified on Cursor 3.27.22. A successful hook log alone does not prove model delivery or use. Use `AGENTS.md`, the `mini-trellis-remember` skill, and `mini-trellis mem recall`. Cursor-managed cloud agents do not run `sessionStart`; self-hosted machines remain unverified. Cursor conversation history is not parsed;
   - OpenCode V2 (tested on 2.2.0) is the default development target. V1 (tested on 1.18.29) remains a legacy compatibility option with a separate plugin protocol. Ordinary refresh preserves the installed protocol. V2 rebuilds a bounded entry in each outgoing request without saving it to conversation history. Only V1 history is parsed; neither protocol provides precise compact recovery.
+  - ZCode needs explicit project hook review and trust; mini-trellis writes no user-level config and does not grant trust. Older builds may ignore project hooks. See [ZCode setup](./docs/using.md#zcode-zai).
   - CodeBuddy CLI and IDE share `.codebuddy/settings.json` and `.codebuddy/skills/`. See [setup](./docs/using.md#codebuddy-cli-and-ide).
   - Pi supports session listing and search without precise compact boundary recovery.
 

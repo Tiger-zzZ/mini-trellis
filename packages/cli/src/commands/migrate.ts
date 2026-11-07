@@ -64,6 +64,10 @@ import { renderTemplateMap } from "../configurators/shared.js";
 import { parseOpenCodeVersion } from "../utils/opencode-version.js";
 import { assertSafeManagedPath } from "../utils/managed-path-safety.js";
 import {
+  scrubZCodeConfig,
+  zcodeHookReferencesPaths,
+} from "../utils/zcode-config.js";
+import {
   RESEARCH_REL,
   buildTasksConvergePlan,
   convergeTasks,
@@ -110,6 +114,16 @@ const SCAN_RULES: { dir: string; match: (name: string) => boolean }[] = [
   { dir: ".codebuddy/agents", match: (n) => /^trellis-.*\.md$/.test(n) },
   { dir: ".codebuddy/commands", match: (n) => n === "trellis" },
   { dir: ".codebuddy/skills", match: (n) => n.startsWith("trellis-") },
+  { dir: ".zcode/agents", match: (n) => /^trellis-.*\.md$/.test(n) },
+  { dir: ".zcode/commands", match: (n) => n === "trellis" },
+  { dir: ".zcode/skills", match: (n) => n.startsWith("trellis-") },
+  {
+    dir: ".zcode/hooks",
+    match: (n) =>
+      /^(?:inject-(?:workflow-state|subagent-context|shell-session-context)|statusline)\.py$/.test(
+        n,
+      ),
+  },
   {
     dir: ".codebuddy/hooks",
     match: (n) => /^(?:inject-.*|statusline)\.py$/.test(n),
@@ -203,6 +217,9 @@ const CODEX_LEGACY_HOOKS = [
 const CODEBUDDY_LEGACY_HOOKS = CLAUDE_LEGACY_HOOKS.map((relative) =>
   relative.replace(".claude/", ".codebuddy/"),
 );
+const ZCODE_LEGACY_HOOKS = CLAUDE_LEGACY_HOOKS.map((relative) =>
+  relative.replace(".claude/", ".zcode/"),
+);
 
 function readText(abs: string): string | null {
   try {
@@ -219,6 +236,30 @@ function readText(abs: string): string | null {
  */
 export function legacyHostPlatforms(cwd: string): AITool[] {
   const ids = new Set<AITool>();
+  const zcode = readText(path.join(cwd, ".zcode/config.json"));
+  if (zcode) {
+    try {
+      const value = JSON.parse(zcode) as {
+        hooks?: { events?: Record<string, { hooks?: unknown[] }[]> };
+      };
+      if (
+        Object.values(value?.hooks?.events ?? {}).some(
+          (groups) =>
+            Array.isArray(groups) &&
+            groups.some(
+              (group) =>
+                Array.isArray(group?.hooks) &&
+                group.hooks.some((hook) =>
+                  zcodeHookReferencesPaths(hook, ZCODE_LEGACY_HOOKS.slice(1)),
+                ),
+            ),
+        )
+      )
+        ids.add("zcode");
+    } catch {
+      /* Invalid config is diagnosed before installation. */
+    }
+  }
   const claude = readText(path.join(cwd, ".claude/settings.json"));
   if (claude && /inject-|hooks\/statusline\.py/.test(claude)) {
     ids.add("claude-code");
@@ -331,6 +372,16 @@ function scrubLegacyHostConfig(
   cwd: string,
   platforms: readonly AITool[],
 ): string {
+  if (platforms.includes("zcode")) {
+    const abs = path.join(cwd, ".zcode/config.json");
+    const before = readText(abs);
+    if (before !== null)
+      rewriteScrubbed(
+        abs,
+        scrubZCodeConfig(before, ZCODE_LEGACY_HOOKS),
+        before,
+      );
+  }
   if (platforms.includes("claude-code")) {
     const rel = ".claude/settings.json";
     const abs = path.join(cwd, rel);
@@ -618,7 +669,11 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
   renderPlan(cwd, plan, converge);
   const context = resolvePlatformOptions(cwd, plan.reconfigure, options);
   for (const relative of plan.deletions) {
-    if (relative.startsWith(".codebuddy/") || relative.startsWith(".opencode/"))
+    if (
+      relative.startsWith(".codebuddy/") ||
+      relative.startsWith(".opencode/") ||
+      relative.startsWith(".zcode/")
+    )
       assertSafeManagedPath(fs.realpathSync(cwd), relative);
   }
   if (context.opencodeVersion)

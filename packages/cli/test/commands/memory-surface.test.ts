@@ -43,12 +43,13 @@ describe("host CLI surface", () => {
       "dsh",
       "opencode",
       "pi",
+      "zcode",
     ]);
     expect(
       getInitToolChoices()
         .map((t) => t.key)
         .sort(),
-    ).toEqual(["claude", "codebuddy", "codex", "cursor", "dsh", "opencode", "pi"]);
+    ).toEqual(["claude", "codebuddy", "codex", "cursor", "dsh", "opencode", "pi", "zcode"]);
   });
 
   it("registers DeepSeek and Cursor without the hosts this release skips", () => {

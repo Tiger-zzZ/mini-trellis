@@ -26,6 +26,7 @@ import {
   type ManagedRemovalPlan,
 } from "../utils/managed-removal.js";
 import { installedOpenCodeVersions } from "../utils/opencode-version.js";
+import { assertSafeManagedPath } from "../utils/managed-path-safety.js";
 
 export interface UninstallOptions {
   yes?: boolean;
@@ -119,7 +120,13 @@ function collectOwnedPaths(cwd: string): Record<string, string> {
         opencodeVersion: version,
       });
       if (!templates) continue;
-      for (const rel of templates.keys()) hashes[rel] = "";
+      for (const rel of templates.keys()) {
+        if (id === "zcode")
+          assertSafeManagedPath(fs.realpathSync(cwd), rel, {
+            followLeaf: true,
+          });
+        hashes[rel] = "";
+      }
     }
   }
   return hashes;

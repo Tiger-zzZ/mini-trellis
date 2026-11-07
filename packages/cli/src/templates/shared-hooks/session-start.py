@@ -568,6 +568,7 @@ def _main_impl():
 
     # Try platform-specific env vars, hook cwd, fallback to cwd
     project_dir_env_vars = [
+        "ZCODE_PROJECT_DIR",
         "CLAUDE_PROJECT_DIR",
         "CODEX_PROJECT_DIR",
         "QODER_PROJECT_DIR",
@@ -578,7 +579,6 @@ def _main_impl():
         "KIRO_PROJECT_DIR",
         "COPILOT_PROJECT_DIR",
         "TRAE_PROJECT_DIR",
-        "ZCODE_PROJECT_DIR",
     ]
     project_dir = None
     for var in project_dir_env_vars:
@@ -607,7 +607,7 @@ def _main_impl():
     spec_index_paths = _collect_spec_index_paths(trellis_dir, allowed_pkgs)
     source = hook_input.get("source") if isinstance(hook_input.get("source"), str) else ""
     platform = _detect_platform(hook_input)
-    if platform == "codex":
+    if platform in {"codex", "zcode"}:
         remember_command = "$mini-trellis-remember"
     elif platform in {"cursor", "codebuddy"}:
         remember_command = "mini-trellis-remember"
@@ -642,7 +642,7 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
         "steps. Do not record every turn, and do not create a git commit unless the user asks.\n"
     )
 
-    if source == "compact" and platform in {"cursor", "codebuddy"}:
+    if source == "compact" and platform in {"cursor", "codebuddy", "zcode"}:
         output.write(
             f"This SessionStart follows compact. {platform.title()} conversation history is not read. "
             "Use `mini-trellis mem recall <query>` then `mini-trellis mem read <ref>` for project notes. "

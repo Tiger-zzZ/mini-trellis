@@ -9,7 +9,8 @@ export type AITool =
   | "pi"
   | "dsh"
   | "cursor"
-  | "codebuddy";
+  | "codebuddy"
+  | "zcode";
 
 export type TemplateDir = "common" | "claude" | "codex" | "opencode" | "pi";
 
@@ -20,7 +21,8 @@ export type CliFlag =
   | "pi"
   | "dsh"
   | "cursor"
-  | "codebuddy";
+  | "codebuddy"
+  | "zcode";
 
 export interface TemplateContext {
   cmdRefPrefix: "/mini-trellis:" | "/mini-trellis-" | "$";
@@ -165,6 +167,23 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
       agentCapable: true,
       hasHooks: true,
       cliFlag: "codebuddy",
+    },
+  },
+  zcode: {
+    name: "ZCode (Z.ai)",
+    templateDirs: ["common"],
+    configDir: ".zcode",
+    supportsAgentSkills: true,
+    cliFlag: "zcode",
+    defaultChecked: false,
+    hasPythonHooks: true,
+    templateContext: {
+      cmdRefPrefix: "$",
+      executorAI: "Bash scripts or tool calls",
+      userActionLabel: "Skills",
+      agentCapable: true,
+      hasHooks: true,
+      cliFlag: "zcode",
     },
   },
 };

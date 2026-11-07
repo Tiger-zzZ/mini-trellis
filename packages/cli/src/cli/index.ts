@@ -36,6 +36,10 @@ program
   .option("--dsh", "Include DeepSeek Harness skills")
   .option("--cursor", "Include Cursor skills and local sessionStart")
   .option(
+    "--zcode",
+    "Include Z.ai ZCode skills and project SessionStart (requires hook trust)",
+  )
+  .option(
     "--codebuddy",
     "Include CodeBuddy CLI / IDE commands, skills and SessionStart",
   )
@@ -197,6 +201,7 @@ program
   .option("--dsh", "Refresh DeepSeek Harness skills")
   .option("--cursor", "Refresh Cursor skills and local sessionStart")
   .option("--codebuddy", "Refresh CodeBuddy CLI / IDE assets")
+  .option("--zcode", "Refresh Z.ai ZCode project assets")
   .option("--dry-run", "Preview changes without writing files")
   .option("--json", "Output machine-readable JSON")
   .action((options: Record<string, unknown>) => {
@@ -208,6 +213,7 @@ program
       dsh: options.dsh as boolean,
       cursor: options.cursor as boolean,
       codebuddy: options.codebuddy as boolean,
+      zcode: options.zcode as boolean,
       opencodeVersion: options.opencodeVersion as string | undefined,
       dryRun: options.dryRun as boolean,
       json: options.json as boolean,
