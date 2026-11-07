@@ -291,7 +291,7 @@ export function buildDoctorReport(cwd: string): DoctorReport {
         name: "zcode-trust",
         level: "unknown",
         detail:
-          "project hook trust is owned by ZCode; use `zcode hooks trust review --workspace . --json` and `zcode hooks trust status --workspace . --json`. Review before granting a digest; changed declarations may need new trust. Older builds may ignore project hooks. Skills and project knowledge do not require a user-level bridge",
+          "project hook trust is owned by ZCode; in Desktop Settings > Hooks, select this project, or use standalone CLI `zcode hooks trust review --workspace . --json` and `zcode hooks trust status --workspace . --json`. Match the host's workspace path. Review before granting a digest; changed declarations may need new trust. Older builds may ignore project hooks. Skills and project knowledge do not require a user-level bridge",
       });
     }
     if (complete) {

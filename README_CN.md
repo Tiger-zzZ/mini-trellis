@@ -193,7 +193,7 @@ mini-trellis mem read "<ref>"
 | **Codex** | `--codex` | `$mini-trellis-remember` | 支持项目 Hook 注入与本地会话历史检索 |
 | **OpenCode V1/V2** | `--opencode` | `/mini-trellis:remember` | 新项目默认 V2；已有 V1 入口保留，`--opencode-version 1` 可显式选择旧版兼容。支持 V1 本地历史检索；V2 历史不解析并给出告警 |
 | **CodeBuddy CLI / IDE** | `--codebuddy` | 技能 `mini-trellis-remember`；CLI 也可 `/mini-trellis:remember` | 共用项目配置、技能和 SessionStart 短入口。支持项目知识检索，不解析 CodeBuddy 对话历史 |
-| **ZCode（智谱/Z.ai）** | `--zcode` | `$mini-trellis-remember` 或同名技能 | 项目技能与需信任的 SessionStart。已检查桌面 3.17.2 / 内置 core 0.17.1 的加载，真实模型流程待验；支持项目知识与提供的文本，不解析原始聊天 |
+| **ZCode（智谱/Z.ai）** | `--zcode` | `$mini-trellis-remember` 或同名技能 | 桌面 3.17.2 / core 0.17.1、GLM-5.3-Flash 已验证启动入口、记录与跨会话召回；该宿主 compact 后不重新触发入口。支持项目知识与提供的文本，不解析原始聊天 |
 | **Pi** | `--pi` | `/mini-trellis-remember` | 支持启动入口与本地会话检索 |
 | **DeepSeek Harness** | `--dsh` | `mini-trellis-remember` | 安装 `.dsh/skills/`，无项目级 `SessionStart`，由模型按需调用 `mem recall` / `mem read` |
 

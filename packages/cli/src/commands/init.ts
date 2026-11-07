@@ -608,7 +608,7 @@ export async function init(options: InitOptions): Promise<void> {
     if (!tools.includes("codex")) recordCommands.push("$mini-trellis-remember");
     console.log(
       chalk.gray(
-        "  ZCode: review project hooks with `zcode hooks trust review --workspace . --json`, then grant the reviewed digest yourself and start a new session. Older builds may ignore project hooks; skills remain available. No user-level config or trust was changed.",
+        "  ZCode: in Desktop Settings > Hooks, select this project and review/trust its hook; with a standalone CLI, use `zcode hooks trust review --workspace . --json` and grant the reviewed digest yourself. Use the workspace path shown by the host, then start a new session. Older builds may ignore project hooks; skills remain available. No user-level config or trust was changed.",
       ),
     );
   }

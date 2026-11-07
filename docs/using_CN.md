@@ -64,6 +64,13 @@ mini-trellis init -u 你的名字 --codebuddy -y
 
 ```bash
 mini-trellis init -u 你的名字 --zcode -y
+```
+
+桌面版直接启动 ZCode App，在「设置 → 钩子」中选择当前项目，审查 `.zcode/hooks/session-start.py` 后点击「信任」，然后新开会话。确认选择的是项目范围，而非用户范围。
+
+以下命令供已安装独立 ZCode CLI 的用户使用。工作区路径应与宿主显示的一致；例如 macOS 的 `/tmp` 与 `/private/tmp` 别名可能对应不同的信任身份：
+
+```bash
 zcode skills list --cwd . --json
 zcode hooks trust review --workspace . --json
 ```
@@ -76,11 +83,15 @@ zcode hooks trust status --workspace . --json
 mini-trellis doctor
 ```
 
+桌面内置 core 用于 app server，不是完整交互 CLI；直接把它当 TUI 启动可能报缺少 `@zcode/tui`。桌面登录、模型选择与 standalone CLI 的账号装配也不等同。本版 Start Plan 验收使用桌面入口，不要求另装 TUI 或复制凭据。
+
 只注册 startup、clear、compact 的 `SessionStart`。mini-trellis 不自动授予信任，不修改 `~/.zcode` 配置；refresh 或迁移改变声明后需重新审查。已有禁用设置保持禁用。旧构建可能忽略项目 hooks，此时仍可用技能与 `AGENTS.md` 使用项目知识，无需安装用户级桥接插件。
 
 使用 `$mini-trellis-remember`、同名技能，或宿主清单中提供的 `/skill mini-trellis-remember`。自然确认记录沿用同一份规则。`mini-trellis-session-insight` 用 `mem recall`/`mem read` 取回项目知识，也可按明确要求整理提供的 Markdown/文本；不解析 ZCode 原始聊天，compact 后同样如此。新笔记跟随指定或讨论语言，更新保留原文件语言；普通排版修改不产生记忆，新装默认不自动 Git 提交。
 
-官方桌面 3.17.2 发行包内置 core CLI 0.17.1，桌面启动器使用同一份 `zcode.cjs` 运行 app server。本次用该发行包及其 Electron 运行时检查了技能发现和项目 hook 审查；真实模型流程、resume 和 compact 送达因未选择模型/未授予 hook 信任仍待验证，不能据此外推所有独立构建 CLI 或桌面版本。
+官方桌面 3.17.2 / 内置 core 0.17.1、GLM-5.3-Flash 已验证：启动入口真实送达、显式与自然确认记录、同主题更新，以及新会话召回当前决定。更新保留英文原文、前提、否定条件和真实 journal 链接；普通排版与未确认想法没有改写记忆，全程没有自动 Git 提交。
+
+该宿主版本的 `/compact` 能完成压缩，但没有重新触发 SessionStart，即使配置中已注册 matcher；模型确认没有收到新入口。压缩后仍提供 `AGENTS.md`，可据此按需读取已保存的项目知识。resume 自动入口送达未验证。本版不承诺 compact/resume 后的新入口或原始聊天细节恢复，也不据此外推其他桌面或独立 CLI 构建。
 
 重复 init/refresh 保留用户配置、hook 和其他技能。已有 `.zcode/skills/` 同名技能时先报冲突，需你自行移动或改名，不覆盖原文件；项目 hook 结构无效时在写入前停止，refresh 对修改过或未托管的同名文件报冲突。`zcode-trust` 保持 unknown，因为 mini-trellis 不检查宿主信任库；`zcode-runtime` 仅反映观察到的执行，不能证明模型收到入口。卸载清理受管 ZCode 资产及注册并保留其他宿主设置；沿用现有命令会明确删除整个 `.trellis/` 的行为，卸载前请备份知识。
 

@@ -193,7 +193,7 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
 | **Codex** | `--codex` | `$mini-trellis-remember` | Project hook injection and local session history search |
 | **OpenCode V1/V2** | `--opencode` | `/mini-trellis:remember` | New projects default to V2; existing V1 entries are preserved. `--opencode-version 1` explicitly selects legacy compatibility. V1 local history is searchable; V2 history is not parsed and produces a warning |
 | **CodeBuddy CLI / IDE** | `--codebuddy` | `mini-trellis-remember` skill; CLI also `/mini-trellis:remember` | Shared project settings, skills and SessionStart entry. Project knowledge is searchable; CodeBuddy conversation history is not parsed |
-| **ZCode (Z.ai)** | `--zcode` | `$mini-trellis-remember` or the skill | Project skills and a trust-gated SessionStart entry. Loaders checked in desktop 3.17.2 / bundled core 0.17.1; real model workflow pending. Project knowledge and supplied text only; raw chats are not parsed |
+| **ZCode (Z.ai)** | `--zcode` | `$mini-trellis-remember` or the skill | Startup, recording and cross-session recall verified in desktop 3.17.2 / core 0.17.1 with GLM-5.3-Flash. This host does not re-trigger the entry after compact. Project knowledge and supplied text only; raw chats are not parsed |
 | **Pi** | `--pi` | `/mini-trellis-remember` | Startup entry and local session search |
 | **DeepSeek Harness** | `--dsh` | `mini-trellis-remember` | Installs `.dsh/skills/`; no project `SessionStart` hook—the model calls `mem recall` / `mem read` when needed |
 
