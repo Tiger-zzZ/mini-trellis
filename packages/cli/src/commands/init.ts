@@ -223,6 +223,7 @@ export interface InitOptions {
   cursor?: boolean;
   codebuddy?: boolean;
   zcode?: boolean;
+  kiro?: boolean;
   opencodeVersion?: string;
   yes?: boolean;
   user?: string;
@@ -602,7 +603,14 @@ export async function init(options: InitOptions): Promise<void> {
   if (tools.includes("claude") || tools.includes("opencode")) {
     recordCommands.push("/mini-trellis:remember");
   }
-  if (tools.includes("pi")) recordCommands.push("/mini-trellis-remember");
+  if (tools.includes("pi") || tools.includes("kiro"))
+    recordCommands.push("/mini-trellis-remember");
+  if (tools.includes("kiro"))
+    console.log(
+      chalk.gray(
+        "  Kiro: open this workspace with CLI V3 (`kiro-cli chat --v3`) or IDE 1.x, accept workspace trust, then start a new session.",
+      ),
+    );
   if (tools.includes("codex")) recordCommands.push("$mini-trellis-remember");
   if (tools.includes("zcode")) {
     if (!tools.includes("codex")) recordCommands.push("$mini-trellis-remember");

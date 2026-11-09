@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.8
+
+- Adds `init --kiro` and `refresh --kiro` for Kiro CLI V3 / IDE 1.x, with project skills and a standalone SessionStart hook. Includes migration, diagnostics and uninstall.
+- Runs project refresh automatically after a successful `upgrade` in the current initialized project, using a new process from the newly installed global package. Other directories receive the CLI upgrade only.
+- Keeps local edits when refresh reports a conflict and provides the remaining refresh command. `upgrade --dry-run` previews both steps.
+
+See the [v0.3.8 release notes](docs/releases/v0.3.8.md).
+
 ## v0.3.7 — 2026-11-09
 
 - Adds `init --zcode` and `refresh --zcode` for Z.ai ZCode, with shared project skills and a SessionStart entry. ZCode and Codex use the same skills under `.agents/skills/`.

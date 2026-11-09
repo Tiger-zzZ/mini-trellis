@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { DIR_NAMES, FILE_NAMES } from "../constants/paths.js";
+import { scrubKiroHooks } from "./kiro-hooks.js";
 import { scrubZCodeConfig } from "./zcode-config.js";
 import { ALL_MANAGED_DIRS } from "../configurators/index.js";
 import {
@@ -64,6 +65,11 @@ export interface BuildManagedRemovalPlanOptions {
 
 export function buildStructuredFileSpecs(): Map<string, StructuredFileSpec> {
   const specs: StructuredFileSpec[] = [
+    {
+      posixPath: ".kiro/hooks/mini-trellis.json",
+      reason: "Remove mini-trellis SessionStart; preserve other Kiro hooks",
+      scrub: scrubKiroHooks,
+    },
     {
       posixPath: ".zcode/config.json",
       reason:

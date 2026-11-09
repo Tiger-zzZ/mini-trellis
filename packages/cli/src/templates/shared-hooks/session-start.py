@@ -609,6 +609,8 @@ def _main_impl():
     platform = _detect_platform(hook_input)
     if platform in {"codex", "zcode"}:
         remember_command = "$mini-trellis-remember"
+    elif platform == "kiro":
+        remember_command = "/mini-trellis-remember"
     elif platform in {"cursor", "codebuddy"}:
         remember_command = "mini-trellis-remember"
     else:
@@ -688,7 +690,7 @@ Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. R
 
     content_hash = hashlib.sha256(context_text.encode("utf-8")).hexdigest()[:24]
 
-    # Kiro (CLI trellis agent agentSpawn) adds a hook's stdout directly to the
+    # Kiro SessionStart adds a hook's stdout directly to the
     # conversation context — no JSON envelope. Emit the bare overview text.
     # Conditionally isolated: all other platforms keep the JSON path below.
     if _detect_platform(hook_input) == "kiro":

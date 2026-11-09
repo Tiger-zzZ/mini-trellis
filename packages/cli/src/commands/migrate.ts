@@ -102,6 +102,20 @@ export interface MigratePlan {
  * ships and imports that module, despite the Trellis name.
  */
 const SCAN_RULES: { dir: string; match: (name: string) => boolean }[] = [
+  { dir: ".kiro/skills", match: (n) => n.startsWith("trellis-") },
+  {
+    dir: ".kiro/agents",
+    match: (n) => /^trellis(?:-implement|-check|-research)?\.json$/.test(n),
+  },
+  {
+    dir: ".kiro/hooks",
+    match: (n) =>
+      [
+        "trellis-workflow-state.kiro.hook",
+        "inject-workflow-state.py",
+        "inject-subagent-context.py",
+      ].includes(n),
+  },
   { dir: ".claude/agents", match: (n) => /^trellis-.*\.md$/.test(n) },
   { dir: ".claude/commands", match: (n) => n === "trellis" },
   { dir: ".claude/skills", match: (n) => n.startsWith("trellis-") },
@@ -672,7 +686,8 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
     if (
       relative.startsWith(".codebuddy/") ||
       relative.startsWith(".opencode/") ||
-      relative.startsWith(".zcode/")
+      relative.startsWith(".zcode/") ||
+      relative.startsWith(".kiro/")
     )
       assertSafeManagedPath(fs.realpathSync(cwd), relative);
   }

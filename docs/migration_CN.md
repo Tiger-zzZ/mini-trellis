@@ -15,6 +15,7 @@ mini-trellis migrate             # 确认迁移，默认 no
 
 - `.claude/settings.json` 和 `.codex/hooks.json` 会先去掉指向 `inject-*.py`、`statusline.py` 和旧 `session-start.py` 的 Trellis hook，再写入 mini-trellis 的 SessionStart。用户自己的 hook、`env` 和其他字段保留。
 - 0.3.5 同样合并 `.codebuddy/settings.json`。已识别的 Trellis 阶段 hook 即使脚本已丢失也会清理，同事件下的用户 hook 保留。配置无效时在修改文件前停止迁移。
+- Kiro 迁移将 Trellis 技能、四个内置 Trellis Agent 和流程状态 Hook 替换为 CLI V3 / IDE 1.x 的项目技能与独立 SessionStart Hook；保留其他 Agent 和 Hook 文件。使用 `kiro-cli chat --v3` 启动；若原默认 Agent 为 Trellis，切换到 Kiro 内置 Agent。
 - 0.3.7 源码会在 `.zcode/config.json` 的 `hooks.events` 中移除已识别的 Trellis hook 调用，包括 process/args 和脚本已缺失的注册；保留其他 hook、技能和配置。配置无效时在修改前停止。迁移后用 `zcode hooks trust review --workspace . --json` 审查新声明，接受后自行授予摘要信任；迁移不改用户级配置或信任。
 - `.pi/settings.json` 会去掉 `./extensions/trellis/index.ts` 和 `npm:pi-subagents`，保留其他 extension 与 package。
 - `.codex/config.toml` 会去掉 Trellis 写入的说明和 `[agents] max_depth = 1`，再写上 mini-trellis 的项目配置。用户自己的键会附在后面。

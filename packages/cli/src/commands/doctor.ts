@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import chalk from "chalk";
+import { readKiroHooksIssue } from "../utils/kiro-hooks.js";
 import { AI_TOOLS, type AITool } from "../types/ai-tools.js";
 import { getConfiguredPlatforms } from "../configurators/index.js";
 import { needsTrellisMigration } from "./migrate.js";
@@ -103,6 +104,13 @@ const PLATFORM_CHECKS: Record<AITool, string[]> = {
     ".codebuddy/commands/mini-trellis/remember.md",
     ".codebuddy/skills/mini-trellis-remember/SKILL.md",
   ],
+  kiro: [
+    ".kiro/hooks/mini-trellis.json",
+    ".kiro/hooks/session-start.py",
+    ".kiro/skills/mini-trellis-remember/SKILL.md",
+    ".kiro/skills/mini-trellis-update-spec/SKILL.md",
+    ".kiro/skills/mini-trellis-session-insight/SKILL.md",
+  ],
   zcode: [
     ".zcode/config.json",
     ".zcode/hooks/session-start.py",
@@ -124,6 +132,7 @@ const TRIGGER_MARKERS: Record<AITool, [string, string]> = {
   cursor: [".cursor/hooks/session-start.py", "additional_context"],
   codebuddy: [".codebuddy/hooks/session-start.py", "additionalContext"],
   zcode: [".zcode/hooks/session-start.py", "additionalContext"],
+  kiro: [".kiro/hooks/session-start.py", "print(context_text"],
 };
 
 export function buildDoctorReport(cwd: string): DoctorReport {
@@ -224,6 +233,14 @@ export function buildDoctorReport(cwd: string): DoctorReport {
           level: "error",
           detail: `${conflict}: ZCode-local skill conflicts with the shared .agents destination; existing file was kept. Move or rename it before installation`,
         });
+    }
+    if (platform === "kiro" && exists(".kiro/hooks/mini-trellis.json")) {
+      const issue = readKiroHooksIssue(
+        path.join(cwd, ".kiro/hooks/mini-trellis.json"),
+        true,
+      );
+      if (issue)
+        checks.push({ name: "kiro-config", level: "error", detail: issue });
     }
     const openCodeVersion = openCodeVersions[0] ?? "1";
     const files =
@@ -371,7 +388,7 @@ export function buildDoctorReport(cwd: string): DoctorReport {
       level: "warn",
       name: "platforms",
       detail:
-        "no host detected; choose --claude, --codex, --opencode, --pi, --dsh, --cursor, --codebuddy, or --zcode",
+        "no host detected; choose --claude, --codex, --opencode, --pi, --dsh, --cursor, --codebuddy, --zcode, or --kiro",
     });
   }
 

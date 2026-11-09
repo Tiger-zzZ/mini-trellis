@@ -25,7 +25,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 license" /></a>
 </p>
 
-> **v0.3.7:** Adds Z.ai ZCode project knowledge support and improves UTF-8 and partial-history handling. See [setup](./docs/using.md#zcode-zai) and [release notes](./docs/releases/v0.3.7.md).
+> **v0.3.8:** Adds Kiro project skills and SessionStart, plus automatic project refresh after `upgrade`. See [setup](./docs/using.md#kiro) and [release notes](./docs/releases/v0.3.8.md).
 
 ![Conventions, research and verified fixes accumulate in project Markdown, inform later work, and are updated with new evidence.](./docs/assets/knowledge-en.svg)
 
@@ -107,12 +107,12 @@ npm install -g mini-trellis
 mini-trellis init -u your-name --claude
 ```
 
-Choose or combine flags for the agents you use (`--claude`, `--cursor`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--codebuddy`, `--zcode`). You can also hand this prompt directly to your agent to install or migrate from Trellis:
+Choose or combine flags for the agents you use (`--claude`, `--cursor`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--codebuddy`, `--zcode`, `--kiro`). You can also hand this prompt directly to your agent to install or migrate from Trellis:
 
 ```text
 Install or migrate mini-trellis in this project. If the command is missing, run npm install -g mini-trellis first.
 If this project has legacy workflow files (for example .trellis/workflow.md, .trellis/scripts/task.py, or inject-*.py), run mini-trellis migrate --dry-run, show me the plan, and run mini-trellis migrate -y after I confirm.
-If this is a new project, run mini-trellis init -u <name> -y with only the tools I actually use (--claude, --codex, --opencode, --pi, --dsh, --cursor, --codebuddy, --zcode). For OpenCode, new projects default to V2; existing entries are preserved. Use --opencode-version 1 only for a V1 host.
+If this is a new project, run mini-trellis init -u <name> -y with only the tools I actually use (--claude, --codex, --opencode, --pi, --dsh, --cursor, --codebuddy, --zcode, --kiro). For OpenCode, new projects default to V2; existing entries are preserved. Use --opencode-version 1 only for a V1 host.
 Then run mini-trellis doctor and report the result. Do not delete .trellis/spec, .trellis/research, or .trellis/workspace.
 ```
 
@@ -193,6 +193,7 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
 | **Codex** | `--codex` | `$mini-trellis-remember` | Project hook injection and local session history search |
 | **OpenCode V1/V2** | `--opencode` | `/mini-trellis:remember` | New projects default to V2; existing V1 entries are preserved. `--opencode-version 1` explicitly selects legacy compatibility. V1 local history is searchable; V2 history is not parsed and produces a warning |
 | **CodeBuddy CLI / IDE** | `--codebuddy` | `mini-trellis-remember` skill; CLI also `/mini-trellis:remember` | Shared project settings, skills and SessionStart entry. Project knowledge is searchable; CodeBuddy conversation history is not parsed |
+| **Kiro CLI V3 / IDE 1.x** | `--kiro` | `/mini-trellis-remember` | Project skills, SessionStart entry, recording and cross-session recall |
 | **ZCode (Z.ai)** | `--zcode` | `$mini-trellis-remember` or the skill | Project startup entry, recording and cross-session recall; shared skills with Codex. Organizes supplied Markdown/text |
 | **Pi** | `--pi` | `/mini-trellis-remember` | Startup entry and local session search |
 | **DeepSeek Harness** | `--dsh` | `mini-trellis-remember` | Installs `.dsh/skills/`; no project `SessionStart` hook—the model calls `mem recall` / `mem read` when needed |
@@ -236,9 +237,17 @@ mini-trellis migrate             # Apply after confirmation
 Back up `.trellis/`, `AGENTS.md`, and configured agent directories (including Git-ignored files) before migrating or refreshing:
 
 ```bash
-mini-trellis upgrade             # Update the global CLI
+mini-trellis upgrade             # Update the global CLI and refresh this initialized project
+mini-trellis doctor              # Check installation status
+```
+
+From 0.3.8 onward, `upgrade` runs the new CLI to refresh the current project after npm succeeds. Other projects can be refreshed separately. A conflict keeps local edits and reports the remaining refresh step. Outside an initialized project, `upgrade` updates the CLI only.
+
+When updating with `npm install -g mini-trellis@latest`, or running `upgrade` from 0.3.7 or earlier, refresh the project once afterward:
+
+```bash
 mini-trellis refresh --dry-run   # Preview managed asset updates
-mini-trellis refresh             # Update unmodified managed files while preserving knowledge
+mini-trellis refresh             # Update managed files while preserving knowledge
 mini-trellis doctor              # Check installation status
 ```
 
