@@ -181,7 +181,10 @@ function claudeText(content: string | ClaudeBlock[] | undefined): string {
   return parts.join("\n\n");
 }
 
-export function claudeExtractDialogue(s: MemSessionInfo): DialogueTurn[] {
+export function claudeExtractDialogue(
+  s: MemSessionInfo,
+  warnings?: MemWarning[],
+): DialogueTurn[] {
   // - user: type=="user" + role=="user", keep string or text blocks
   // - assistant: type=="assistant" + role=="assistant", keep only `text` blocks
   // - thinking / tool_use blocks dropped entirely; injection tags stripped
@@ -226,12 +229,16 @@ export function claudeExtractDialogue(s: MemSessionInfo): DialogueTurn[] {
       const text = claudeText(content);
       if (text) turns.push({ role: "assistant", text });
     }
-  });
+  }, warnings);
   return turns;
 }
 
-export function claudeSearch(s: MemSessionInfo, kw: string): SearchHit {
-  return searchInDialogue(claudeExtractDialogue(s), kw);
+export function claudeSearch(
+  s: MemSessionInfo,
+  kw: string,
+  warnings?: MemWarning[],
+): SearchHit {
+  return searchInDialogue(claudeExtractDialogue(s, warnings), kw);
 }
 
 /**
@@ -241,7 +248,10 @@ export function claudeSearch(s: MemSessionInfo, kw: string): SearchHit {
  * `turnIndex`. Compaction keeps both `turns` and `events` — the turns those
  * indices point at are still in the pool.
  */
-export function collectClaudeTurnsAndEvents(s: MemSessionInfo): {
+export function collectClaudeTurnsAndEvents(
+  s: MemSessionInfo,
+  warnings?: MemWarning[],
+): {
   turns: DialogueTurn[];
   events: TaskPyEvent[];
 } {
@@ -315,7 +325,7 @@ export function collectClaudeTurnsAndEvents(s: MemSessionInfo): {
       if (parts.length)
         turns.push({ role: "assistant", text: parts.join("\n\n") });
     }
-  });
+  }, warnings);
 
   return { turns, events };
 }

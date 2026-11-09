@@ -61,15 +61,15 @@ export const MEM_PLATFORMS: Record<MemSourceKind, MemPlatformAdapter> = {
   claude: {
     phaseSupported: true,
     list: (f, warnings) => claudeListSessions(f, warnings),
-    extract: (s) => claudeExtractDialogue(s),
-    search: (s, kw) => claudeSearch(s, kw),
-    collect: (s) => collectClaudeTurnsAndEvents(s),
+    extract: (s, warnings) => claudeExtractDialogue(s, warnings),
+    search: (s, kw, warnings) => claudeSearch(s, kw, warnings),
+    collect: (s, warnings) => collectClaudeTurnsAndEvents(s, warnings),
   },
   codex: {
     phaseSupported: true,
     list: (f, warnings) => codexListSessions(f, warnings),
     extract: (s, warnings) => codexExtractDialogue(s, warnings),
-    search: (s, kw) => codexSearch(s, kw),
+    search: (s, kw, warnings) => codexSearch(s, kw, warnings),
     collect: (s, warnings) => collectCodexTurnsAndEvents(s, warnings),
   },
   opencode: {
@@ -87,8 +87,8 @@ export const MEM_PLATFORMS: Record<MemSourceKind, MemPlatformAdapter> = {
   pi: {
     phaseSupported: true,
     list: (f) => piListSessions(f),
-    extract: (s) => piExtractDialogue(s),
-    search: (s, kw) => piSearch(s, kw),
-    collect: (s) => collectPiTurnsAndEvents(s),
+    extract: (s, warnings) => piExtractDialogue(s, warnings),
+    search: (s, kw, warnings) => piSearch(s, kw, warnings),
+    collect: (s, warnings) => collectPiTurnsAndEvents(s, warnings),
   },
 };

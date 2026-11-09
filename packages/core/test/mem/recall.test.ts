@@ -65,6 +65,24 @@ function claudeSessions(
   });
 }
 
+describe("JSONL recall integrity", () => {
+  it("marks recall incomplete and preserves warnings when expanding its ref", () => {
+    const filePath = path.join(root, "claude.jsonl");
+    fs.writeFileSync(filePath, JSON.stringify({ type: "user", message: {
+      role: "user", content: "Confirmed: callback retries allow 2 attempts.",
+    } }) + '\n{"type":"user","message":{"content":"Correction: 4 attempts');
+    vi.mocked(MEM_PLATFORMS.claude.list).mockReturnValue([
+      { id: "selected", platform: "claude", cwd: root, filePath },
+    ]);
+    const result = recallMem({ cwd: root, query: "callback retries" });
+    expect(result.hits).toHaveLength(1);
+    expect(result.incomplete).toBe(true);
+    expect(result.warnings.map((w) => w.code)).toContain("session-history-incomplete");
+    const expanded = readMemRefs({ cwd: root, refs: [result.hits[0].ref] });
+    expect(expanded.warnings.map((w) => w.code)).toContain("session-history-incomplete");
+  });
+});
+
 describe("SQLite recall lifecycle", () => {
   function openCodeSessions(): void {
     vi.mocked(MEM_PLATFORMS.opencode.list).mockReturnValue(
