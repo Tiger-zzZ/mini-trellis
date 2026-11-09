@@ -1,11 +1,16 @@
 # Changelog
 
-## Unreleased
+## v0.3.7 — 2026-11-09
 
-- Preserves Chinese and other multibyte UTF-8 characters across JSONL read boundaries when reading Claude Code, Codex and Pi histories.
-- Reports malformed or truncated JSONL event records through existing history warnings instead of silently presenting partial evidence as complete. Valid records remain available; recall is marked incomplete. Warnings identify the file and first affected line without copying transcript contents.
+- Adds `init --zcode` and `refresh --zcode` for Z.ai ZCode, with shared project skills and a SessionStart entry. ZCode and Codex use the same skills under `.agents/skills/`.
+- Supports recording confirmed decisions, updating existing topics, organizing supplied Markdown/text and recalling project knowledge in ZCode. After compact, `AGENTS.md` guides on-demand reading of saved knowledge.
+- Preserves user configuration, hooks and other skills during installation and refresh. Desktop users review the project hook in Settings → Hooks before starting a new session.
+- Preserves Chinese and other multibyte UTF-8 characters across read boundaries in Claude Code, Codex and Pi JSONL histories.
+- Reports malformed or truncated event records with the source file and affected line, retains valid records, and marks partial recall results as incomplete.
 
-## Unreleased — 0.3.6
+See the [v0.3.7 release notes](docs/releases/v0.3.7.md).
+
+## v0.3.6
 
 - Extends the shared `mini-trellis-session-insight` skill to organize explicitly selected supported sessions or supplied Markdown/text exports into existing project documents. No new service, command, native history format or automatic scan.
 - Preserves source attribution, user confirmations, corrections, negations and scope; distinguishes implemented behavior from agreed requirements and suggestions. Reports material conflicts and incomplete evidence instead of silently promoting them to current rules.
@@ -13,7 +18,7 @@
 - Ships the same on-demand reference through fresh install and refresh for every host, with updated discovery hints and bilingual usage examples.
 - Fixes OpenCode V1 recall repeatedly scanning the shared SQLite message/part tables for each candidate session. Each recall now prepares the shared store once and releases it after traversal, including on extraction failure.
 
-See the [0.3.6 draft release notes](docs/releases/v0.3.6.md).
+See the [0.3.6 release notes](docs/releases/v0.3.6.md).
 
 ## v0.3.5 — 2026-11-05
 

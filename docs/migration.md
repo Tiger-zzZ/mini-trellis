@@ -15,6 +15,7 @@ Host configuration is not replaced as a whole file:
 
 - `.claude/settings.json` and `.codex/hooks.json` lose Trellis hooks that point at `inject-*.py`, `statusline.py`, or an old `session-start.py`, then receive mini-trellis's SessionStart entry. User hooks, `env`, and other fields stay.
 - `.codebuddy/settings.json` is merged the same way in 0.3.5. Known Trellis stage hooks are removed even if their scripts are already missing; user hooks in the same event remain. Invalid settings stop migration before file changes.
+- `.zcode/config.json` (0.3.7 source) removes known Trellis hook invocations from `hooks.events`, including process/args entries and registrations with missing scripts. Other hooks, skills and settings stay; invalid configuration stops before changes. Review the resulting project declarations with `zcode hooks trust review --workspace . --json` and grant accepted digests yourself. Migration does not change user-level configuration or trust.
 - `.pi/settings.json` loses `./extensions/trellis/index.ts` and `npm:pi-subagents`. Other extensions and packages stay.
 - `.codex/config.toml` loses the Trellis notes and `[agents] max_depth = 1`, then receives the mini-trellis project config. User-owned keys are appended after it.
 
@@ -45,4 +46,4 @@ In 0.3.5, new OpenCode projects default to V2; migration preserves an existing V
 
 ## Existing history after migration
 
-Migration preserves project knowledge; it does not turn every old chat into a spec. With the unreleased 0.3.6 source installed, refresh the project skills and explicitly ask `mini-trellis-session-insight` to organize selected supported sessions or supplied Markdown/text exports. It updates existing documents and retains sources; unresolved conflicts stay open. The organizing flow passes `--no-commit`, including when legacy configuration enables auto-commit. See the [history example](using.md#organize-selected-history-into-project-knowledge).
+Migration preserves project knowledge; it does not turn every old chat into a spec. With 0.3.6 or later installed, refresh the project skills and explicitly ask `mini-trellis-session-insight` to organize selected supported sessions or supplied Markdown/text exports. It updates existing documents and retains sources; unresolved conflicts stay open. The organizing flow passes `--no-commit`, including when legacy configuration enables auto-commit. See the [history example](using.md#organize-selected-history-into-project-knowledge).

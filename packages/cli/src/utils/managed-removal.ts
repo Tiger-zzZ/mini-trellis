@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { DIR_NAMES, FILE_NAMES } from "../constants/paths.js";
+import { scrubZCodeConfig } from "./zcode-config.js";
 import { ALL_MANAGED_DIRS } from "../configurators/index.js";
 import {
   scrubCodexConfigToml,
@@ -63,6 +64,12 @@ export interface BuildManagedRemovalPlanOptions {
 
 export function buildStructuredFileSpecs(): Map<string, StructuredFileSpec> {
   const specs: StructuredFileSpec[] = [
+    {
+      posixPath: ".zcode/config.json",
+      reason:
+        "Strip mini-trellis hooks; preserve ZCode user settings and hooks",
+      scrub: scrubZCodeConfig,
+    },
     ...(
       [
         ".claude/settings.json",

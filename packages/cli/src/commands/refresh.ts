@@ -37,6 +37,10 @@ import {
 } from "../utils/managed-manifest.js";
 import { writeFileAtomic } from "../utils/atomic-write.js";
 import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
+import {
+  readZCodeConfigIssue,
+  mergeZCodeConfig,
+} from "../utils/zcode-config.js";
 
 export type RefreshAction =
   | "add"
@@ -65,6 +69,7 @@ const JSON_PATHS = new Set([
   ".cursor/hooks.json",
   ".pi/settings.json",
   ".codebuddy/settings.json",
+  ".zcode/config.json",
   ".opencode/package.json",
 ]);
 
@@ -84,7 +89,9 @@ function renderedJsonMerge(
     const merge =
       relative === ".codebuddy/settings.json"
         ? mergeCodeBuddySettings
-        : mergeJsonValues;
+        : relative === ".zcode/config.json"
+          ? mergeZCodeConfig
+          : mergeJsonValues;
     const merged = `${JSON.stringify(merge(existing, desired), null, 2)}\n`;
     return merged === fs.readFileSync(filePath, "utf8") ? "unchanged" : "merge";
   } catch {
@@ -168,6 +175,13 @@ export function buildRefreshPlan(
       }
       if (relative === ".codebuddy/settings.json") {
         const issue = readCodeBuddySettingsIssue(filePath);
+        if (issue) {
+          items.push({ path: relative, action: "conflict", detail: issue });
+          continue;
+        }
+      }
+      if (relative === ".zcode/config.json") {
+        const issue = readZCodeConfigIssue(filePath);
         if (issue) {
           items.push({ path: relative, action: "conflict", detail: issue });
           continue;
@@ -296,7 +310,9 @@ function applyRefresh(cwd: string, report: RefreshReport): void {
         content,
         item.path === ".codebuddy/settings.json"
           ? mergeCodeBuddySettings
-          : undefined,
+          : item.path === ".zcode/config.json"
+            ? mergeZCodeConfig
+            : undefined,
       );
       continue;
     }
@@ -325,6 +341,7 @@ export function runRefresh(
     dsh?: boolean;
     cursor?: boolean;
     codebuddy?: boolean;
+    zcode?: boolean;
     opencodeVersion?: string;
   } = {},
 ): RefreshReport {

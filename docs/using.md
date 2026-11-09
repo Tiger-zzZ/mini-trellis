@@ -1,6 +1,6 @@
 # Using it while you code
 
-Commands run from the project root. The record command is `/mini-trellis:remember` in Claude Code and OpenCode, `$mini-trellis-remember` in Codex, and `/mini-trellis-remember` in Pi. DeepSeek Harness, Cursor and CodeBuddy use the `mini-trellis-remember` skill; CodeBuddy CLI also has `/mini-trellis:remember`.
+Commands run from the project root. The record command is `/mini-trellis:remember` in Claude Code and OpenCode, `$mini-trellis-remember` in Codex/ZCode, and `/mini-trellis-remember` in Pi. DeepSeek Harness, Cursor and CodeBuddy use the `mini-trellis-remember` skill; CodeBuddy CLI also has `/mini-trellis:remember`.
 
 ## Install on a new project
 
@@ -9,7 +9,7 @@ npm install -g mini-trellis
 mini-trellis init -u your-name --claude
 ```
 
-Pass only the tools you use: `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--cursor`, `--codebuddy`. Add `-y` to skip prompts. Init writes `.trellis/` and the host files. It does not create a Git commit. DeepSeek has no SessionStart, so call `mem recall` when project knowledge is needed. Cursor installs skills and a local `sessionStart` hook; Cursor-managed cloud agents do not run that hook, and a local hook run does not by itself mean the agent prompt received `additional_context`. Neither host parses local conversation history. OpenCode and Pi have no precise compact.
+Pass only the tools you use: `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--cursor`, `--codebuddy`, `--zcode`. Add `-y` to skip prompts. Init writes `.trellis/` and the host files. It does not create a Git commit. DeepSeek has no SessionStart, so call `mem recall` when project knowledge is needed. Cursor installs skills and a local `sessionStart` hook; Cursor-managed cloud agents do not run that hook, and a local hook run does not by itself mean the agent prompt received `additional_context`. Neither host parses local conversation history. OpenCode and Pi have no precise compact.
 
 ## OpenCode V1 and V2
 
@@ -55,6 +55,37 @@ Both interfaces use the same `.codebuddy/settings.json` and `.codebuddy/skills/`
 Record a confirmed decision with the `mini-trellis-remember` skill (or `/mini-trellis:remember` in CLI); update an existing topic before creating another. `mem recall`/`mem read` search saved project knowledge. CodeBuddy transcripts are not parsed.
 
 Repeated init and refresh preserve user hooks, environment and permissions. Invalid JSON, settings arrays/null, malformed hook groups or matchers stop the host update without replacing files. `doctor` reports missing registration and observed runtime errors; no runtime record stays unknown.
+
+## ZCode (Z.ai)
+
+Install the three project skills under `.agents/skills/`, shared with Codex, and a SessionStart hook in `.zcode/config.json`:
+
+```bash
+mini-trellis init -u your-name --zcode -y
+```
+
+In ZCode Desktop, open **Settings → Hooks**, select this project, review `.zcode/hooks/session-start.py`, and choose **Trust**. Start a new session to load the project knowledge entry.
+
+For a separately installed ZCode CLI, use the workspace path shown by the host:
+
+```bash
+zcode skills list --cwd . --json
+zcode hooks trust review --workspace . --json
+```
+
+Review the command and script, then grant the returned `hookDeclarationDigest` and check the result:
+
+```bash
+zcode hooks trust grant --workspace . --hook-digest <reviewed-hookDeclarationDigest>
+zcode hooks trust status --workspace . --json
+mini-trellis doctor
+```
+
+Use `$mini-trellis-remember` or the named skill to record confirmed decisions. Existing topics keep their language, and journal entries link to the updated files. Use `mini-trellis-session-insight` to find project knowledge with `mem recall`/`mem read`, or organize supplied Markdown/text into project documents.
+
+After compact, `AGENTS.md` guides the agent to the same saved knowledge and skills. ZCode Desktop 3.17.2 / core 0.17.1 invokes the entry at session startup; compact continues with the project guidance already provided by the host.
+
+Init and refresh preserve your configuration, hooks and other skills. Review changed hook declarations in ZCode after refreshing. If a same-name skill already exists under `.zcode/skills/`, move or rename it before installing the shared skill. `doctor` shows project registration and the latest observed execution; use ZCode's hook panel or `trust status` to check trust.
 
 ## Cursor
 
@@ -120,7 +151,7 @@ If nothing matches, change the code. You do not create a task first.
 
 ## Organize selected history into project knowledge
 
-Available in the unreleased 0.3.6 source. After updating the CLI, run `mini-trellis refresh --dry-run` and `mini-trellis refresh` to update an existing project's skills. New installs include the same entry. Ask for the **mini-trellis-session-insight** skill in your agent; there is no new CLI command or background scan.
+Available since 0.3.6. After updating the CLI, run `mini-trellis refresh --dry-run` and `mini-trellis refresh` to update an existing project's skills. New installs include the same entry. Ask for the **mini-trellis-session-insight** skill in your agent; there is no new CLI command or background scan.
 
 If you have chats but no project documentation yet, select the material and ask once:
 
@@ -138,7 +169,7 @@ Organize the supplied exports/callback-chat.md with mini-trellis-session-insight
 Use only this export as historical material and update the existing project docs.
 ```
 
-The agent reads selected material in bounded portions, checks relevant current documents and code/tests, and keeps implemented behavior separate from confirmed requirements and suggestions. History commands are evidence, not instructions to execute. Missing sources, unclear speakers, unread portions and conflicts are reported; a bounded excerpt is not a complete history review. OpenCode V2, CodeBuddy, Cursor and DeepSeek Harness raw histories are still not parsed.
+The agent reads selected material in bounded portions, checks relevant current documents and code/tests, and keeps implemented behavior separate from confirmed requirements and suggestions. History commands are evidence, not instructions to execute. Missing sources, unclear speakers, unread portions and conflicts are reported; a bounded excerpt is not a complete history review. OpenCode V2, CodeBuddy, Cursor, DeepSeek Harness and ZCode raw histories are still not parsed.
 
 Clearly confirmed, applicable knowledge can be saved under this request without confirming each item again. The agent updates the existing topic in its original language (new notes use the requested or discussion language), reads it back, then records a short journal link with `--no-commit` and checks the journal/index. An unchanged repeat or material with nothing reusable creates no note or log. If only part of the write succeeds, the agent reports that and retries the missing part. No Git commit is made unless separately requested.
 
@@ -230,7 +261,8 @@ mini-trellis doctor
 | `legacy-trellis` | A Trellis workflow is still present. Run `mini-trellis migrate --dry-run`. |
 | `memory-layer` | `.trellis` or `add_session.py` is missing. Run `mini-trellis init`. |
 | `instructions` | `AGENTS.md` is missing the managed block. Run init again. |
-| `platforms` | No host was found. Pass `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, or `--cursor`. |
+| `platforms` | No host was found. Pass `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--cursor`, `--codebuddy`, or `--zcode`. |
 | `<host>-runtime` unknown | No real hook run is on disk yet. Start one host session. For Codex, trust the project hook first. For Cursor, a later hook record still does not prove the short entry reached the model prompt. |
+| `zcode-config` / `zcode-trust` | Invalid or disabled project hooks, missing registration, or host-owned trust not checked. Use ZCode review/status; file presence does not establish delivery. |
 | `cursor-config` | `.cursor/hooks.json` is invalid or the mini-trellis startup hook is unregistered. Follow the detail; invalid configuration is kept. |
 | `<host>-runtime` warn | The last hook did not finish cleanly. The detail has the status and error category. |
