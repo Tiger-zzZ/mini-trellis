@@ -25,7 +25,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 license" /></a>
 </p>
 
-> **v0.3.7 source (unreleased):** Z.ai ZCode project skills and a trust-gated SessionStart entry. See [setup](./docs/using.md#zcode-zai) and the [release draft](./docs/releases/v0.3.7.md).
+> **v0.3.7:** Adds Z.ai ZCode project knowledge support and improves UTF-8 and partial-history handling. See [setup](./docs/using.md#zcode-zai) and [release notes](./docs/releases/v0.3.7.md).
 
 ![Conventions, research and verified fixes accumulate in project Markdown, inform later work, and are updated with new evidence.](./docs/assets/knowledge-en.svg)
 
@@ -193,7 +193,7 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
 | **Codex** | `--codex` | `$mini-trellis-remember` | Project hook injection and local session history search |
 | **OpenCode V1/V2** | `--opencode` | `/mini-trellis:remember` | New projects default to V2; existing V1 entries are preserved. `--opencode-version 1` explicitly selects legacy compatibility. V1 local history is searchable; V2 history is not parsed and produces a warning |
 | **CodeBuddy CLI / IDE** | `--codebuddy` | `mini-trellis-remember` skill; CLI also `/mini-trellis:remember` | Shared project settings, skills and SessionStart entry. Project knowledge is searchable; CodeBuddy conversation history is not parsed |
-| **ZCode (Z.ai)** | `--zcode` | `$mini-trellis-remember` or the skill | Startup, recording and cross-session recall verified in desktop 3.17.2 / core 0.17.1 with GLM-5.3-Flash. This host does not re-trigger the entry after compact. Project knowledge and supplied text only; raw chats are not parsed |
+| **ZCode (Z.ai)** | `--zcode` | `$mini-trellis-remember` or the skill | Project startup entry, recording and cross-session recall; shared skills with Codex. Organizes supplied Markdown/text |
 | **Pi** | `--pi` | `/mini-trellis-remember` | Startup entry and local session search |
 | **DeepSeek Harness** | `--dsh` | `mini-trellis-remember` | Installs `.dsh/skills/`; no project `SessionStart` hook—the model calls `mem recall` / `mem read` when needed |
 
@@ -209,7 +209,7 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
   - DeepSeek Harness has no project-level `SessionStart` hook and does not parse compressed transcripts in `~/.dsh/sessions`;
   - Cursor's generated local `sessionStart` entry is verified on Cursor 3.27.22. A successful hook log alone does not prove model delivery or use. Use `AGENTS.md`, the `mini-trellis-remember` skill, and `mini-trellis mem recall`. Cursor-managed cloud agents do not run `sessionStart`; self-hosted machines remain unverified. Cursor conversation history is not parsed;
   - OpenCode V2 (tested on 2.2.0) is the default development target. V1 (tested on 1.18.29) remains a legacy compatibility option with a separate plugin protocol. Ordinary refresh preserves the installed protocol. V2 rebuilds a bounded entry in each outgoing request without saving it to conversation history. Only V1 history is parsed; neither protocol provides precise compact recovery.
-  - ZCode needs explicit project hook review and trust; mini-trellis writes no user-level config and does not grant trust. Older builds may ignore project hooks. See [ZCode setup](./docs/using.md#zcode-zai).
+  - In ZCode Desktop, review and trust the project hook in **Settings → Hooks**, then start a new session. After compact, follow `AGENTS.md` to read saved knowledge. See [setup](./docs/using.md#zcode-zai).
   - CodeBuddy CLI and IDE share `.codebuddy/settings.json` and `.codebuddy/skills/`. See [setup](./docs/using.md#codebuddy-cli-and-ide).
   - Pi supports session listing and search without precise compact boundary recovery.
 
@@ -251,6 +251,6 @@ mini-trellis doctor              # Check installation status
 
 ## Contributing & license
 
-Bug reports and practical examples are welcome in [Issues](https://github.com/Tiger-zzZ/mini-trellis/issues). For local development, see [CONTRIBUTING](./CONTRIBUTING.md). Community: [Linux.do](https://linux.do/).
+Bug reports and practical examples are welcome in [Issues](https://github.com/Tiger-zzZ/mini-trellis/issues). For local development, see [CONTRIBUTING](./CONTRIBUTING.md). For releases, follow the [maintenance workflow](./docs/maintenance-workflow.md). Community: [Linux.do](https://linux.do/).
 
 mini-trellis evolved from the open-source [Trellis](https://github.com/mindfold-ai/Trellis) project. Thanks to the early contributors for the foundation. Released under [AGPL-3.0](./LICENSE). Original copyright Mindfold LLC; modification notices and contributor attribution are retained in [COPYRIGHT](./COPYRIGHT).

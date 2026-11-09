@@ -35,6 +35,7 @@ import type {
   DialogueTurn,
   MemFilter,
   MemSessionInfo,
+  MemWarning,
   SearchHit,
   TaskPyEvent,
 } from "../types.js";
@@ -189,20 +190,33 @@ function timestampMs(value: unknown): number | undefined {
 
 // ---------- extract/search/phase ----------
 
-export function piExtractDialogue(s: MemSessionInfo): DialogueTurn[] {
-  return buildPiTurnsAndEvents(s).turns;
+export function piExtractDialogue(
+  s: MemSessionInfo,
+  warnings?: MemWarning[],
+): DialogueTurn[] {
+  return buildPiTurnsAndEvents(s, warnings).turns;
 }
 
-export function piSearch(s: MemSessionInfo, kw: string): SearchHit {
-  return searchInDialogue(piExtractDialogue(s), kw);
+export function piSearch(
+  s: MemSessionInfo,
+  kw: string,
+  warnings?: MemWarning[],
+): SearchHit {
+  return searchInDialogue(piExtractDialogue(s, warnings), kw);
 }
 
-export function collectPiTurnsAndEvents(s: MemSessionInfo): PiBuilt {
-  return buildPiTurnsAndEvents(s);
+export function collectPiTurnsAndEvents(
+  s: MemSessionInfo,
+  warnings?: MemWarning[],
+): PiBuilt {
+  return buildPiTurnsAndEvents(s, warnings);
 }
 
-function buildPiTurnsAndEvents(s: MemSessionInfo): PiBuilt {
-  const activePath = piActivePath(s.filePath);
+function buildPiTurnsAndEvents(
+  s: MemSessionInfo,
+  warnings?: MemWarning[],
+): PiBuilt {
+  const activePath = piActivePath(s.filePath, warnings);
   const turns: DialogueTurn[] = [];
   const events: TaskPyEvent[] = [];
 
@@ -218,13 +232,16 @@ function buildPiTurnsAndEvents(s: MemSessionInfo): PiBuilt {
 /** Walk parent links back from the last entry — the branch the session ended
  * on, in chronological order. No compaction truncation: a `compaction` entry is
  * Pi's context rule, and the entries it excluded are still on this path. */
-function piActivePath(filePath: string): PiEntry[] {
+function piActivePath(
+  filePath: string,
+  warnings?: MemWarning[],
+): PiEntry[] {
   const entries: PiEntry[] = [];
   readJsonl<PiEntry>(filePath, (entry) => {
     if (entry.type === "session") return;
     if (typeof entry.id !== "string") return;
     entries.push(entry);
-  });
+  }, warnings);
   if (entries.length === 0) return [];
 
   const byId = new Map<string, PiEntry>();

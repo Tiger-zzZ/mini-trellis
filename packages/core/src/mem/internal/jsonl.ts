@@ -11,39 +11,59 @@
  */
 
 import * as fs from "node:fs";
+import { StringDecoder } from "node:string_decoder";
+
+import type { MemWarning } from "../types.js";
 
 const CHUNK = 256 * 1024;
 const OPEN_BRACE = 0x7b; // '{'
 
 /**
- * Walk a JSONL file line-by-line, invoking `onLine` with each parsed object.
- * Bad JSON lines are skipped. Returning the literal `"stop"` from `onLine`
- * halts iteration.
- *
- * Chunked sync streaming: 256 KB read window, leftover preserved across chunks
- * for split-line reassembly — bounded heap on multi-MB session files and a
- * `"stop"` short-circuit that avoids reading the whole file when only the head
- * is needed.
- *
- * Byte-prefix fast-reject: a JSONL event line virtually always begins with `{`.
- * Lines whose first byte is not `{` are blanks / log preambles / partial writes
- * and are skipped before paying the `JSON.parse` cost.
+ * Walk JSONL objects with a bounded read buffer and an early-stop callback.
+ * Malformed event records are skipped but reported through the warning sink.
+ * Blank lines and non-JSON log preambles retain their existing skip behavior.
  */
-export function readJsonl<T>(file: string, onLine: (obj: T) => unknown): void {
+export function readJsonl<T>(
+  file: string,
+  onLine: (obj: T) => unknown,
+  warnings?: MemWarning[],
+): void {
   let fd: number;
   try {
     fd = fs.openSync(file, "r");
   } catch {
+    warnings?.push({
+      code: "session-history-unreadable",
+      message: `cannot open session history ${file}`,
+    });
     return;
   }
   const buf = Buffer.alloc(CHUNK);
+  const decoder = new StringDecoder("utf8");
   let leftover = "";
+  let lineNumber = 0;
+  let malformed = 0;
+  let firstMalformed = 0;
+  const consume = (line: string): boolean => {
+    lineNumber++;
+    if (line.charCodeAt(0) !== OPEN_BRACE) return false;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(line);
+    } catch {
+      malformed++;
+      if (!firstMalformed) firstMalformed = lineNumber;
+      return false;
+    }
+    // Consumer errors must not be mistaken for malformed JSON, including at EOF.
+    return onLine(raw as T) === "stop";
+  };
   try {
     let stop = false;
     while (!stop) {
       const n = fs.readSync(fd, buf, 0, CHUNK, null);
       if (n === 0) break;
-      const chunk = leftover + buf.toString("utf8", 0, n);
+      const chunk = leftover + decoder.write(buf.subarray(0, n));
       let from = 0;
       while (true) {
         const nl = chunk.indexOf("\n", from);
@@ -53,34 +73,25 @@ export function readJsonl<T>(file: string, onLine: (obj: T) => unknown): void {
         }
         const line = chunk.slice(from, nl);
         from = nl + 1;
-        if (!line) continue;
-        if (line.charCodeAt(0) !== OPEN_BRACE) continue;
-        let raw: unknown;
-        try {
-          raw = JSON.parse(line);
-        } catch {
-          continue;
-        }
-        if (onLine(raw as T) === "stop") {
+        if (consume(line)) {
           stop = true;
           break;
         }
       }
     }
-    if (!stop && leftover) {
-      // File ended without a trailing newline — process the last partial line.
-      const line = leftover;
-      if (line.charCodeAt(0) === OPEN_BRACE) {
-        try {
-          const raw: unknown = JSON.parse(line);
-          onLine(raw as T);
-        } catch {
-          /* skip */
-        }
-      }
+    if (!stop) {
+      leftover += decoder.end();
+      if (leftover) consume(leftover);
     }
   } finally {
     fs.closeSync(fd);
+    if (malformed) {
+      // One bounded diagnostic per read, without copying transcript contents.
+      warnings?.push({
+        code: "session-history-incomplete",
+        message: `${file}: skipped ${malformed} malformed JSONL records (first at line ${firstMalformed}); history is incomplete and may omit corrections.`,
+      });
+    }
   }
 }
 

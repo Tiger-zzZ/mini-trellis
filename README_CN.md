@@ -25,7 +25,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 许可证" /></a>
 </p>
 
-> **v0.3.7 源码（尚未发布）：** 增加智谱/Z.ai ZCode 项目技能与需信任的 SessionStart 短入口。见[配置说明](./docs/using_CN.md#zcode-zai)和[发布草稿](./docs/releases/v0.3.7.md)。
+> **v0.3.7：** 新增智谱/Z.ai ZCode 项目知识接入，修复历史读取中的中文字符与截断提示。见[配置说明](./docs/using_CN.md#zcode-zai)和[版本说明](./docs/releases/v0.3.7.md)。
 
 ![开发中的约定、研究结论与验证记录沉淀为项目知识，在后续工作中复用，并随新证据继续更新。](./docs/assets/knowledge-zh.svg)
 
@@ -193,7 +193,7 @@ mini-trellis mem read "<ref>"
 | **Codex** | `--codex` | `$mini-trellis-remember` | 支持项目 Hook 注入与本地会话历史检索 |
 | **OpenCode V1/V2** | `--opencode` | `/mini-trellis:remember` | 新项目默认 V2；已有 V1 入口保留，`--opencode-version 1` 可显式选择旧版兼容。支持 V1 本地历史检索；V2 历史不解析并给出告警 |
 | **CodeBuddy CLI / IDE** | `--codebuddy` | 技能 `mini-trellis-remember`；CLI 也可 `/mini-trellis:remember` | 共用项目配置、技能和 SessionStart 短入口。支持项目知识检索，不解析 CodeBuddy 对话历史 |
-| **ZCode（智谱/Z.ai）** | `--zcode` | `$mini-trellis-remember` 或同名技能 | 桌面 3.17.2 / core 0.17.1、GLM-5.3-Flash 已验证启动入口、记录与跨会话召回；该宿主 compact 后不重新触发入口。支持项目知识与提供的文本，不解析原始聊天 |
+| **ZCode（智谱/Z.ai）** | `--zcode` | `$mini-trellis-remember` 或同名技能 | 项目启动入口、知识记录与跨会话召回；与 Codex 共用技能。历史整理使用提供的 Markdown/文本 |
 | **Pi** | `--pi` | `/mini-trellis-remember` | 支持启动入口与本地会话检索 |
 | **DeepSeek Harness** | `--dsh` | `mini-trellis-remember` | 安装 `.dsh/skills/`，无项目级 `SessionStart`，由模型按需调用 `mem recall` / `mem read` |
 
@@ -209,7 +209,7 @@ mini-trellis mem read "<ref>"
   - DeepSeek Harness 无项目级 `SessionStart` 注入点，不解析 `~/.dsh/sessions` 压缩转录本；
   - Cursor 本地 `sessionStart` 短入口已在 3.27.22 验证。hook 日志成功本身不能证明模型收到或使用内容。按需使用 `AGENTS.md`、技能 `mini-trellis-remember` 和 `mini-trellis mem recall`。Cursor 托管云端不运行 `sessionStart`，自托管机器仍未验证。不解析 Cursor 对话历史；
   - OpenCode V2（已测 2.2.0）是默认开发目标；V1（已测 1.18.29）保留为旧版兼容选项，使用独立插件协议。普通 refresh 保留已安装协议。V2 在每次模型请求中重建有预算限制的短入口，不写入对话历史；仅解析 V1 历史，两种协议均无精确 compact 恢复。
-  - ZCode 的项目 hook 需用户审查并信任；mini-trellis 不写用户级配置、不自动授予信任。旧构建可能忽略项目 hooks，见[配置说明](./docs/using_CN.md#zcode-zai)。
+  - ZCode 桌面版在「设置 → 钩子」审查并信任项目 hook 后开启新会话；compact 后按 `AGENTS.md` 指引读取已保存知识。见[配置说明](./docs/using_CN.md#zcode-zai)。
   - CodeBuddy CLI 与 IDE 共用 `.codebuddy/settings.json` 和 `.codebuddy/skills/`。见[安装与使用](./docs/using_CN.md#codebuddy-cli-与-ide)。
   - Pi 支持列出会话与检索，暂无精确 compact 边界恢复。
 
@@ -251,6 +251,6 @@ mini-trellis doctor              # 检查当前项目集成状态
 
 ## 参与项目与致谢
 
-问题反馈与实际使用案例欢迎提交到 [Issues](https://github.com/Tiger-zzZ/mini-trellis/issues)。本地开发说明见 [CONTRIBUTING_CN](./CONTRIBUTING_CN.md)。社区：[Linux.do](https://linux.do/)。
+问题反馈与实际使用案例欢迎提交到 [Issues](https://github.com/Tiger-zzZ/mini-trellis/issues)。本地开发说明见 [CONTRIBUTING_CN](./CONTRIBUTING_CN.md)。 版本维护见[维护与发布工作流](./docs/maintenance-workflow.md)。社区：[Linux.do](https://linux.do/)。
 
 mini-trellis 演进自开源项目 [Trellis](https://github.com/mindfold-ai/Trellis)，感谢早期贡献者奠定的基础。采用 [AGPL-3.0](./LICENSE) 许可证发布；原版权归 Mindfold LLC 所有，修改声明和贡献者署名保留在 [COPYRIGHT](./COPYRIGHT) 中。

@@ -13,3 +13,7 @@ mini-trellis does not create or drive tasks.
 
 Managed by mini-trellis. Edits outside this block are preserved.
 <!-- TRELLIS:END -->
+
+## Repository maintenance
+
+For review, acceptance, PR merges, version tags and website updates, follow [the maintenance workflow](docs/maintenance-workflow.md). npm publishing is performed manually by the maintainer.

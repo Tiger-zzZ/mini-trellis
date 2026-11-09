@@ -1,13 +1,14 @@
 # Changelog
 
-## Unreleased — 0.3.7
+## v0.3.7 — 2026-11-09
 
-- Adds `init --zcode` and `refresh --zcode` for Z.ai ZCode project skills and a trust-gated SessionStart entry. Reuses remember, session-insight, update-spec and project recall/read without a second memory implementation or raw ZCode history reader.
-- Preserves user configuration, hooks and skills across installation and refresh; rejects invalid hook structure and unsafe paths before writing. Migration removes known Trellis workflow registrations; uninstall removes managed entries while retaining unrelated host settings.
-- Keeps host trust separate from asset and execution checks. No user-level configuration, automatic trust grant, per-turn injector, task workflow or model service is added.
-- Uses ZCode's native session identity ahead of Claude compatibility aliases. Compact guidance points to saved project knowledge rather than unsupported raw chats.
+- Adds `init --zcode` and `refresh --zcode` for Z.ai ZCode, with shared project skills and a SessionStart entry. ZCode and Codex use the same skills under `.agents/skills/`.
+- Supports recording confirmed decisions, updating existing topics, organizing supplied Markdown/text and recalling project knowledge in ZCode. After compact, `AGENTS.md` guides on-demand reading of saved knowledge.
+- Preserves user configuration, hooks and other skills during installation and refresh. Desktop users review the project hook in Settings → Hooks before starting a new session.
+- Preserves Chinese and other multibyte UTF-8 characters across read boundaries in Claude Code, Codex and Pi JSONL histories.
+- Reports malformed or truncated event records with the source file and affected line, retains valid records, and marks partial recall results as incomplete.
 
-See the [0.3.7 release draft](docs/releases/v0.3.7.md) for setup and the verified scope.
+See the [v0.3.7 release notes](docs/releases/v0.3.7.md).
 
 ## v0.3.6
 

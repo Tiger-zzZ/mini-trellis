@@ -58,22 +58,22 @@ Repeated init and refresh preserve user hooks, environment and permissions. Inva
 
 ## ZCode (Z.ai)
 
-The unreleased 0.3.7 source installs three shared skills under `.agents/skills/`, shared with Codex, and one project hook in `.zcode/config.json`:
+Install the three project skills under `.agents/skills/`, shared with Codex, and a SessionStart hook in `.zcode/config.json`:
 
 ```bash
 mini-trellis init -u your-name --zcode -y
 ```
 
-For Desktop, launch the ZCode App, open **Settings → Hooks**, select this project, review `.zcode/hooks/session-start.py`, and choose **Trust**. Then start a new session. Select the project scope rather than the user scope.
+In ZCode Desktop, open **Settings → Hooks**, select this project, review `.zcode/hooks/session-start.py`, and choose **Trust**. Start a new session to load the project knowledge entry.
 
-The following commands are for users with a separately installed ZCode CLI. Match the workspace path displayed by the host; aliases such as macOS `/tmp` and `/private/tmp` can have different trust identities:
+For a separately installed ZCode CLI, use the workspace path shown by the host:
 
 ```bash
 zcode skills list --cwd . --json
 zcode hooks trust review --workspace . --json
 ```
 
-Review the reported command and `.zcode/hooks/session-start.py`. If you accept it, grant that exact `hookDeclarationDigest` yourself, then verify status and start a new session:
+Review the command and script, then grant the returned `hookDeclarationDigest` and check the result:
 
 ```bash
 zcode hooks trust grant --workspace . --hook-digest <reviewed-hookDeclarationDigest>
@@ -81,17 +81,11 @@ zcode hooks trust status --workspace . --json
 mini-trellis doctor
 ```
 
-The desktop's bundled core serves the app server; it is not a complete interactive CLI. Running it as a TUI can fail with a missing `@zcode/tui` package. Desktop login/model selection and standalone CLI account setup also differ. Start Plan acceptance for this release uses Desktop, without installing a separate TUI or copying credentials.
+Use `$mini-trellis-remember` or the named skill to record confirmed decisions. Existing topics keep their language, and journal entries link to the updated files. Use `mini-trellis-session-insight` to find project knowledge with `mem recall`/`mem read`, or organize supplied Markdown/text into project documents.
 
-Only `SessionStart` for startup, clear and compact is registered. mini-trellis never grants trust or writes `~/.zcode` settings. Review changed declarations again after refresh or migration. Your disabled hook settings remain disabled. Older builds can ignore project hooks; skills and `AGENTS.md` still provide the project knowledge entry without installing a user-level bridge.
+After compact, `AGENTS.md` guides the agent to the same saved knowledge and skills. ZCode Desktop 3.17.2 / core 0.17.1 invokes the entry at session startup; compact continues with the project guidance already provided by the host.
 
-Use `$mini-trellis-remember`, the named skill, or `/skill mini-trellis-remember` where listed by the host. Natural confirmation uses the same writing guidance. `mini-trellis-session-insight` recalls project knowledge with `mem recall`/`mem read` and organizes supplied Markdown/text on request; ZCode raw conversations are not parsed, including after compact. Notes keep the requested/discussion language, updates keep the existing file's language, and ordinary formatting changes add no memory. New installs do not auto-commit.
-
-Verified in official Desktop 3.17.2 / bundled core 0.17.1 with GLM-5.3-Flash: startup entry delivery, explicit and natural confirmation, updating the same topic, and recalling the current decision in a new session. Updates preserved the English topic, conditions, negations and valid journal links; ordinary formatting and an unconfirmed idea did not change memory or create a Git commit.
-
-In this host version, `/compact` completes but does not re-trigger SessionStart, despite the registered matcher. The model confirmed no new entry was received; `AGENTS.md` remains available and directs it to saved project knowledge. Automatic entry delivery on resume was not verified. This release does not promise fresh compact/resume entries or recovery of raw chat details, nor does this check establish compatibility with other Desktop or standalone CLI builds.
-
-Repeated init/refresh preserve unrelated config, hooks and skills. An existing same-name skill under `.zcode/skills/` is a conflict: move or rename it yourself before installation; mini-trellis does not overwrite it. Invalid project hook structure stops before asset writes; refresh reports modified or unowned file conflicts. `zcode-trust` stays unknown because mini-trellis does not inspect the host's trust store. `zcode-runtime` reports only observed execution metadata, which cannot prove model delivery. Uninstall removes the managed ZCode assets and registrations while retaining unrelated host settings; it retains the existing command's explicit deletion of `.trellis/`, so back up your knowledge before uninstalling.
+Init and refresh preserve your configuration, hooks and other skills. Review changed hook declarations in ZCode after refreshing. If a same-name skill already exists under `.zcode/skills/`, move or rename it before installing the shared skill. `doctor` shows project registration and the latest observed execution; use ZCode's hook panel or `trust status` to check trust.
 
 ## Cursor
 
