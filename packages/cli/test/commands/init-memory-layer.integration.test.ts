@@ -254,6 +254,7 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
       codebuddy: true,
       zcode: true,
       kiro: true,
+      omp: true,
     });
     const surfaces = PLATFORM_IDS.map((host) => {
       const templates = collectPlatformTemplates(host);

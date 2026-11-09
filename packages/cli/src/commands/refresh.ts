@@ -338,6 +338,7 @@ export function runRefresh(
     codex?: boolean;
     opencode?: boolean;
     pi?: boolean;
+    omp?: boolean;
     dsh?: boolean;
     cursor?: boolean;
     codebuddy?: boolean;

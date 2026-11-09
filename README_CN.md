@@ -25,7 +25,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 许可证" /></a>
 </p>
 
-> **v0.3.8：** 新增 Kiro 项目技能与 SessionStart，`upgrade` 成功后自动刷新当前项目。见[配置说明](./docs/using_CN.md#kiro)和[版本说明](./docs/releases/v0.3.8.md)。
+> **v0.3.8：** 新增 Kiro 与 OMP 支持，修复 Pi 记录命令的参数传递，`upgrade` 成功后自动刷新当前项目。见[Pi / OMP 配置](./docs/using_CN.md#pi-and-omp)、[Kiro 配置](./docs/using_CN.md#kiro)和[版本说明](./docs/releases/v0.3.8.md)。
 
 ![开发中的约定、研究结论与验证记录沉淀为项目知识，在后续工作中复用，并随新证据继续更新。](./docs/assets/knowledge-zh.svg)
 
@@ -107,12 +107,12 @@ npm install -g mini-trellis
 mini-trellis init -u your-name --claude
 ```
 
-按你实际使用的工具选择或组合参数（`--claude`、`--cursor`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--codebuddy`、`--zcode`、`--kiro`）。也可以直接把下面这段话发给正在使用的 Agent，让它完成安装或从 Trellis 迁移：
+按你实际使用的工具选择或组合参数（`--claude`、`--cursor`、`--codex`、`--opencode`、`--pi`、`--omp`、`--dsh`、`--codebuddy`、`--zcode`、`--kiro`）。也可以直接把下面这段话发给正在使用的 Agent，让它完成安装或从 Trellis 迁移：
 
 ```text
 请在当前项目安装或迁移 mini-trellis。若还没有命令，先执行 npm install -g mini-trellis。
 如果项目里已有旧版工作流文件（例如 .trellis/workflow.md、.trellis/scripts/task.py，或 inject-*.py），先运行 mini-trellis migrate --dry-run，把计划给我看，确认后再执行 mini-trellis migrate -y。
-如果是新项目，运行 mini-trellis init -u <name> -y，并只加上我实际使用的工具参数（--claude、--codex、--opencode、--pi、--dsh、--cursor、--codebuddy、--zcode、--kiro）。OpenCode 新项目默认 V2，已有项目保留原入口；使用旧版宿主时明确加 --opencode-version 1。
+如果是新项目，运行 mini-trellis init -u <name> -y，并只加上我实际使用的工具参数（--claude、--codex、--opencode、--pi、--omp、--dsh、--cursor、--codebuddy、--zcode、--kiro）。OpenCode 新项目默认 V2，已有项目保留原入口；使用旧版宿主时明确加 --opencode-version 1。
 最后运行 mini-trellis doctor，并说明结果。不要删除 .trellis/spec、.trellis/research 或 .trellis/workspace。
 ```
 
@@ -195,8 +195,11 @@ mini-trellis mem read "<ref>"
 | **CodeBuddy CLI / IDE** | `--codebuddy` | 技能 `mini-trellis-remember`；CLI 也可 `/mini-trellis:remember` | 共用项目配置、技能和 SessionStart 短入口。支持项目知识检索，不解析 CodeBuddy 对话历史 |
 | **Kiro CLI V3 / IDE 1.x** | `--kiro` | `/mini-trellis-remember` | 项目技能、启动入口、记录与跨会话召回 |
 | **ZCode（智谱/Z.ai）** | `--zcode` | `$mini-trellis-remember` 或同名技能 | 项目启动入口、知识记录与跨会话召回；与 Codex 共用技能。历史整理使用提供的 Markdown/文本 |
-| **Pi** | `--pi` | `/mini-trellis-remember` | 支持启动入口与本地会话检索 |
+| **Pi** | `--pi` | `/mini-trellis-remember [结论]` | 启动入口、项目知识与本地会话检索 |
+| **Oh My Pi (OMP)** | `--omp` | `/mini-trellis-remember [结论]` | 原生 `.omp` 扩展、提示命令与技能，支持项目知识召回 |
 | **DeepSeek Harness** | `--dsh` | `mini-trellis-remember` | 安装 `.dsh/skills/`，无项目级 `SessionStart`，由模型按需调用 `mem recall` / `mem read` |
+
+[Pi 和 OMP 配置说明](./docs/using_CN.md#pi-and-omp)包含初始化、已有项目刷新与记录示例。
 
 <details>
 <summary><strong>查看 Codex 信任配置与各宿主边界说明</strong></summary>

@@ -1,6 +1,6 @@
 # 开发时怎么用
 
-命令在项目根目录执行。Claude Code 和 OpenCode 用 `/mini-trellis:remember`，Codex/ZCode 用 `$mini-trellis-remember`，Pi 和 Kiro 用 `/mini-trellis-remember`。DeepSeek Harness、Cursor 和 CodeBuddy 用技能 `mini-trellis-remember`；CodeBuddy CLI 也可用 `/mini-trellis:remember`。
+命令在项目根目录执行。Claude Code 和 OpenCode 用 `/mini-trellis:remember`，Codex/ZCode 用 `$mini-trellis-remember`，Pi、OMP 和 Kiro 用 `/mini-trellis-remember`。DeepSeek Harness、Cursor 和 CodeBuddy 用技能 `mini-trellis-remember`；CodeBuddy CLI 也可用 `/mini-trellis:remember`。
 
 ## 从零安装
 
@@ -9,7 +9,7 @@ npm install -g mini-trellis
 mini-trellis init -u 你的名字 --claude
 ```
 
-只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`、`--codebuddy`、`--zcode`、`--kiro`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 会装上技能和本地 `sessionStart`；Cursor 托管云端不跑这个 hook，本地 hook 跑过也不等于 Agent 提示里收到了 `additional_context`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
+只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--omp`、`--dsh`、`--cursor`、`--codebuddy`、`--zcode`、`--kiro`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 会装上技能和本地 `sessionStart`；Cursor 托管云端不跑这个 hook，本地 hook 跑过也不等于 Agent 提示里收到了 `additional_context`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
 
 ## OpenCode V1 与 V2
 
@@ -41,6 +41,42 @@ mini-trellis refresh --opencode --opencode-version 2
 卸载保留共享的 `.opencode/package.json`，包括宿主或其他插件使用的 SDK 依赖。
 
 协议目标为 V1 1.18.29、V2 2.2.0。V1 SQLite 读取器不解析 V2 的 `session_v2`/`session_message` 历史。`opencode-v2-history-unsupported` 表示这些对话被跳过，零命中时也不能据此判断没有项目记忆。已保存的项目 Markdown 和 V1 历史仍可读取。
+
+<a id="pi-and-omp"></a>
+
+## Pi 和 OMP
+
+使用 mini-trellis 0.3.8 或更新版本，按实际宿主选择：
+
+```bash
+# Pi
+mini-trellis init -u your-name --pi -y
+pi
+
+# Oh My Pi（OMP）
+mini-trellis init -u your-name --omp -y
+omp
+```
+
+在项目根目录执行。Pi 使用 `.pi/extensions/`、`.pi/prompts/` 和共享的 `.agents/skills/`；OMP 使用原生 `.omp/extensions/`、`.omp/prompts/`、`.omp/skills/`。两者通过 `before_agent_start` 加载同一份简短记忆入口，OMP 会自动发现安装的资源。同一项目使用两者时，初始化加上 `--pi --omp`。
+
+已有 mini-trellis 项目，使用新版本 CLI 更新宿主资源：
+
+```bash
+mini-trellis refresh --pi
+# 在同一项目添加或更新 OMP：
+mini-trellis refresh --omp
+```
+
+Pi 按宿主提示确认项目信任，安装或刷新后新开宿主会话。模型沿用各宿主的常规配置。在对话中可单独运行 `/mini-trellis-remember` 整理本次讨论，也可直接附上确认结论：
+
+```text
+/mini-trellis-remember 仅幂等回调自动重试，最多 3 次，首次延迟 427ms；非幂等回调需手动处理。
+```
+
+Agent 更新已有主题并回读核对，再写入带主题链接的 journal。下次会话直接询问“项目的回调重试规则是什么”，或在终端运行 `mini-trellis mem recall "回调重试"`。需要整理 Markdown/text 对话导出时，在对话中要求使用 `mini-trellis-session-insight`；维护长期约定时要求使用 `mini-trellis-update-spec`。
+
+Pi 支持检索本地原始会话；OMP 的召回读取已保存的项目 Markdown，整理 OMP 对话时提供 Markdown/text 导出。宿主机制参考官方 [Pi 提示模板](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/prompt-templates.md)与 [OMP 资源发现](https://github.com/can1357/oh-my-pi/blob/v18.18.3/docs/extension-loading.md)。
 
 ## CodeBuddy CLI 与 IDE
 
@@ -277,7 +313,7 @@ mini-trellis doctor
 | `legacy-trellis` | 还留着 Trellis 工作流。先跑 `mini-trellis migrate --dry-run`。 |
 | `memory-layer` | 缺少 `.trellis` 或 `add_session.py`。跑 `mini-trellis init`。 |
 | `instructions` | `AGENTS.md` 没有托管块。再跑一次 init。 |
-| `platforms` | 没有发现宿主。加上 `--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`、`--codebuddy`、`--zcode` 或 `--kiro`。 |
+| `platforms` | 没有发现宿主。加上 `--claude`、`--codex`、`--opencode`、`--pi`、`--omp`、`--dsh`、`--cursor`、`--codebuddy`、`--zcode` 或 `--kiro`。 |
 | `<host>-runtime` 为 unknown | 还没有一次真实 hook 记录。开一轮宿主会话。Codex 要先信任项目 hook。Cursor 还要分开看：hook 记录出现，也不等于短入口进了模型提示。 |
 | `kiro-config` | 检查 `.kiro/hooks/mini-trellis.json` 的 JSON 与 SessionStart 注册；通过 `mini-trellis refresh --kiro --dry-run` 查看更新。 |
 | `zcode-config` / `zcode-trust` | 项目 hook 无效、禁用、未注册，或尚未检查宿主信任。使用 ZCode review/status；文件存在不等于已送达。 |

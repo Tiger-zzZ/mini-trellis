@@ -33,6 +33,7 @@ program
   )
   .option("--codex", "Include Codex skills")
   .option("--pi", "Include Pi Agent extension assets")
+  .option("--omp", "Include Oh My Pi extension, prompts and skills")
   .option("--dsh", "Include DeepSeek Harness skills")
   .option("--cursor", "Include Cursor skills and local sessionStart")
   .option(
@@ -207,6 +208,7 @@ program
     "Explicitly switch OpenCode plugin protocol; ordinary refresh preserves it",
   )
   .option("--pi", "Refresh Pi Agent assets")
+  .option("--omp", "Refresh Oh My Pi extension, prompts and skills")
   .option("--dsh", "Refresh DeepSeek Harness skills")
   .option("--cursor", "Refresh Cursor skills and local sessionStart")
   .option("--codebuddy", "Refresh CodeBuddy CLI / IDE assets")
@@ -220,6 +222,7 @@ program
       codex: options.codex as boolean,
       opencode: options.opencode as boolean,
       pi: options.pi as boolean,
+      omp: options.omp as boolean,
       dsh: options.dsh as boolean,
       cursor: options.cursor as boolean,
       codebuddy: options.codebuddy as boolean,

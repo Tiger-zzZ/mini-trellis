@@ -7,6 +7,7 @@ export type AITool =
   | "codex"
   | "opencode"
   | "pi"
+  | "omp"
   | "dsh"
   | "cursor"
   | "codebuddy"
@@ -20,6 +21,7 @@ export type CliFlag =
   | "codex"
   | "opencode"
   | "pi"
+  | "omp"
   | "dsh"
   | "cursor"
   | "codebuddy"
@@ -112,6 +114,22 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
       agentCapable: true,
       hasHooks: true,
       cliFlag: "pi",
+    },
+  },
+  omp: {
+    name: "Oh My Pi (OMP)",
+    templateDirs: ["common", "pi"],
+    configDir: ".omp",
+    cliFlag: "omp",
+    defaultChecked: false,
+    hasPythonHooks: false,
+    templateContext: {
+      cmdRefPrefix: "/mini-trellis-",
+      executorAI: "Bash scripts or tool calls",
+      userActionLabel: "Slash commands",
+      agentCapable: true,
+      hasHooks: true,
+      cliFlag: "omp",
     },
   },
   /**

@@ -219,6 +219,7 @@ export interface InitOptions {
   opencode?: boolean;
   codex?: boolean;
   pi?: boolean;
+  omp?: boolean;
   dsh?: boolean;
   cursor?: boolean;
   codebuddy?: boolean;

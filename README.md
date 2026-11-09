@@ -25,7 +25,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-64766f?style=flat-square" alt="AGPL-3.0 license" /></a>
 </p>
 
-> **v0.3.8:** Adds Kiro project skills and SessionStart, plus automatic project refresh after `upgrade`. See [setup](./docs/using.md#kiro) and [release notes](./docs/releases/v0.3.8.md).
+> **v0.3.8:** Adds Kiro and OMP support, fixes Pi recording command arguments, and refreshes the current project after `upgrade`. See [Pi / OMP setup](./docs/using.md#pi-and-omp), [Kiro setup](./docs/using.md#kiro) and [release notes](./docs/releases/v0.3.8.md).
 
 ![Conventions, research and verified fixes accumulate in project Markdown, inform later work, and are updated with new evidence.](./docs/assets/knowledge-en.svg)
 
@@ -107,12 +107,12 @@ npm install -g mini-trellis
 mini-trellis init -u your-name --claude
 ```
 
-Choose or combine flags for the agents you use (`--claude`, `--cursor`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--codebuddy`, `--zcode`, `--kiro`). You can also hand this prompt directly to your agent to install or migrate from Trellis:
+Choose or combine flags for the agents you use (`--claude`, `--cursor`, `--codex`, `--opencode`, `--pi`, `--omp`, `--dsh`, `--codebuddy`, `--zcode`, `--kiro`). You can also hand this prompt directly to your agent to install or migrate from Trellis:
 
 ```text
 Install or migrate mini-trellis in this project. If the command is missing, run npm install -g mini-trellis first.
 If this project has legacy workflow files (for example .trellis/workflow.md, .trellis/scripts/task.py, or inject-*.py), run mini-trellis migrate --dry-run, show me the plan, and run mini-trellis migrate -y after I confirm.
-If this is a new project, run mini-trellis init -u <name> -y with only the tools I actually use (--claude, --codex, --opencode, --pi, --dsh, --cursor, --codebuddy, --zcode, --kiro). For OpenCode, new projects default to V2; existing entries are preserved. Use --opencode-version 1 only for a V1 host.
+If this is a new project, run mini-trellis init -u <name> -y with only the tools I actually use (--claude, --codex, --opencode, --pi, --omp, --dsh, --cursor, --codebuddy, --zcode, --kiro). For OpenCode, new projects default to V2; existing entries are preserved. Use --opencode-version 1 only for a V1 host.
 Then run mini-trellis doctor and report the result. Do not delete .trellis/spec, .trellis/research, or .trellis/workspace.
 ```
 
@@ -195,8 +195,11 @@ Combine flags as needed (for example, `mini-trellis init -u your-name --claude -
 | **CodeBuddy CLI / IDE** | `--codebuddy` | `mini-trellis-remember` skill; CLI also `/mini-trellis:remember` | Shared project settings, skills and SessionStart entry. Project knowledge is searchable; CodeBuddy conversation history is not parsed |
 | **Kiro CLI V3 / IDE 1.x** | `--kiro` | `/mini-trellis-remember` | Project skills, SessionStart entry, recording and cross-session recall |
 | **ZCode (Z.ai)** | `--zcode` | `$mini-trellis-remember` or the skill | Project startup entry, recording and cross-session recall; shared skills with Codex. Organizes supplied Markdown/text |
-| **Pi** | `--pi` | `/mini-trellis-remember` | Startup entry and local session search |
+| **Pi** | `--pi` | `/mini-trellis-remember [decision]` | Startup entry, project knowledge and local session search |
+| **Oh My Pi (OMP)** | `--omp` | `/mini-trellis-remember [decision]` | Native `.omp` extension, prompts and skills; project knowledge recall |
 | **DeepSeek Harness** | `--dsh` | `mini-trellis-remember` | Installs `.dsh/skills/`; no project `SessionStart` hook—the model calls `mem recall` / `mem read` when needed |
+
+See [Pi and OMP setup](./docs/using.md#pi-and-omp) for initialization, existing-project refresh and recording examples.
 
 <details>
 <summary><strong>Codex trust setup &amp; host-specific boundaries</strong></summary>

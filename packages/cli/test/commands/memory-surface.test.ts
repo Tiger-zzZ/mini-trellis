@@ -42,6 +42,7 @@ describe("host CLI surface", () => {
       "cursor",
       "dsh",
       "kiro",
+      "omp",
       "opencode",
       "pi",
       "zcode",
@@ -57,6 +58,7 @@ describe("host CLI surface", () => {
       "cursor",
       "dsh",
       "kiro",
+      "omp",
       "opencode",
       "pi",
       "zcode",
@@ -69,9 +71,10 @@ describe("host CLI surface", () => {
     expect(src).toMatch(/\.option\("--codex"/);
     expect(src).toMatch(/\.option\("--opencode"/);
     expect(src).toMatch(/\.option\("--pi"/);
+    expect(src).toMatch(/\.option\("--omp"/);
     expect(src).toMatch(/\.option\("--dsh"/);
     expect(src).toMatch(/\.option\("--cursor"/);
-    expect(src).not.toMatch(/--gemini|--omp|--droid|--kimi|--copilot/);
+    expect(src).not.toMatch(/--gemini|--droid|--kimi|--copilot/);
   });
 });
 
