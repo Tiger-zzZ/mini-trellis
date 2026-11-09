@@ -335,10 +335,12 @@ export function codexExtractDialogue(
   return collectCodexTurnsAndEvents(s, warnings).turns;
 }
 
-export function codexSearch(s: MemSessionInfo, kw: string): SearchHit {
-  // No warnings sink: search fans out over the whole corpus and a per-session
-  // notice would be printed thousands of times.
-  return searchInDialogue(codexExtractDialogue(s), kw);
+export function codexSearch(
+  s: MemSessionInfo,
+  kw: string,
+  warnings?: MemWarning[],
+): SearchHit {
+  return searchInDialogue(codexExtractDialogue(s, warnings), kw);
 }
 
 /**
@@ -428,7 +430,7 @@ export function collectCodexTurnsAndEvents(
     if (!role) return;
     const turn = buildTurnFromMessage(role, p.content);
     if (turn) pool.push(turn);
-  });
+  }, warnings);
 
   if (encryptedInterAgent > 0) {
     pushWarningOnce(

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Preserves Chinese and other multibyte UTF-8 characters across JSONL read boundaries when reading Claude Code, Codex and Pi histories.
+- Reports malformed or truncated JSONL event records through existing history warnings instead of silently presenting partial evidence as complete. Valid records remain available; recall is marked incomplete. Warnings identify the file and first affected line without copying transcript contents.
+
 ## Unreleased — 0.3.6
 
 - Extends the shared `mini-trellis-session-insight` skill to organize explicitly selected supported sessions or supplied Markdown/text exports into existing project documents. No new service, command, native history format or automatic scan.

@@ -730,6 +730,26 @@ describe("readMemContext", () => {
 });
 
 describe("extractMemDialogue", () => {
+  it("surfaces a truncated correction through extract, context and search", () => {
+    writeJsonl(sessionFile, [claudeUser(projectCwd, "Confirmed: 2 attempts")]);
+    nodeFs.appendFileSync(sessionFile, '{"type":"user","message":{"role":"user","content":"Correction: 4 attempts');
+    const filter = { cwd: projectCwd, platform: "claude" as const };
+    const extracted = extractMemDialogue({ sessionId, filter });
+    expect(extracted.turns).toEqual([{ role: "user", text: "Confirmed: 2 attempts" }]);
+    for (const result of [
+      extracted,
+      readMemContext({ sessionId, filter }),
+      searchMemSessions({ keyword: "attempts", filter }),
+    ]) {
+      expect(result.warnings.map((warning) => warning.code))
+        .toContain("session-history-incomplete");
+    }
+    nodeFs.appendFileSync(sessionFile, '"}}\n');
+    const repaired = extractMemDialogue({ sessionId, filter });
+    expect(repaired.warnings).toEqual([]);
+    expect(repaired.turns.at(-1)?.text).toBe("Correction: 4 attempts");
+  });
+
   it("keeps selected-history speakers, corrections and evidence separate from other sessions", () => {
     const turns = [
       {
