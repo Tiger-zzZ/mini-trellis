@@ -22,6 +22,7 @@ import {
 import {
   getPythonCommandForPlatform,
   setResolvedPythonCommand,
+  renderTemplateMap,
   type PlatformConfigureOptions,
 } from "../configurators/shared.js";
 import { AI_TOOLS, type CliFlag } from "../types/ai-tools.js";
@@ -292,7 +293,7 @@ function updateManagedManifest(
     if (!platformId) continue;
     const templates = collectPlatformTemplates(platformId, context);
     if (!templates) continue;
-    for (const [relative, content] of templates) {
+    for (const [relative, content] of renderTemplateMap(templates)) {
       managedTemplates.set(relative, content);
     }
   }

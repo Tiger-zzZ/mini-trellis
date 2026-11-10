@@ -237,14 +237,14 @@ mini-trellis migrate             # Apply after confirmation
 <details>
 <summary><strong>Upgrading (`upgrade` / `refresh`) &amp; uninstalling</strong></summary>
 
-Back up `.trellis/`, `AGENTS.md`, and configured agent directories (including Git-ignored files) before migrating or refreshing:
+Run from the project root:
 
 ```bash
 mini-trellis upgrade             # Update the global CLI and refresh this initialized project
 mini-trellis doctor              # Check installation status
 ```
 
-From 0.3.8 onward, `upgrade` runs the new CLI to refresh the current project after npm succeeds. Other projects can be refreshed separately. A conflict keeps local edits and reports the remaining refresh step. Outside an initialized project, `upgrade` updates the CLI only.
+From 0.3.8 onward, `upgrade` runs the new CLI to refresh the current project after npm succeeds. Other projects can be refreshed separately. Normal managed updates run directly. When file replacements need confirmation, refresh lists the files and asks once `[y/N]`. Enter `Y` to replace them and finish the update; `N` or Enter keeps all project files. Outside an initialized project, `upgrade` updates the CLI only.
 
 When updating with `npm install -g mini-trellis@latest`, or running `upgrade` from 0.3.7 or earlier, refresh the project once afterward:
 

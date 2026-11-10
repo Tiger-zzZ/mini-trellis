@@ -6,7 +6,7 @@ import { upgrade } from "../commands/upgrade.js";
 import { uninstall } from "../commands/uninstall.js";
 import { runMem } from "../commands/mem.js";
 import { runDoctor } from "../commands/doctor.js";
-import { runRefresh } from "../commands/refresh.js";
+import { refresh } from "../commands/refresh.js";
 import { PACKAGE_NAME, VERSION } from "../constants/version.js";
 import { getConfiguredPlatforms } from "../configurators/index.js";
 import { AI_TOOLS } from "../types/ai-tools.js";
@@ -199,7 +199,7 @@ program
 
 program
   .command("refresh")
-  .description("Preview or safely refresh installed mini-trellis assets")
+  .description("Refresh installed assets; confirm content conflicts with Y/N")
   .option("--claude", "Refresh Claude Code assets")
   .option("--codex", "Refresh Codex assets")
   .option("--opencode", "Refresh OpenCode assets")
@@ -216,8 +216,8 @@ program
   .option("--kiro", "Refresh Kiro project skills and SessionStart hook")
   .option("--dry-run", "Preview changes without writing files")
   .option("--json", "Output machine-readable JSON")
-  .action((options: Record<string, unknown>) => {
-    const report = runRefresh({
+  .action(async (options: Record<string, unknown>) => {
+    const report = await refresh({
       claude: options.claude as boolean,
       codex: options.codex as boolean,
       opencode: options.opencode as boolean,

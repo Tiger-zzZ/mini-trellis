@@ -133,7 +133,7 @@ function hasProjectInstallation(cwd: string): boolean {
 
 function refreshUpgradedProject(cwd: string, runner: SpawnRunner): void {
   const recovery =
-    "CLI upgraded, but project refresh did not complete. Run mini-trellis refresh --dry-run to review, then mini-trellis refresh.";
+    "CLI upgraded, but project refresh did not complete. Run mini-trellis refresh to continue.";
   // Resolve npm's installed package, not the old executable or a project-local
   // binary on PATH. A separate process loads the newly installed templates.
   const root = runner(

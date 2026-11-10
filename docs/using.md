@@ -11,6 +11,21 @@ mini-trellis init -u your-name --claude
 
 Pass only the tools you use: `--claude`, `--codex`, `--opencode`, `--pi`, `--omp`, `--dsh`, `--cursor`, `--codebuddy`, `--zcode`, `--kiro`. Add `-y` to skip prompts. Init writes `.trellis/` and the host files. It does not create a Git commit. DeepSeek has no SessionStart, so call `mem recall` when project knowledge is needed. Cursor installs skills and a local `sessionStart` hook; Cursor-managed cloud agents do not run that hook, and a local hook run does not by itself mean the agent prompt received `additional_context`. Neither host parses local conversation history. OpenCode and Pi have no precise compact.
 
+## Upgrade and refresh
+
+With npm, update the CLI and then refresh this project:
+
+```bash
+npm install -g mini-trellis@latest
+mini-trellis refresh
+```
+
+From mini-trellis 0.3.8 onward, `mini-trellis upgrade` performs both steps for the current initialized project. An upgrade started by 0.3.7 or earlier still needs the manual refresh afterward.
+
+Normal updates to recorded templates run directly. When local edits or missing previous-version records cause a content conflict, refresh lists the files and asks once `[y/N]`. Enter `Y` to replace the listed files and complete the update. `N`, Enter or EOF leaves the project unchanged. Shared JSON settings are merged, `AGENTS.md` keeps instructions outside the managed block, and project knowledge stays in place. A missing or damaged manifest can be rebuilt through the same confirmation.
+
+`refresh --dry-run` previews the changes. With `--json` or in a non-interactive shell, a required overwrite remains pending and the command exits nonzero; run `mini-trellis refresh` in a terminal to answer the question. No question appears when no overwrite is needed.
+
 ## OpenCode V1 and V2
 
 Starting in 0.3.5, new projects default to OpenCode V2, the primary development target. Existing projects keep their installed protocol. No local binary or protocol prompt is required for a fresh install:

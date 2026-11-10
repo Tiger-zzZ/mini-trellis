@@ -237,14 +237,14 @@ mini-trellis migrate             # 确认后执行迁移
 <details>
 <summary><strong>查看日常升级（upgrade / refresh）与卸载说明</strong></summary>
 
-迁移或更新前请先备份 `.trellis/`、`AGENTS.md` 及已配置的 Agent 目录（包含被 Git 忽略的文件）。
+在项目根目录执行：
 
 ```bash
 mini-trellis upgrade             # 更新全局 CLI，并自动刷新当前已初始化的项目
 mini-trellis doctor              # 检查当前项目集成状态
 ```
 
-从 0.3.8 开始，`upgrade` 在 npm 安装成功后启动新版 CLI 刷新当前项目，其他项目按需单独刷新。遇到冲突时保留本地修改，并提示继续处理刷新；在未初始化的目录运行时只升级 CLI。
+从 0.3.8 开始，`upgrade` 在 npm 安装成功后启动新版 CLI 刷新当前项目，其他项目按需单独刷新。常规受管更新直接完成。遇到需要确认覆盖的文件时，刷新会列出文件并统一询问 `[y/N]`；输入 `Y` 覆盖这些文件并完成更新，输入 `N` 或直接回车保留全部项目文件。在未初始化的目录运行时只升级 CLI。
 
 使用 `npm install -g mini-trellis@latest`，或从 0.3.7 及更早版本执行 `upgrade` 时，更新后再刷新一次项目：
 

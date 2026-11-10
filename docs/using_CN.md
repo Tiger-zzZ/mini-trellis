@@ -11,6 +11,21 @@ mini-trellis init -u 你的名字 --claude
 
 只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--omp`、`--dsh`、`--cursor`、`--codebuddy`、`--zcode`、`--kiro`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 会装上技能和本地 `sessionStart`；Cursor 托管云端不跑这个 hook，本地 hook 跑过也不等于 Agent 提示里收到了 `additional_context`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
 
+## 升级与刷新
+
+通过 npm 更新时，先安装新版 CLI，再刷新当前项目：
+
+```bash
+npm install -g mini-trellis@latest
+mini-trellis refresh
+```
+
+从 mini-trellis 0.3.8 开始，`mini-trellis upgrade` 会在当前已初始化项目中完成这两步。从 0.3.7 或更早版本启动的升级，仍需随后手动执行一次 refresh。
+
+已记录的旧模板正常更新时直接完成。本地改动或缺失旧版本记录导致内容冲突时，refresh 列出文件并统一询问 `[y/N]`。输入 `Y` 覆盖列出的文件并完成更新；输入 `N`、直接回车或遇到 EOF，项目保持原样。共享 JSON 配置按结构合并，`AGENTS.md` 保留托管区块之外的说明，项目知识继续保留。清单缺失或损坏时，也可通过同一次确认重新生成。
+
+`refresh --dry-run` 只预览。使用 `--json` 或非交互运行时，需要确认覆盖的更新会保持未完成，命令返回非零；在终端运行 `mini-trellis refresh` 即可作答。无须覆盖时直接完成，不额外询问。
+
 ## OpenCode V1 与 V2
 
 从 0.3.5 起，新项目默认 OpenCode V2，后续功能以 V2 为主。已有项目沿用已安装的协议。新安装不要求本机存在二进制，也不再询问协议：
