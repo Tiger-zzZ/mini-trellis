@@ -93,6 +93,12 @@ const PLATFORM_CHECKS: Record<AITool, string[]> = {
   codex: [".codex/hooks/session-start.py", ".codex/hooks.json"],
   opencode: [".opencode/plugins/session-start.js"],
   pi: [".pi/extensions/mini-trellis/index.ts", ".pi/settings.json"],
+  omp: [
+    ".omp/extensions/mini-trellis/index.ts",
+    ".omp/prompts/mini-trellis-remember.md",
+    ".omp/skills/mini-trellis-session-insight/SKILL.md",
+    ".omp/skills/mini-trellis-update-spec/SKILL.md",
+  ],
   dsh: [
     ".dsh/skills/mini-trellis-session-insight/SKILL.md",
     ".dsh/skills/mini-trellis-remember/SKILL.md",
@@ -125,6 +131,7 @@ const TRIGGER_MARKERS: Record<AITool, [string, string]> = {
   codex: [".codex/hooks/session-start.py", "additional_context"],
   opencode: [".opencode/plugins/session-start.js", "messages.transform"],
   pi: [".pi/extensions/mini-trellis/index.ts", "before_agent_start"],
+  omp: [".omp/extensions/mini-trellis/index.ts", "before_agent_start"],
   dsh: [
     ".dsh/skills/mini-trellis-session-insight/SKILL.md",
     "no project SessionStart",
@@ -388,7 +395,7 @@ export function buildDoctorReport(cwd: string): DoctorReport {
       level: "warn",
       name: "platforms",
       detail:
-        "no host detected; choose --claude, --codex, --opencode, --pi, --dsh, --cursor, --codebuddy, --zcode, or --kiro",
+        "no host detected; choose --claude, --codex, --opencode, --pi, --omp, --dsh, --cursor, --codebuddy, --zcode, or --kiro",
     });
   }
 

@@ -14,7 +14,7 @@ import {
 import { collectClaudeTemplates, configureClaude } from "./claude.js";
 import { collectOpenCodeTemplates, configureOpenCode } from "./opencode.js";
 import { collectCodexTemplates, configureCodex } from "./codex.js";
-import { collectPiTemplates } from "./pi.js";
+import { collectPiTemplates, collectOmpTemplates } from "./pi.js";
 import { collectDshTemplates } from "./dsh.js";
 import { collectCursorTemplates } from "./cursor.js";
 import { collectCodeBuddyTemplates } from "./codebuddy.js";
@@ -64,6 +64,7 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
   },
   codex: { configure: configureCodex, collectTemplates: collectCodexTemplates },
   pi: fromTemplates(collectPiTemplates),
+  omp: fromTemplates(collectOmpTemplates),
   dsh: fromTemplates(collectDshTemplates),
   cursor: fromTemplates(collectCursorTemplates),
   codebuddy: fromTemplates(collectCodeBuddyTemplates),
@@ -92,6 +93,11 @@ const DETECT_FILES: Record<AITool, string[]> = {
     ".opencode/plugins/mini-trellis/index.js",
   ],
   pi: [".pi/extensions/mini-trellis/index.ts", ".pi/settings.json"],
+  omp: [
+    ".omp/extensions/mini-trellis/index.ts",
+    ".omp/prompts/mini-trellis-remember.md",
+    ".omp/skills/mini-trellis-session-insight/SKILL.md",
+  ],
   dsh: [".dsh/skills/mini-trellis-remember/SKILL.md"],
   cursor: [".cursor/hooks.json", ".cursor/hooks/session-start.py"],
   codebuddy: [
@@ -195,6 +201,9 @@ export function resolvePlatformOptions(
     const issue = fs.existsSync(config) ? readKiroHooksIssue(config) : null;
     if (issue)
       throw new ManagedAssetConflict(".kiro/hooks/mini-trellis.json", issue);
+  }
+  if (platforms.includes("omp")) {
+    assertProjectTemplatePaths(cwd, collectOmpTemplates());
   }
   return resolved;
 }

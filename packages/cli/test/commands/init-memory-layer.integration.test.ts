@@ -148,6 +148,29 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
     expect(fs.readFileSync(ignorePath, "utf8")).toBe(custom);
   });
 
+  it("tracks rendered Codex hooks when init uses a non-default Python command", async () => {
+    vi.stubEnv("TRELLIS_PYTHON_CMD", "python3 -X utf8");
+    try {
+      await init({ yes: true, force: true, user: "tester", codex: true });
+      const relative = ".codex/hooks/session-start.py";
+      const actual = fs.readFileSync(path.join(tmpDir, relative), "utf8");
+      expect(actual).toContain("python3 -X utf8 ./.trellis/scripts/add_session.py");
+      expect(readManifest(tmpDir).files[relative]).toBe(hashContent(actual));
+      expect(runRefresh({ cwd: tmpDir, codex: true }).ok).toBe(true);
+
+      // An owned old hook can then update normally, without confirmation.
+      const old = actual + "\n# previous official template\n";
+      fs.writeFileSync(path.join(tmpDir, relative), old);
+      const manifest = readManifest(tmpDir);
+      manifest.files[relative] = hashContent(old);
+      writeManifest(tmpDir, manifest);
+      expect(runRefresh({ cwd: tmpDir, codex: true }).ok).toBe(true);
+      expect(fs.readFileSync(path.join(tmpDir, relative), "utf8")).toBe(actual);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("writes research/, short spec, remember, and four-host SessionStart", () => {
     expect(fs.readFileSync(path.join(tmpDir, ".trellis/config.yaml"), "utf8")).toContain("session_auto_commit: false");
     expect(exists(tmpDir, ".trellis/research/README.md")).toBe(true);
@@ -254,6 +277,7 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
       codebuddy: true,
       zcode: true,
       kiro: true,
+      omp: true,
     });
     const surfaces = PLATFORM_IDS.map((host) => {
       const templates = collectPlatformTemplates(host);

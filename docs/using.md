@@ -1,6 +1,6 @@
 # Using it while you code
 
-Commands run from the project root. The record command is `/mini-trellis:remember` in Claude Code and OpenCode, `$mini-trellis-remember` in Codex/ZCode, and `/mini-trellis-remember` in Pi and Kiro. DeepSeek Harness, Cursor and CodeBuddy use the `mini-trellis-remember` skill; CodeBuddy CLI also has `/mini-trellis:remember`.
+Commands run from the project root. The record command is `/mini-trellis:remember` in Claude Code and OpenCode, `$mini-trellis-remember` in Codex/ZCode, and `/mini-trellis-remember` in Pi, OMP and Kiro. DeepSeek Harness, Cursor and CodeBuddy use the `mini-trellis-remember` skill; CodeBuddy CLI also has `/mini-trellis:remember`.
 
 ## Install on a new project
 
@@ -9,7 +9,22 @@ npm install -g mini-trellis
 mini-trellis init -u your-name --claude
 ```
 
-Pass only the tools you use: `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--cursor`, `--codebuddy`, `--zcode`, `--kiro`. Add `-y` to skip prompts. Init writes `.trellis/` and the host files. It does not create a Git commit. DeepSeek has no SessionStart, so call `mem recall` when project knowledge is needed. Cursor installs skills and a local `sessionStart` hook; Cursor-managed cloud agents do not run that hook, and a local hook run does not by itself mean the agent prompt received `additional_context`. Neither host parses local conversation history. OpenCode and Pi have no precise compact.
+Pass only the tools you use: `--claude`, `--codex`, `--opencode`, `--pi`, `--omp`, `--dsh`, `--cursor`, `--codebuddy`, `--zcode`, `--kiro`. Add `-y` to skip prompts. Init writes `.trellis/` and the host files. It does not create a Git commit. DeepSeek has no SessionStart, so call `mem recall` when project knowledge is needed. Cursor installs skills and a local `sessionStart` hook; Cursor-managed cloud agents do not run that hook, and a local hook run does not by itself mean the agent prompt received `additional_context`. Neither host parses local conversation history. OpenCode and Pi have no precise compact.
+
+## Upgrade and refresh
+
+With npm, update the CLI and then refresh this project:
+
+```bash
+npm install -g mini-trellis@latest
+mini-trellis refresh
+```
+
+From mini-trellis 0.3.8 onward, `mini-trellis upgrade` performs both steps for the current initialized project. An upgrade started by 0.3.7 or earlier still needs the manual refresh afterward.
+
+Normal updates to recorded templates run directly. When local edits or missing previous-version records cause a content conflict, refresh lists the files and asks once `[y/N]`. Enter `Y` to replace the listed files and complete the update. `N`, Enter or EOF leaves the project unchanged. Shared JSON settings are merged, `AGENTS.md` keeps instructions outside the managed block, and project knowledge stays in place. A missing or damaged manifest can be rebuilt through the same confirmation.
+
+`refresh --dry-run` previews the changes. For replacements requiring confirmation, `--json` and non-interactive runs report the affected files and return exit code 1; run `mini-trellis refresh` in a terminal to confirm and complete those replacements. Updates without content conflicts complete directly.
 
 ## OpenCode V1 and V2
 
@@ -41,6 +56,42 @@ Use `1` to switch back. Only an unchanged, manifest-owned old entry is removed. 
 Uninstall preserves the shared `.opencode/package.json`, including SDK dependencies used by the host or other plugins.
 
 V1 1.18.29 and V2 2.2.0 are the protocol targets. The V1 SQLite reader does not parse V2's `session_v2`/`session_message` history. `opencode-v2-history-unsupported` means those conversations were skipped, even when there are no hits. Project Markdown and V1 history remain available. Do not treat this warning as evidence that the project has no memory.
+
+<a id="pi-and-omp"></a>
+
+## Pi and OMP
+
+Use mini-trellis 0.3.8 or later. Choose the host you run:
+
+```bash
+# Pi
+mini-trellis init -u your-name --pi -y
+pi
+
+# Oh My Pi (OMP)
+mini-trellis init -u your-name --omp -y
+omp
+```
+
+Run these commands from the project root. Pi uses `.pi/extensions/` and `.pi/prompts/`, with shared skills under `.agents/skills/`. OMP uses its native `.omp/extensions/`, `.omp/prompts/` and `.omp/skills/`. Both load the same short memory entry through `before_agent_start`; OMP discovers the installed assets automatically. To use both in one project, initialize with `--pi --omp`.
+
+For an existing mini-trellis project, update its host assets with the new CLI:
+
+```bash
+mini-trellis refresh --pi
+# Add or update OMP in the same project:
+mini-trellis refresh --omp
+```
+
+Review Pi's project trust prompt, then start a new host session after installing or refreshing. Keep your model configured in Pi or OMP as usual. In the chat, either record the discussion with `/mini-trellis-remember` or supply the confirmed conclusion directly:
+
+```text
+/mini-trellis-remember Only idempotent callbacks auto-retry, at most 3 times; the first delay is 427 ms. Non-idempotent callbacks require manual handling.
+```
+
+The agent updates the existing topic, reads it back, then writes a journal entry linking to it. In a later session, ask the agent for the callback retry rule, or run `mini-trellis mem recall "callback retry"` in a terminal. `mini-trellis-session-insight` can organize a supplied Markdown/text export into the existing project documents; `mini-trellis-update-spec` maintains lasting contracts. Ask for either skill by name in the chat.
+
+Pi local conversation history is searchable. OMP recall uses saved project Markdown; to organize an OMP conversation, supply a Markdown/text export. See the official [Pi prompt template](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/prompt-templates.md) and [OMP discovery](https://github.com/can1357/oh-my-pi/blob/v18.18.3/docs/extension-loading.md) documentation.
 
 ## CodeBuddy CLI and IDE
 
@@ -276,7 +327,7 @@ mini-trellis doctor
 | `legacy-trellis` | A Trellis workflow is still present. Run `mini-trellis migrate --dry-run`. |
 | `memory-layer` | `.trellis` or `add_session.py` is missing. Run `mini-trellis init`. |
 | `instructions` | `AGENTS.md` is missing the managed block. Run init again. |
-| `platforms` | No host was found. Pass `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--cursor`, `--codebuddy`, `--zcode`, or `--kiro`. |
+| `platforms` | No host was found. Pass `--claude`, `--codex`, `--opencode`, `--pi`, `--omp`, `--dsh`, `--cursor`, `--codebuddy`, `--zcode`, or `--kiro`. |
 | `<host>-runtime` unknown | No real hook run is on disk yet. Start one host session. For Codex, trust the project hook first. For Cursor, a later hook record still does not prove the short entry reached the model prompt. |
 | `kiro-config` | Check `.kiro/hooks/mini-trellis.json` for valid JSON and the SessionStart entry; review `mini-trellis refresh --kiro --dry-run` before applying updates. |
 | `zcode-config` / `zcode-trust` | Invalid or disabled project hooks, missing registration, or host-owned trust not checked. Use ZCode review/status; file presence does not establish delivery. |

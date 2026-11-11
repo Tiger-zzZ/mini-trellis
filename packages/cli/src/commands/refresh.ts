@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import readline from "node:readline";
 import chalk from "chalk";
 import { AI_TOOLS, type AITool, type CliFlag } from "../types/ai-tools.js";
 import {
@@ -19,7 +20,10 @@ import {
   openCodeSwitchFiles,
   cleanupOpenCodeEntryDirectory,
 } from "../utils/opencode-version.js";
-import { ManagedAssetConflict } from "../utils/managed-path-safety.js";
+import {
+  assertSafeManagedPath,
+  ManagedAssetConflict,
+} from "../utils/managed-path-safety.js";
 import { RETIRED_SCRIPT_MODULES } from "./migrate.js";
 import { collectTrellisScriptTemplates } from "../templates/extract.js";
 import { PATHS } from "../constants/paths.js";
@@ -34,6 +38,7 @@ import {
   hashFile,
   readManifest,
   updateManifestForTemplates,
+  MANIFEST_PATH,
 } from "../utils/managed-manifest.js";
 import { writeFileAtomic } from "../utils/atomic-write.js";
 import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
@@ -54,6 +59,14 @@ export interface RefreshItem {
   path: string;
   action: RefreshAction;
   detail: string;
+  canOverwrite?: boolean;
+}
+
+export interface RefreshOptions extends Partial<Record<CliFlag, boolean>> {
+  cwd?: string;
+  dryRun?: boolean;
+  json?: boolean;
+  opencodeVersion?: string;
 }
 
 export interface RefreshReport {
@@ -152,6 +165,29 @@ export function buildRefreshPlan(
   }
   const templates = collectTrellisScriptTemplates();
   addPlatformTemplates(templates, platforms, context);
+  const root = fs.realpathSync(cwd);
+  for (const relative of [
+    ...templates.keys(),
+    "AGENTS.md",
+    MANIFEST_PATH,
+    ...RETIRED_SCRIPT_MODULES.map((name) => `${PATHS.SCRIPTS}/common/${name}`),
+  ]) {
+    try {
+      assertSafeManagedPath(root, relative, { followLeaf: true });
+    } catch (error) {
+      return {
+        ok: false,
+        platforms,
+        items: [
+          {
+            path: relative,
+            action: "conflict",
+            detail: error instanceof Error ? error.message : String(error),
+          },
+        ],
+      };
+    }
+  }
   const manifest = readManifest(cwd);
   const items: RefreshItem[] = [];
 
@@ -215,7 +251,11 @@ export function buildRefreshPlan(
       items.push({
         path: relative,
         action: "conflict",
-        detail: "local changes kept; refresh skipped",
+        detail:
+          actual === null
+            ? "could not read the existing file"
+            : "content differs from the new template; overwrite confirmation required",
+        canOverwrite: actual !== null,
       });
     }
   }
@@ -329,33 +369,18 @@ function applyRefresh(cwd: string, report: RefreshReport): void {
   );
 }
 
-export function runRefresh(
-  options: {
-    cwd?: string;
-    dryRun?: boolean;
-    json?: boolean;
-    claude?: boolean;
-    codex?: boolean;
-    opencode?: boolean;
-    pi?: boolean;
-    dsh?: boolean;
-    cursor?: boolean;
-    codebuddy?: boolean;
-    zcode?: boolean;
-    kiro?: boolean;
-    opencodeVersion?: string;
-  } = {},
+function finishRefresh(
+  cwd: string,
+  report: RefreshReport,
+  options: RefreshOptions,
 ): RefreshReport {
-  const cwd = options.cwd ?? process.cwd();
-  const platforms = resolveRefreshPlatforms(cwd, options);
-  const report = buildRefreshPlan(cwd, platforms, options);
   if (!options.dryRun && report.ok) applyRefresh(cwd, report);
 
   if (options.json) {
     console.log(JSON.stringify(report, null, 2));
   } else {
     console.log(chalk.bold("mini-trellis refresh\n"));
-    if (platforms.length === 0)
+    if (report.platforms.length === 0)
       console.log(chalk.yellow("No configured platforms found."));
     for (const item of report.items) {
       const symbol =
@@ -379,10 +404,68 @@ export function runRefresh(
     console.log();
     if (options.dryRun) console.log(chalk.gray("Dry run: no files changed."));
     else if (report.ok) console.log(chalk.green("Refresh complete."));
-    else
-      console.log(
-        chalk.yellow("Refresh stopped at conflicts; local changes were kept."),
-      );
+    else console.log(chalk.yellow("Refresh not applied; no files changed."));
   }
   return report;
+}
+
+/** Non-interactive refresh, also used by integrations and previews. */
+export function runRefresh(options: RefreshOptions = {}): RefreshReport {
+  const cwd = options.cwd ?? process.cwd();
+  const report = buildRefreshPlan(
+    cwd,
+    resolveRefreshPlatforms(cwd, options),
+    options,
+  );
+  return finishRefresh(cwd, report, options);
+}
+
+function confirmOverwrite(): Promise<boolean> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  return new Promise((resolve) => {
+    rl.once("close", () => resolve(false));
+    rl.once("SIGINT", () => rl.close());
+    rl.question(
+      "Overwrite these files with the new templates? [y/N] ",
+      (answer) => {
+        resolve(/^y$/i.test(answer.trim()));
+        rl.close();
+      },
+    );
+  });
+}
+
+/** One confirmation for content conflicts, shared by manual and upgrade refresh. */
+export async function refresh(
+  options: RefreshOptions = {},
+): Promise<RefreshReport> {
+  const cwd = options.cwd ?? process.cwd();
+  const report = buildRefreshPlan(
+    cwd,
+    resolveRefreshPlatforms(cwd, options),
+    options,
+  );
+  const conflicts = report.items.filter((item) => item.action === "conflict");
+  if (
+    !options.dryRun &&
+    !options.json &&
+    conflicts.length > 0 &&
+    conflicts.every((item) => item.canOverwrite) &&
+    process.stdin.isTTY &&
+    process.stdout.isTTY
+  ) {
+    console.log("The following files will be replaced with the new templates:");
+    for (const item of conflicts) console.log(`  ${item.path}`);
+    if (await confirmOverwrite()) {
+      for (const item of conflicts) {
+        item.action = "update";
+        item.detail = "replace with the new template (confirmed)";
+      }
+      report.ok = true;
+    }
+  }
+  return finishRefresh(cwd, report, options);
 }

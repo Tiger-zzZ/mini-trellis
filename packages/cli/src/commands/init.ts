@@ -22,6 +22,7 @@ import {
 import {
   getPythonCommandForPlatform,
   setResolvedPythonCommand,
+  renderTemplateMap,
   type PlatformConfigureOptions,
 } from "../configurators/shared.js";
 import { AI_TOOLS, type CliFlag } from "../types/ai-tools.js";
@@ -219,6 +220,7 @@ export interface InitOptions {
   opencode?: boolean;
   codex?: boolean;
   pi?: boolean;
+  omp?: boolean;
   dsh?: boolean;
   cursor?: boolean;
   codebuddy?: boolean;
@@ -291,7 +293,7 @@ function updateManagedManifest(
     if (!platformId) continue;
     const templates = collectPlatformTemplates(platformId, context);
     if (!templates) continue;
-    for (const [relative, content] of templates) {
+    for (const [relative, content] of renderTemplateMap(templates)) {
       managedTemplates.set(relative, content);
     }
   }
@@ -603,7 +605,7 @@ export async function init(options: InitOptions): Promise<void> {
   if (tools.includes("claude") || tools.includes("opencode")) {
     recordCommands.push("/mini-trellis:remember");
   }
-  if (tools.includes("pi") || tools.includes("kiro"))
+  if (tools.includes("pi") || tools.includes("omp") || tools.includes("kiro"))
     recordCommands.push("/mini-trellis-remember");
   if (tools.includes("kiro"))
     console.log(

@@ -2,9 +2,13 @@
 
 ## v0.3.8
 
+- Manual `refresh` and automatic refresh after `upgrade` share one Y/N confirmation for managed files with content conflicts. Y applies the replacements; N, empty input and EOF keep project files. JSON and non-interactive runs report files requiring confirmation; `--dry-run` previews the changes.
+- Records rendered host templates in the init manifest, fixing clean Codex installations with a non-default Python command being reported as locally modified on refresh.
+- Adds `init --omp` and `refresh --omp` for native Oh My Pi extension, prompt and skill discovery, reusing the Pi startup entry.
+- Fixes Pi remember prompts dropping text supplied after `/mini-trellis-remember`; Pi and OMP templates now pass arguments explicitly. Adds bilingual setup and recording examples.
 - Adds `init --kiro` and `refresh --kiro` for Kiro CLI V3 / IDE 1.x, with project skills and a standalone SessionStart hook. Includes migration, diagnostics and uninstall.
 - Runs project refresh automatically after a successful `upgrade` in the current initialized project, using a new process from the newly installed global package. Other directories receive the CLI upgrade only.
-- Keeps local edits when refresh reports a conflict and provides the remaining refresh command. `upgrade --dry-run` previews both steps.
+- `upgrade --dry-run` previews the CLI upgrade and project refresh.
 
 See the [v0.3.8 release notes](docs/releases/v0.3.8.md).
 
