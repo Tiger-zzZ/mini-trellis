@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="112" viewBox="0 0 520 112" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">mini-trellis</title>
+  <desc id="desc">The mini-trellis pixel m symbol and full project name, for light backgrounds.</desc>
+  <rect x="4" y="12" width="88" height="88" rx="24" fill="#173F35"/>
+  <path d="M20 74V38H32V32H44V38H52V32H64V38H76V74H64V46H56V74H44V46H32V74H20Z" fill="#B8E7CB"/>
+  <path d="M64 32H76V44H64V32Z" fill="#F0C879"/>
+  <text x="116" y="75" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="56" font-weight="700" letter-spacing="-3" fill="#1F332B"><tspan fill="#28785E">mini-</tspan>trellis</text>
+</svg>

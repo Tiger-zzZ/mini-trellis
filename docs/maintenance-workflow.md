@@ -1,12 +1,12 @@
 # mini-trellis 维护与发布工作流
 
-适用于功能修复、PR 验收、合并、版本标签和官网同步。以当前需求为范围，沿用 Trellis 式短入口、共享技能与按需读取的设计；实现和测试达到使用效果后进入交付。
+适用于功能修复、PR 验收、合并、版本标签和官网同步。以当前需求为范围，沿用短入口、共享技能与按需读取的设计；实现和测试达到使用效果后进入交付。
 
-## 默认分工与真源
+## 分工与维护位置
 
 - Agent 完成代码修复、相称验收、文档更新，以及已获授权的推送、PR 合并、标签和官网发布。会话中的明确授权持续有效，例行后续步骤直接执行。
 - 维护者手动发布 npm。默认流程到代码、标签和官网交付为止；另有明确授权时才代为发布 npm。
-- [代码仓库](https://github.com/Tiger-zzZ/mini-trellis)保存实现、README、版本说明和本工作流；[官网仓库](https://github.com/mini-trellis/mini-trellis.github.io)保存双语站点。官网链接到本工作流，流程只维护这一份。
+- [代码仓库](https://github.com/Tiger-zzZ/mini-trellis)保存实现、README、双语使用指南、版本说明和本工作流；[官网仓库](https://github.com/mini-trellis/mini-trellis.github.io)保存首页、版式和由指南生成的双语页面。官网链接到本工作流。
 - 两个包的版本以 `packages/core/package.json`、`packages/cli/package.json` 为准，保持一致。标签使用精确的 `vX.Y.Z`，例如 `v0.3.7`。
 
 ## 1. 确认需求与基线
@@ -90,3 +90,22 @@ node packages/cli/scripts/release-preflight.js verify-npm
 以上命令用于稳定版；预发布版按版本后缀选择 dist-tag。发布前查看当前 CI 配置，判断是否有自动发布；标签推送本身不能作为 npm 已发布的依据。
 
 最终交付列出合并 PR、主分支和 tag 提交、官网部署与链接、关键验证结果及 npm 分工。达到这些条件后结束本次维护。
+
+
+<a id="documentation-source"></a>
+## 文档正文与官网同步
+
+主仓库 `docs/index.md` / `docs/index_CN.md` 是完整指南的入口，`docs/` 下的配对 Markdown 与根目录贡献指南是正文维护位置。官网对应页面由 `scripts/sync-docs-site.py` 生成，front matter 的 `source_path` 指向原文件。官网首页、版式、搜索和历史版本页在官网仓库维护。
+
+在主仓库执行，`--site` 显式指定官网工作副本：
+
+```bash
+python3 scripts/sync-docs-site.py --site /path/to/mini-trellis.github.io
+python3 scripts/sync-docs-site.py --site /path/to/mini-trellis.github.io --check
+```
+
+脚本同步明确列出的指南、导航、CLI 版本元数据和 SVG 资源，并转换正文链接。它不删除文件，不提交、不推送、不构建或发布；`--check` 只报告差异。新的指南需加入脚本中的导航清单，并同时提供中英文文件。正文链接、旧页面地址与语言切换需要保持可用。
+
+官网在其工作目录按 README 的步骤构建。检查生成页的本地链接和锚点、语言切换、搜索、复制命令、移动端菜单，以及桌面和移动端的长表格/代码块。两个仓库分别执行 `git diff --check`。历史评测保留实际测量版本；公开能力以选定的发布基线为准。
+
+本地整理可以只交付 worktree 与预览结果。推送、合并和部署按当前会话的明确授权执行。
