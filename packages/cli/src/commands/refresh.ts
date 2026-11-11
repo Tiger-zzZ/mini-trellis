@@ -342,6 +342,7 @@ export function runRefresh(
     cursor?: boolean;
     codebuddy?: boolean;
     zcode?: boolean;
+    kiro?: boolean;
     opencodeVersion?: string;
   } = {},
 ): RefreshReport {

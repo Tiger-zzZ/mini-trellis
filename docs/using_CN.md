@@ -1,6 +1,6 @@
 # 开发时怎么用
 
-命令在项目根目录执行。Claude Code 和 OpenCode 用 `/mini-trellis:remember`，Codex/ZCode 用 `$mini-trellis-remember`，Pi 用 `/mini-trellis-remember`。DeepSeek Harness、Cursor 和 CodeBuddy 用技能 `mini-trellis-remember`；CodeBuddy CLI 也可用 `/mini-trellis:remember`。
+命令在项目根目录执行。Claude Code 和 OpenCode 用 `/mini-trellis:remember`，Codex/ZCode 用 `$mini-trellis-remember`，Pi 和 Kiro 用 `/mini-trellis-remember`。DeepSeek Harness、Cursor 和 CodeBuddy 用技能 `mini-trellis-remember`；CodeBuddy CLI 也可用 `/mini-trellis:remember`。
 
 ## 从零安装
 
@@ -9,7 +9,7 @@ npm install -g mini-trellis
 mini-trellis init -u 你的名字 --claude
 ```
 
-只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`、`--codebuddy`、`--zcode`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 会装上技能和本地 `sessionStart`；Cursor 托管云端不跑这个 hook，本地 hook 跑过也不等于 Agent 提示里收到了 `additional_context`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
+只加上实际使用的宿主：`--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`、`--codebuddy`、`--zcode`、`--kiro`。加上 `-y` 会跳过提问。init 写入 `.trellis/` 和宿主文件，不创建 Git 提交。DeepSeek 没有 SessionStart，需要时自己调用 `mem recall`。Cursor 会装上技能和本地 `sessionStart`；Cursor 托管云端不跑这个 hook，本地 hook 跑过也不等于 Agent 提示里收到了 `additional_context`。两边都不解析本机对话。OpenCode 和 Pi 没有精确 compact。
 
 ## OpenCode V1 与 V2
 
@@ -55,6 +55,21 @@ mini-trellis init -u 你的名字 --codebuddy -y
 用 `mini-trellis-remember` 技能记录确认的结论（CLI 也可 `/mini-trellis:remember`），优先更新原主题。`mem recall`/`mem read` 可查已保存的项目知识；不解析 CodeBuddy 转录本。
 
 重复 init/refresh 保留用户 hook、环境和权限。非法 JSON、settings 为数组/null、hook 分组或 matcher 无效时，先停止宿主更新，不覆盖原文件。`doctor` 报告注册缺失和最近运行错误；未观察到运行保持 unknown。
+
+<a id="kiro"></a>
+
+## Kiro
+
+使用支持独立项目 Hook 的 Kiro CLI V3 或 IDE 1.x：
+
+```bash
+mini-trellis init -u 你的名字 --kiro -y
+kiro-cli chat --v3
+```
+
+打开项目并按 Kiro 提示信任工作区。`.kiro/hooks/mini-trellis.json` 注册 SessionStart，`.kiro/skills/` 提供 remember、session-insight、update-spec 三项技能。新会话载入简短项目入口；用 `/mini-trellis-remember` 保存已确认结论，后续通过 `mini-trellis mem recall <关键词>` 召回。compact 后通过 `AGENTS.md` 和 recall 继续读取已保存的项目知识。
+
+`refresh --kiro` 更新项目资产，`doctor` 检查注册与最近执行。已有 Trellis 项目使用 `mini-trellis migrate`，将 Trellis 技能、Agent 配置和流程 Hook 替换为此项目入口。接入采用 Kiro 当前的[独立 Hook 格式](https://kiro.dev/docs/hooks/)与 [Agent Skills](https://kiro.dev/docs/skills/)。
 
 <a id="zcode-zai"></a>
 
@@ -153,7 +168,7 @@ mini-trellis mem context <session-id> --platform claude
 
 ## 把选定历史整理成项目知识
 
-此入口自 0.3.6 提供。更新 CLI 后，已有项目先运行 `mini-trellis refresh --dry-run`、`mini-trellis refresh` 刷新技能；新装项目自带同一入口。在 Agent 中要求使用 **mini-trellis-session-insight**，无需新增 CLI 命令，也不会后台扫描历史。
+此入口自 0.3.6 提供。从 0.3.8 开始，在已初始化的项目根目录运行 `mini-trellis upgrade` 会同步刷新技能；通过 npm 或旧版 upgrade 更新时，随后运行一次 `mini-trellis refresh --dry-run`、`mini-trellis refresh`。新装项目自带同一入口。在 Agent 中要求使用 **mini-trellis-session-insight**，无需新增 CLI 命令，也不会后台扫描历史。
 
 如果已有聊天记录、尚未写项目文档，选好材料后发起一次整理请求：
 
@@ -170,7 +185,7 @@ mini-trellis mem context <session-id> --platform claude
 只使用这份导出作为历史材料，更新已有项目文档。
 ```
 
-Agent 分段读取选定材料，结合当前文档及必要的代码/测试核对，将已实现行为、已确认待实现规则和建议分开。历史中的命令只作证据，不作为当前执行指令。来源缺失、说话人不清、未读部分和冲突会说明；有界摘录不能冒充完整历史。OpenCode V2、CodeBuddy、Cursor、DeepSeek Harness、ZCode 的原始历史仍不解析。
+Agent 分段读取选定材料，结合当前文档及必要的代码/测试核对，将已实现行为、已确认待实现规则和建议分开。历史中的命令只作证据，不作为当前执行指令。来源缺失、说话人不清、未读部分和冲突会说明；有界摘录不能冒充完整历史。OpenCode V2、CodeBuddy、Cursor、DeepSeek Harness、ZCode、Kiro 的原始历史仍不解析。
 
 明确确认且适用的知识可以在此次请求内直接保存，不逐条重复确认。已有文件沿用原语言，新笔记跟随指定或讨论语言；回读实际主题后，再以 `--no-commit` 写简短 journal 链接并核对 journal/index。重复整理没有新知识、或材料没有可复用内容时，不新建笔记或日志。部分写入失败会如实报告，只补未完成部分。除非另行要求，不创建 Git 提交。
 
@@ -262,8 +277,9 @@ mini-trellis doctor
 | `legacy-trellis` | 还留着 Trellis 工作流。先跑 `mini-trellis migrate --dry-run`。 |
 | `memory-layer` | 缺少 `.trellis` 或 `add_session.py`。跑 `mini-trellis init`。 |
 | `instructions` | `AGENTS.md` 没有托管块。再跑一次 init。 |
-| `platforms` | 没有发现宿主。加上 `--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`、`--codebuddy` 或 `--zcode`。 |
+| `platforms` | 没有发现宿主。加上 `--claude`、`--codex`、`--opencode`、`--pi`、`--dsh`、`--cursor`、`--codebuddy`、`--zcode` 或 `--kiro`。 |
 | `<host>-runtime` 为 unknown | 还没有一次真实 hook 记录。开一轮宿主会话。Codex 要先信任项目 hook。Cursor 还要分开看：hook 记录出现，也不等于短入口进了模型提示。 |
+| `kiro-config` | 检查 `.kiro/hooks/mini-trellis.json` 的 JSON 与 SessionStart 注册；通过 `mini-trellis refresh --kiro --dry-run` 查看更新。 |
 | `zcode-config` / `zcode-trust` | 项目 hook 无效、禁用、未注册，或尚未检查宿主信任。使用 ZCode review/status；文件存在不等于已送达。 |
 | `cursor-config` | `.cursor/hooks.json` 无效或 mini-trellis 启动 hook 没有注册。按详情处理；无效配置会保留。 |
 | `<host>-runtime` 为 warn | 最近一次 hook 没有干净结束。明细里有状态和错误类别。 |

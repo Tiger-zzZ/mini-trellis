@@ -18,6 +18,7 @@ import { collectPiTemplates } from "./pi.js";
 import { collectDshTemplates } from "./dsh.js";
 import { collectCursorTemplates } from "./cursor.js";
 import { collectCodeBuddyTemplates } from "./codebuddy.js";
+import { collectKiroTemplates } from "./kiro.js";
 import { collectZCodeTemplates } from "./zcode.js";
 
 import {
@@ -31,6 +32,7 @@ import {
   parseOpenCodeVersion,
   resolveOpenCodeVersion,
 } from "../utils/opencode-version.js";
+import { readKiroHooksIssue } from "../utils/kiro-hooks.js";
 import { readCodeBuddySettingsIssue } from "../utils/codebuddy-settings.js";
 import { readZCodeConfigIssue } from "../utils/zcode-config.js";
 import { ManagedAssetConflict } from "../utils/managed-path-safety.js";
@@ -66,6 +68,7 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
   cursor: fromTemplates(collectCursorTemplates),
   codebuddy: fromTemplates(collectCodeBuddyTemplates),
   zcode: fromTemplates(collectZCodeTemplates),
+  kiro: fromTemplates(collectKiroTemplates),
 };
 
 export const PLATFORM_IDS = Object.keys(AI_TOOLS) as AITool[];
@@ -95,6 +98,11 @@ const DETECT_FILES: Record<AITool, string[]> = {
     ".codebuddy/settings.json",
     ".codebuddy/hooks/session-start.py",
     ".codebuddy/commands/mini-trellis/remember.md",
+  ],
+  kiro: [
+    ".kiro/hooks/mini-trellis.json",
+    ".kiro/hooks/session-start.py",
+    ".kiro/skills/mini-trellis-remember/SKILL.md",
   ],
   zcode: [
     ".zcode/config.json",
@@ -180,6 +188,13 @@ export function resolvePlatformOptions(
     const config = path.join(cwd, ".zcode/config.json");
     const issue = fs.existsSync(config) ? readZCodeConfigIssue(config) : null;
     if (issue) throw new ManagedAssetConflict(".zcode/config.json", issue);
+  }
+  if (platforms.includes("kiro")) {
+    assertProjectTemplatePaths(cwd, collectKiroTemplates());
+    const config = path.join(cwd, ".kiro/hooks/mini-trellis.json");
+    const issue = fs.existsSync(config) ? readKiroHooksIssue(config) : null;
+    if (issue)
+      throw new ManagedAssetConflict(".kiro/hooks/mini-trellis.json", issue);
   }
   return resolved;
 }

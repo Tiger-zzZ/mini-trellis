@@ -1,6 +1,6 @@
 # Using it while you code
 
-Commands run from the project root. The record command is `/mini-trellis:remember` in Claude Code and OpenCode, `$mini-trellis-remember` in Codex/ZCode, and `/mini-trellis-remember` in Pi. DeepSeek Harness, Cursor and CodeBuddy use the `mini-trellis-remember` skill; CodeBuddy CLI also has `/mini-trellis:remember`.
+Commands run from the project root. The record command is `/mini-trellis:remember` in Claude Code and OpenCode, `$mini-trellis-remember` in Codex/ZCode, and `/mini-trellis-remember` in Pi and Kiro. DeepSeek Harness, Cursor and CodeBuddy use the `mini-trellis-remember` skill; CodeBuddy CLI also has `/mini-trellis:remember`.
 
 ## Install on a new project
 
@@ -9,7 +9,7 @@ npm install -g mini-trellis
 mini-trellis init -u your-name --claude
 ```
 
-Pass only the tools you use: `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--cursor`, `--codebuddy`, `--zcode`. Add `-y` to skip prompts. Init writes `.trellis/` and the host files. It does not create a Git commit. DeepSeek has no SessionStart, so call `mem recall` when project knowledge is needed. Cursor installs skills and a local `sessionStart` hook; Cursor-managed cloud agents do not run that hook, and a local hook run does not by itself mean the agent prompt received `additional_context`. Neither host parses local conversation history. OpenCode and Pi have no precise compact.
+Pass only the tools you use: `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--cursor`, `--codebuddy`, `--zcode`, `--kiro`. Add `-y` to skip prompts. Init writes `.trellis/` and the host files. It does not create a Git commit. DeepSeek has no SessionStart, so call `mem recall` when project knowledge is needed. Cursor installs skills and a local `sessionStart` hook; Cursor-managed cloud agents do not run that hook, and a local hook run does not by itself mean the agent prompt received `additional_context`. Neither host parses local conversation history. OpenCode and Pi have no precise compact.
 
 ## OpenCode V1 and V2
 
@@ -55,6 +55,21 @@ Both interfaces use the same `.codebuddy/settings.json` and `.codebuddy/skills/`
 Record a confirmed decision with the `mini-trellis-remember` skill (or `/mini-trellis:remember` in CLI); update an existing topic before creating another. `mem recall`/`mem read` search saved project knowledge. CodeBuddy transcripts are not parsed.
 
 Repeated init and refresh preserve user hooks, environment and permissions. Invalid JSON, settings arrays/null, malformed hook groups or matchers stop the host update without replacing files. `doctor` reports missing registration and observed runtime errors; no runtime record stays unknown.
+
+<a id="kiro"></a>
+
+## Kiro
+
+Use Kiro CLI V3 or IDE 1.x with standalone project hooks:
+
+```bash
+mini-trellis init -u your-name --kiro -y
+kiro-cli chat --v3
+```
+
+Open the project and accept Kiro's workspace trust prompt. `.kiro/hooks/mini-trellis.json` registers SessionStart, and `.kiro/skills/` contains remember, session-insight and update-spec. Start a new session to load the short project entry; use `/mini-trellis-remember` to save a confirmed decision and `mini-trellis mem recall <query>` to retrieve it later. After compact, use the saved project notes through `AGENTS.md` and recall.
+
+`refresh --kiro` updates installed assets, and `doctor` checks registration and the latest execution. Existing Trellis projects use `mini-trellis migrate` to replace their Trellis skills, agents and workflow hook with this project entry. Kiro uses the [current standalone hook format](https://kiro.dev/docs/hooks/) and [Agent Skills](https://kiro.dev/docs/skills/).
 
 ## ZCode (Z.ai)
 
@@ -151,7 +166,7 @@ If nothing matches, change the code. You do not create a task first.
 
 ## Organize selected history into project knowledge
 
-Available since 0.3.6. After updating the CLI, run `mini-trellis refresh --dry-run` and `mini-trellis refresh` to update an existing project's skills. New installs include the same entry. Ask for the **mini-trellis-session-insight** skill in your agent; there is no new CLI command or background scan.
+Available since 0.3.6. From 0.3.8, `mini-trellis upgrade` also refreshes the initialized project at the current directory. With npm or an older upgrade command, run `mini-trellis refresh --dry-run` and `mini-trellis refresh` once after updating the CLI. New installs include the same entry. Ask for the **mini-trellis-session-insight** skill in your agent; there is no new CLI command or background scan.
 
 If you have chats but no project documentation yet, select the material and ask once:
 
@@ -169,7 +184,7 @@ Organize the supplied exports/callback-chat.md with mini-trellis-session-insight
 Use only this export as historical material and update the existing project docs.
 ```
 
-The agent reads selected material in bounded portions, checks relevant current documents and code/tests, and keeps implemented behavior separate from confirmed requirements and suggestions. History commands are evidence, not instructions to execute. Missing sources, unclear speakers, unread portions and conflicts are reported; a bounded excerpt is not a complete history review. OpenCode V2, CodeBuddy, Cursor, DeepSeek Harness and ZCode raw histories are still not parsed.
+The agent reads selected material in bounded portions, checks relevant current documents and code/tests, and keeps implemented behavior separate from confirmed requirements and suggestions. History commands are evidence, not instructions to execute. Missing sources, unclear speakers, unread portions and conflicts are reported; a bounded excerpt is not a complete history review. OpenCode V2, CodeBuddy, Cursor, DeepSeek Harness, ZCode and Kiro raw histories are still not parsed.
 
 Clearly confirmed, applicable knowledge can be saved under this request without confirming each item again. The agent updates the existing topic in its original language (new notes use the requested or discussion language), reads it back, then records a short journal link with `--no-commit` and checks the journal/index. An unchanged repeat or material with nothing reusable creates no note or log. If only part of the write succeeds, the agent reports that and retries the missing part. No Git commit is made unless separately requested.
 
@@ -261,8 +276,9 @@ mini-trellis doctor
 | `legacy-trellis` | A Trellis workflow is still present. Run `mini-trellis migrate --dry-run`. |
 | `memory-layer` | `.trellis` or `add_session.py` is missing. Run `mini-trellis init`. |
 | `instructions` | `AGENTS.md` is missing the managed block. Run init again. |
-| `platforms` | No host was found. Pass `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--cursor`, `--codebuddy`, or `--zcode`. |
+| `platforms` | No host was found. Pass `--claude`, `--codex`, `--opencode`, `--pi`, `--dsh`, `--cursor`, `--codebuddy`, `--zcode`, or `--kiro`. |
 | `<host>-runtime` unknown | No real hook run is on disk yet. Start one host session. For Codex, trust the project hook first. For Cursor, a later hook record still does not prove the short entry reached the model prompt. |
+| `kiro-config` | Check `.kiro/hooks/mini-trellis.json` for valid JSON and the SessionStart entry; review `mini-trellis refresh --kiro --dry-run` before applying updates. |
 | `zcode-config` / `zcode-trust` | Invalid or disabled project hooks, missing registration, or host-owned trust not checked. Use ZCode review/status; file presence does not establish delivery. |
 | `cursor-config` | `.cursor/hooks.json` is invalid or the mini-trellis startup hook is unregistered. Follow the detail; invalid configuration is kept. |
 | `<host>-runtime` warn | The last hook did not finish cleanly. The detail has the status and error category. |

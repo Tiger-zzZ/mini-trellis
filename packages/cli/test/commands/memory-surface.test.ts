@@ -41,6 +41,7 @@ describe("host CLI surface", () => {
       "codex",
       "cursor",
       "dsh",
+      "kiro",
       "opencode",
       "pi",
       "zcode",
@@ -49,7 +50,17 @@ describe("host CLI surface", () => {
       getInitToolChoices()
         .map((t) => t.key)
         .sort(),
-    ).toEqual(["claude", "codebuddy", "codex", "cursor", "dsh", "opencode", "pi", "zcode"]);
+    ).toEqual([
+      "claude",
+      "codebuddy",
+      "codex",
+      "cursor",
+      "dsh",
+      "kiro",
+      "opencode",
+      "pi",
+      "zcode",
+    ]);
   });
 
   it("registers DeepSeek and Cursor without the hosts this release skips", () => {

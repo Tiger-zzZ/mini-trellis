@@ -1,6 +1,9 @@
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import chalk from "chalk";
 import { PACKAGE_NAME, VERSION } from "../constants/version.js";
+import { MANIFEST_PATH } from "../utils/managed-manifest.js";
 
 export interface UpgradeOptions {
   tag?: string;
@@ -11,11 +14,14 @@ interface SpawnResult {
   status: number | null;
   signal: NodeJS.Signals | null;
   error?: Error;
+  stdout?: string | Buffer | null;
 }
 
 interface SpawnOptions {
-  stdio: "inherit";
+  stdio: "inherit" | ["ignore", "pipe", "inherit"];
   shell: false;
+  encoding?: "utf8";
+  cwd?: string;
 }
 
 type SpawnRunner = (
@@ -106,14 +112,73 @@ function troubleshooting(plan: UpgradeCommandPlan): string {
   ].join("\n");
 }
 
+function hasProjectInstallation(cwd: string): boolean {
+  if (fs.existsSync(path.join(cwd, MANIFEST_PATH))) return true;
+  // Installs from before the ownership manifest still carry this managed block.
+  try {
+    const agents = fs.readFileSync(path.join(cwd, "AGENTS.md"), "utf8");
+    const block = agents
+      .split("<!-- TRELLIS:START -->")[1]
+      ?.split("<!-- TRELLIS:END -->")[0];
+    return (
+      !!block &&
+      /^# mini-trellis\r?$/m.test(block) &&
+      block.includes("Managed by mini-trellis.") &&
+      fs.existsSync(path.join(cwd, ".trellis/scripts/add_session.py"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+function refreshUpgradedProject(cwd: string, runner: SpawnRunner): void {
+  const recovery =
+    "CLI upgraded, but project refresh did not complete. Run mini-trellis refresh --dry-run to review, then mini-trellis refresh.";
+  // Resolve npm's installed package, not the old executable or a project-local
+  // binary on PATH. A separate process loads the newly installed templates.
+  const root = runner(
+    process.platform === "win32" ? "cmd.exe" : "npm",
+    process.platform === "win32"
+      ? ["/d", "/s", "/c", "npm root -g"]
+      : ["root", "-g"],
+    { stdio: ["ignore", "pipe", "inherit"], shell: false, encoding: "utf8" },
+  );
+  const globalRoot = root.stdout?.toString().trim();
+  if (
+    root.error ||
+    root.signal ||
+    root.status !== 0 ||
+    !globalRoot ||
+    !path.isAbsolute(globalRoot)
+  )
+    throw new Error(`${recovery} Could not resolve npm root -g.`);
+  const entry = path.join(globalRoot, PACKAGE_NAME, "bin/mini-trellis.js");
+  const result = runner(process.execPath, [entry, "refresh"], {
+    stdio: "inherit",
+    shell: false,
+    cwd,
+  });
+  if (result.error || result.signal || result.status !== 0)
+    throw new Error(
+      `${recovery}${result.error ? ` ${result.error.message}` : ""}`,
+    );
+  console.log(chalk.green("✓ Current project refreshed with the upgraded CLI"));
+}
+
 export async function upgrade(
   options: UpgradeOptions = {},
   runner: SpawnRunner = spawnSync,
 ): Promise<void> {
   const plan = buildUpgradeCommand(options);
+  const cwd = process.cwd();
+  const refreshProject = hasProjectInstallation(cwd);
 
   console.log(chalk.cyan(`Upgrading mini-trellis CLI to ${plan.target}`));
   console.log(chalk.gray(`Run: ${plan.displayCommand}`));
+  if (refreshProject)
+    console.log(
+      chalk.gray("Then: refresh the current project using the upgraded CLI"),
+    );
 
   if (options.dryRun) {
     console.log(chalk.gray("Dry run: no changes made."));
@@ -143,6 +208,7 @@ export async function upgrade(
   }
 
   console.log(chalk.green("\n✓ mini-trellis CLI upgrade completed"));
+  if (refreshProject) refreshUpgradedProject(cwd, runner);
   console.log(chalk.gray("Run: mini-trellis --version"));
   console.log(chalk.gray(`Run: ${plan.binaryCheckCommand}`));
 }

@@ -36,6 +36,10 @@ program
   .option("--dsh", "Include DeepSeek Harness skills")
   .option("--cursor", "Include Cursor skills and local sessionStart")
   .option(
+    "--kiro",
+    "Include Kiro CLI V3 / IDE skills and project SessionStart hook",
+  )
+  .option(
     "--zcode",
     "Include Z.ai ZCode skills and project SessionStart (requires hook trust)",
   )
@@ -103,12 +107,17 @@ program
 
 program
   .command("upgrade")
-  .description("Upgrade the global mini-trellis CLI package")
+  .description(
+    "Upgrade the global CLI and refresh the current initialized project",
+  )
   .option(
     "--tag <tag>",
     "npm dist-tag or version to install (default follows current channel: latest, beta, or rc)",
   )
-  .option("--dry-run", "Print the install command without running it")
+  .option(
+    "--dry-run",
+    "Preview the upgrade and project refresh without making changes",
+  )
   .action(async (options: Record<string, unknown>) => {
     try {
       await upgrade({
@@ -202,6 +211,7 @@ program
   .option("--cursor", "Refresh Cursor skills and local sessionStart")
   .option("--codebuddy", "Refresh CodeBuddy CLI / IDE assets")
   .option("--zcode", "Refresh Z.ai ZCode project assets")
+  .option("--kiro", "Refresh Kiro project skills and SessionStart hook")
   .option("--dry-run", "Preview changes without writing files")
   .option("--json", "Output machine-readable JSON")
   .action((options: Record<string, unknown>) => {
@@ -214,6 +224,7 @@ program
       cursor: options.cursor as boolean,
       codebuddy: options.codebuddy as boolean,
       zcode: options.zcode as boolean,
+      kiro: options.kiro as boolean,
       opencodeVersion: options.opencodeVersion as string | undefined,
       dryRun: options.dryRun as boolean,
       json: options.json as boolean,

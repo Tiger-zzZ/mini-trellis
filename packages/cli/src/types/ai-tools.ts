@@ -10,7 +10,8 @@ export type AITool =
   | "dsh"
   | "cursor"
   | "codebuddy"
-  | "zcode";
+  | "zcode"
+  | "kiro";
 
 export type TemplateDir = "common" | "claude" | "codex" | "opencode" | "pi";
 
@@ -22,7 +23,8 @@ export type CliFlag =
   | "dsh"
   | "cursor"
   | "codebuddy"
-  | "zcode";
+  | "zcode"
+  | "kiro";
 
 export interface TemplateContext {
   cmdRefPrefix: "/mini-trellis:" | "/mini-trellis-" | "$";
@@ -167,6 +169,22 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
       agentCapable: true,
       hasHooks: true,
       cliFlag: "codebuddy",
+    },
+  },
+  kiro: {
+    name: "Kiro (CLI / IDE)",
+    templateDirs: ["common"],
+    configDir: ".kiro",
+    cliFlag: "kiro",
+    defaultChecked: false,
+    hasPythonHooks: true,
+    templateContext: {
+      cmdRefPrefix: "/mini-trellis-",
+      executorAI: "Bash scripts or tool calls",
+      userActionLabel: "Skills",
+      agentCapable: true,
+      hasHooks: true,
+      cliFlag: "kiro",
     },
   },
   zcode: {

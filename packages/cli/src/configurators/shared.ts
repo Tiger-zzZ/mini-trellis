@@ -515,6 +515,7 @@ export function assertProjectTemplatePaths(
       relative.startsWith(".codebuddy/") ||
       relative.startsWith(".opencode/") ||
       relative.startsWith(".zcode/") ||
+      relative.startsWith(".kiro/") ||
       (files.has(".zcode/config.json") &&
         relative.startsWith(".agents/skills/")),
   );
