@@ -605,7 +605,7 @@ export async function init(options: InitOptions): Promise<void> {
   if (tools.includes("claude") || tools.includes("opencode")) {
     recordCommands.push("/mini-trellis:remember");
   }
-  if (tools.includes("pi") || tools.includes("kiro"))
+  if (tools.includes("pi") || tools.includes("omp") || tools.includes("kiro"))
     recordCommands.push("/mini-trellis-remember");
   if (tools.includes("kiro"))
     console.log(

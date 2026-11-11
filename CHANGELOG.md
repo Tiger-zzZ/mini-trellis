@@ -2,7 +2,7 @@
 
 ## v0.3.8
 
-- Asks once with Y/N before replacing managed files with content conflicts during manual `refresh` or automatic refresh after `upgrade`. Decline, empty input and EOF keep project files; JSON/preview/non-interactive runs do not prompt or consent to overwrites.
+- Manual `refresh` and automatic refresh after `upgrade` share one Y/N confirmation for managed files with content conflicts. Y applies the replacements; N, empty input and EOF keep project files. JSON and non-interactive runs report files requiring confirmation; `--dry-run` previews the changes.
 - Records rendered host templates in the init manifest, fixing clean Codex installations with a non-default Python command being reported as locally modified on refresh.
 - Adds `init --omp` and `refresh --omp` for native Oh My Pi extension, prompt and skill discovery, reusing the Pi startup entry.
 - Fixes Pi remember prompts dropping text supplied after `/mini-trellis-remember`; Pi and OMP templates now pass arguments explicitly. Adds bilingual setup and recording examples.
