@@ -11,16 +11,20 @@ mini-trellis migrate             # 确认迁移，默认 no
 
 迁移会将检测到的宿主的 hook、settings、skill 和命令替换为 mini-trellis 版本，移除 Trellis 专用的流程文件（skill、命令、agent、每轮注入插件、`workflow.md`、`task.py`），替换 `AGENTS.md` 中的 Trellis 管理块，并移除 `.trellis/.version`，停止 Trellis CLI 在该项目中的更新提示。
 
-宿主配置不是整文件覆盖：
+## 集成与配置更新
+
+宿主配置按字段合并：
 
 - `.claude/settings.json` 和 `.codex/hooks.json` 会先去掉指向 `inject-*.py`、`statusline.py` 和旧 `session-start.py` 的 Trellis hook，再写入 mini-trellis 的 SessionStart。用户自己的 hook、`env` 和其他字段保留。
 - 0.3.5 同样合并 `.codebuddy/settings.json`。已识别的 Trellis 阶段 hook 即使脚本已丢失也会清理，同事件下的用户 hook 保留。配置无效时在修改文件前停止迁移。
 - Kiro 迁移将 Trellis 技能、四个内置 Trellis Agent 和流程状态 Hook 替换为 CLI V3 / IDE 1.x 的项目技能与独立 SessionStart Hook；保留其他 Agent 和 Hook 文件。使用 `kiro-cli chat --v3` 启动；若原默认 Agent 为 Trellis，切换到 Kiro 内置 Agent。
-- 0.3.7 源码会在 `.zcode/config.json` 的 `hooks.events` 中移除已识别的 Trellis hook 调用，包括 process/args 和脚本已缺失的注册；保留其他 hook、技能和配置。配置无效时在修改前停止。迁移后用 `zcode hooks trust review --workspace . --json` 审查新声明，接受后自行授予摘要信任；迁移不改用户级配置或信任。
+- 迁移会在 `.zcode/config.json` 的 `hooks.events` 中移除已识别的 Trellis hook 调用，包括 process/args 和脚本已缺失的注册；保留其他 hook、技能和配置。配置无效时在修改前停止。迁移后用 `zcode hooks trust review --workspace . --json` 审查新声明，接受后自行授予摘要信任；迁移不改用户级配置或信任。
 - `.pi/settings.json` 会去掉 `./extensions/trellis/index.ts` 和 `npm:pi-subagents`，保留其他 extension 与 package。
 - `.codex/config.toml` 会去掉 Trellis 写入的说明和 `[agents] max_depth = 1`，再写上 mini-trellis 的项目配置。用户自己的键会附在后面。
 
 如果上一次迁移已经删掉脚本，但配置里还留着 `inject-*.py`，再运行一次 `mini-trellis migrate` 会清理这些条目。
+
+## 任务材料的去向
 
 `.trellis/tasks/` 中的任务材料迁入研究目录：
 
@@ -33,7 +37,7 @@ mini-trellis migrate             # 确认迁移，默认 no
 
 迁移前请备份项目知识和自定义配置，包括被 Git 忽略的文件。迁移命令不会自动创建备份；选择删除的文件将被永久移除。
 
-### 迁移之后
+## 迁移之后
 
 - `.trellis/spec/`、`research/`、`workspace/` 原样保留。已有 spec 内容，包括 Trellis 创建的 `backend/`、`frontend/` 文档，仍可检索；SessionStart 提供短入口，文档按需查找。
 - `.trellis/config.yaml` 和 `.trellis/scripts/` 会被 mini-trellis 版本覆盖，自定义配置和脚本修改需在迁移后重新应用。
@@ -47,4 +51,4 @@ mini-trellis migrate             # 确认迁移，默认 no
 
 ## 迁移后整理已有历史
 
-迁移保留项目知识，不会把所有旧聊天自动变成 spec。安装 0.3.6 或更新版本并刷新技能后，可明确要求 `mini-trellis-session-insight` 整理选定的已支持会话或提供的 Markdown/文本导出，更新已有文档、保留来源，未解决冲突保持开放。该整理流程使用 `--no-commit`，即使旧配置开启自动提交也不自动提交。见[历史整理示例](using_CN.md#把选定历史整理成项目知识)。
+迁移保留项目知识，不会把所有旧聊天自动变成 spec。安装 0.3.6 或更新版本并刷新技能后，可明确要求 `mini-trellis-session-insight` 整理选定的已支持会话或提供的 Markdown/文本导出，更新已有文档、保留来源，未解决冲突保持开放。该整理流程使用 `--no-commit`，即使旧配置开启自动提交也不自动提交。见[历史整理指南](history_CN.md)。

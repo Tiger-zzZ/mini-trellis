@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">mini-trellis</title>
+  <desc id="desc">A pixel-built lowercase m on a forest green tile.</desc>
+  <rect x="4" y="4" width="88" height="88" rx="24" fill="#173F35"/>
+  <path d="M20 66V30H32V24H44V30H52V24H64V30H76V66H64V38H56V66H44V38H32V66H20Z" fill="#B8E7CB"/>
+  <path d="M64 24H76V36H64V24Z" fill="#F0C879"/>
+</svg>

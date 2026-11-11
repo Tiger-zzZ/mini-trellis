@@ -11,16 +11,20 @@ mini-trellis migrate             # confirm migration; defaults to no
 
 It rewrites the detected host surfaces with mini-trellis's versions, deletes the Trellis-only instruction files (skills, commands, agents, per-turn injectors, `workflow.md`, `task.py`), replaces the Trellis block in `AGENTS.md`, and drops `.trellis/.version` so the Trellis CLI stops offering to update the project back to the four-phase workflow.
 
-Host configuration is not replaced as a whole file:
+## Integration and configuration updates
+
+Host configuration is merged by field:
 
 - `.claude/settings.json` and `.codex/hooks.json` lose Trellis hooks that point at `inject-*.py`, `statusline.py`, or an old `session-start.py`, then receive mini-trellis's SessionStart entry. User hooks, `env`, and other fields stay.
 - `.codebuddy/settings.json` is merged the same way in 0.3.5. Known Trellis stage hooks are removed even if their scripts are already missing; user hooks in the same event remain. Invalid settings stop migration before file changes.
 - Kiro migration replaces Trellis skills, the four shipped Trellis agents, and its workflow-state hook with project skills and a standalone SessionStart hook for CLI V3 / IDE 1.x. Other agent and hook files are kept. Start with `kiro-cli chat --v3` and use a built-in agent if your previous default was a Trellis agent.
-- `.zcode/config.json` (0.3.7 source) removes known Trellis hook invocations from `hooks.events`, including process/args entries and registrations with missing scripts. Other hooks, skills and settings stay; invalid configuration stops before changes. Review the resulting project declarations with `zcode hooks trust review --workspace . --json` and grant accepted digests yourself. Migration does not change user-level configuration or trust.
+- `.zcode/config.json` removes known Trellis hook invocations from `hooks.events`, including process/args entries and registrations with missing scripts. Other hooks, skills and settings stay; invalid configuration stops before changes. Review the resulting project declarations with `zcode hooks trust review --workspace . --json` and grant accepted digests yourself. Migration does not change user-level configuration or trust.
 - `.pi/settings.json` loses `./extensions/trellis/index.ts` and `npm:pi-subagents`. Other extensions and packages stay.
 - `.codex/config.toml` loses the Trellis notes and `[agents] max_depth = 1`, then receives the mini-trellis project config. User-owned keys are appended after it.
 
 If an earlier migration deleted the scripts but left `inject-*.py` in the hook config, running `mini-trellis migrate` again removes those entries.
+
+## Where task material goes
 
 Task material moves from `.trellis/tasks/` into research topics:
 
@@ -33,7 +37,7 @@ If a topic destination already exists under `.trellis/research/`, or a task root
 
 Before migration, back up project knowledge and custom configuration, including Git-ignored files. The migration command does not create backups; files selected for deletion are permanently removed.
 
-### What you get afterwards
+## After migration
 
 - `.trellis/spec/`, `research/`, and `workspace/` are left alone. Your spec content survives, including any `backend/`/`frontend/` docs Trellis wrote; these remain searchable. SessionStart supplies a short entry, and articles are retrieved on demand.
 - `.trellis/config.yaml` and `.trellis/scripts/` get overwritten with mini-trellis's versions. Re-apply any local edits.
@@ -47,4 +51,4 @@ In 0.3.5, new OpenCode projects default to V2; migration preserves an existing V
 
 ## Existing history after migration
 
-Migration preserves project knowledge; it does not turn every old chat into a spec. With 0.3.6 or later installed, refresh the project skills and explicitly ask `mini-trellis-session-insight` to organize selected supported sessions or supplied Markdown/text exports. It updates existing documents and retains sources; unresolved conflicts stay open. The organizing flow passes `--no-commit`, including when legacy configuration enables auto-commit. See the [history example](using.md#organize-selected-history-into-project-knowledge).
+Migration preserves project knowledge; it does not turn every old chat into a spec. With 0.3.6 or later installed, refresh the project skills and explicitly ask `mini-trellis-session-insight` to organize selected supported sessions or supplied Markdown/text exports. It updates existing documents and retains sources; unresolved conflicts stay open. The organizing flow passes `--no-commit`, including when legacy configuration enables auto-commit. See the [history guide](history.md).
