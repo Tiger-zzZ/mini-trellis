@@ -51,12 +51,28 @@ mini-trellis doctor
 Open a new agent session and save a confirmed decision:
 
 ```text
-Callbacks must carry an idempotency key; repeated callbacks return the
-first result. Update the existing spec, then use mini-trellis-remember
-to record a link to that topic.
+Confirmed: transient callback failures allow at most 2 total attempts,
+including the first, only when upstream idempotency is guaranteed.
+Otherwise, and for permanent failures, allow 1 attempt and never retry.
+Save this agreed future policy in the existing project document and use
+mini-trellis-remember to record its link. It is not implemented yet.
 ```
 
-Find the rule in a later session. Copy the returned `ref` to expand it:
+Follow the agent's links to the updated topic and journal. In a new session,
+give it a normal development request:
+
+```text
+Implement attempt_limit(failure_kind, upstream_idempotent) in policy.py,
+returning the total number of callback attempts. Add basic tests.
+```
+
+Check the generated behavior against the saved conditions. Later, confirm a
+change to 4 attempts for idempotent transient failures, update the same topic,
+and repeat the development request. Keep permanent failures at 1 attempt.
+The [day-to-day guide](docs/using.md) covers starting with existing documents,
+selected history, or a migrated project.
+
+For a manual lookup, expand a returned `ref` only if its excerpt lacks context:
 
 ```bash
 mini-trellis mem recall "callback idempotency"

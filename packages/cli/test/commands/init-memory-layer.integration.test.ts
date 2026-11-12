@@ -148,13 +148,16 @@ describe.skipIf(!canRun)("init memory-layer skeleton", () => {
     expect(fs.readFileSync(ignorePath, "utf8")).toBe(custom);
   });
 
-  it("tracks rendered Codex hooks when init uses a non-default Python command", async () => {
+  it("tracks Codex hook scripts and uses the selected Python command", async () => {
     vi.stubEnv("TRELLIS_PYTHON_CMD", "python3 -X utf8");
     try {
       await init({ yes: true, force: true, user: "tester", codex: true });
       const relative = ".codex/hooks/session-start.py";
       const actual = fs.readFileSync(path.join(tmpDir, relative), "utf8");
-      expect(actual).toContain("python3 -X utf8 ./.trellis/scripts/add_session.py");
+      expect(actual).toContain("$mini-trellis-remember");
+      const configPath = ".codex/hooks.json";
+      const config = fs.readFileSync(path.join(tmpDir, configPath), "utf8");
+      expect(config).toContain("python3 -X utf8");
       expect(readManifest(tmpDir).files[relative]).toBe(hashContent(actual));
       expect(runRefresh({ cwd: tmpDir, codex: true }).ok).toBe(true);
 

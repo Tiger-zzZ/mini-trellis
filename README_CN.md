@@ -51,11 +51,24 @@ mini-trellis doctor
 开启新的 Agent 会话，记录一条已确认的决定：
 
 ```text
-回调必须携带幂等键，重复回调返回第一次的结果。
-把这条约定更新到现有规范，然后使用 mini-trellis-remember 记录主题链接。
+确认：只有上游保证幂等时，transient 回调失败总共最多尝试 2 次（含首次）。
+未保证幂等，或 permanent 失败，只允许 1 次，禁止自动重试。
+把这条已确认但尚未实现的约定保存到已有项目文档，
+再用 mini-trellis-remember 记录主题链接。
 ```
 
-后续会话查找这条约定，需要更多上下文时展开结果中的真实 `ref`：
+沿 Agent 返回的链接检查实际主题和日志。新开会话，直接提出开发需求：
+
+```text
+在 policy.py 实现 attempt_limit(failure_kind, upstream_idempotent)，
+返回回调允许的总尝试次数，并增加基本测试。
+```
+
+核对实际代码是否保留了约定中的条件。之后确认把幂等 transient 失败改为
+4 次尝试，更新同一主题，再次提出开发需求；permanent 失败仍只有 1 次。
+[日常使用](docs/using_CN.md)也覆盖已有文档、选定历史和迁入项目的起步方式。
+
+需要手动查找时，摘录不足再展开返回的真实 `ref`：
 
 ```bash
 mini-trellis mem recall "回调 幂等"

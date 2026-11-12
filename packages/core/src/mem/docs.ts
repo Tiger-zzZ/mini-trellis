@@ -73,40 +73,51 @@ export interface DocDiscovery {
 /**
  * Resolve the project root for `start`.
  *
- * A subdirectory of a repository resolves to that repository's root, so
- * `repo/pkg` and `repo` share one memory. But `start` is never widened past
- * itself when it is not inside the work tree it would resolve to — a project
- * nested in an unrelated checkout, or passed explicitly, stays itself.
+ * Use the nearest initialized `.trellis` project, stopping at an independent
+ * Git root. Uninitialized repositories use their Git root; non-Git directories
+ * without an initialized ancestor stay at `start`. Neighboring worktrees and
+ * nested independent repositories never inherit parent project memory.
  */
 export function resolveProjectRoot(start: string): {
   root: string;
   git: boolean;
 } {
   const abs = path.resolve(start);
+  let realStart: string;
+  try {
+    realStart = fs.realpathSync(abs);
+  } catch {
+    return { root: abs, git: false };
+  }
+  let gitRoot: string | undefined;
   try {
     const out = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-      cwd: abs,
+      cwd: realStart,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 2000,
     }).trim();
-    if (out) {
-      const real = fs.realpathSync(out);
-      const realStart = fs.realpathSync(abs);
-      const inside =
-        realStart === real || realStart.startsWith(real + path.sep);
-      if (inside) return { root: real, git: true };
-    }
+    const real = fs.realpathSync(out);
+    if (realStart === real || realStart.startsWith(real + path.sep))
+      gitRoot = real;
   } catch {
-    // Not a git checkout, or git is unavailable. Both are normal.
+    // Non-Git projects still share the nearest initialized memory directory.
   }
-  // Normalize through realpath so a root under a symlinked prefix (macOS
-  // `/tmp` → `/private/tmp`) compares equal to the realpaths `consider` takes;
-  // otherwise every document under it looks like it escaped the project.
-  try {
-    return { root: fs.realpathSync(abs), git: false };
-  } catch {
-    return { root: abs, git: false };
+  let current = realStart;
+  for (;;) {
+    try {
+      if (fs.lstatSync(path.join(current, ".trellis")).isDirectory()) {
+        return { root: current, git: gitRoot !== undefined };
+      }
+    } catch {
+      // No initialized project at this level.
+    }
+    if (current === gitRoot || fs.existsSync(path.join(current, ".git"))) {
+      return { root: current, git: gitRoot !== undefined };
+    }
+    const parent = path.dirname(current);
+    if (parent === current) return { root: realStart, git: false };
+    current = parent;
   }
 }
 

@@ -163,6 +163,334 @@ describe.skipIf(!hasPython())("recording diagnostics", () => {
   });
   afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
+  it.each([
+    "missing history",
+    "unpaired history",
+    "duplicate history",
+    "nested blocks",
+    "missing table separator",
+    "missing active documents",
+  ])(
+    "reports a checkpoint for %s and retries without duplicating the entry",
+    (fault) => {
+      const original = readIndex(tmp);
+      const start = "<!-- @@@auto:session-history -->";
+      const end = "<!-- @@@/auto:session-history -->";
+      let broken = original;
+      if (fault === "missing history")
+        broken = broken.replace(start, "").replace(end, "");
+      if (fault === "unpaired history") broken = broken.replace(end, "");
+      if (fault === "duplicate history") broken += `\n${start}\n${end}\n`;
+      if (fault === "nested blocks")
+        broken = broken.replace(
+          start,
+          start + "\n<!-- @@@auto:current-status -->",
+        );
+      if (fault === "missing table separator")
+        broken = broken.replace("|---|------|-------|---------|--------|", "");
+      if (fault === "missing active documents")
+        broken = broken.replace("<!-- @@@auto:active-documents -->", "");
+      fs.writeFileSync(indexPath(tmp), broken);
+      const first = tryAddSession(tmp, "repair me", ["--no-commit"]);
+      expect(first.status).toBe(1);
+      expect(first.stderr).toContain("[BLOCKED] Checkpoint:");
+      expect(first.stderr).not.toContain("and index recorded");
+      expect(readIndex(tmp)).toBe(broken);
+      expect(sessionNumbers(tmp)).toEqual([1]);
+      fs.writeFileSync(indexPath(tmp), original);
+      expect(tryAddSession(tmp, "repair me", ["--no-commit"]).status).toBe(0);
+      expect(sessionNumbers(tmp)).toEqual([1]);
+      expect(readIndex(tmp).match(/^\| 1 \|/gm)).toHaveLength(1);
+    },
+  );
+
+  it("refuses a same-number row for a different record on retry", () => {
+    runAddSession(tmp, "exact identity", ["--no-commit"]);
+    fs.writeFileSync(
+      indexPath(tmp),
+      readIndex(tmp).replace("| exact identity |", "| another record |"),
+    );
+    const first = tryAddSession(tmp, "exact identity", ["--no-commit"]);
+    expect(first.status).toBe(1);
+    expect(first.stderr).toMatch(/conflict|different record/i);
+    expect(sessionNumbers(tmp)).toEqual([1]);
+    fs.writeFileSync(
+      indexPath(tmp),
+      readIndex(tmp).replace("| another record |", "| exact identity |"),
+    );
+    expect(tryAddSession(tmp, "exact identity", ["--no-commit"]).status).toBe(
+      0,
+    );
+  });
+
+  it.each(["title", "topic link"])(
+    "does not trust a retry marker after its %s was changed",
+    (field) => {
+      fs.writeFileSync(
+        path.join(tmp, "README.md"),
+        "# Callback rule\n\nPermanent failures must not retry.\n",
+      );
+      const args = ["--no-commit", "--topic", "README.md"];
+      runAddSession(tmp, "verified identity", args);
+      const journal = readJournal(tmp);
+      const changed =
+        field === "title"
+          ? journal.replace(
+              "## Session 1: verified identity",
+              "## Session 1: unrelated title",
+            )
+          : journal.replace("../../../README.md", "../../../missing.md");
+      expect(changed).not.toBe(journal);
+      fs.writeFileSync(journalPath(tmp), changed);
+      const result = tryAddSession(tmp, "verified identity", args);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("no longer match");
+      expect(readJournal(tmp)).toBe(changed);
+    },
+  );
+
+  it("repairs an older missing row after a later record without rewinding status", () => {
+    runAddSession(tmp, "older", ["--no-commit"]);
+    runAddSession(tmp, "later", ["--no-commit"]);
+    const index = readIndex(tmp);
+    fs.writeFileSync(indexPath(tmp), index.replace(/^\| 1 \|.*\n/m, ""));
+    expect(tryAddSession(tmp, "older", ["--no-commit"]).status).toBe(0);
+    expect(sessionNumbers(tmp)).toEqual([1, 2]);
+    expect(readIndex(tmp)).toContain("**Total Sessions**: 2");
+    expect(readIndex(tmp)).toContain("| older |");
+    expect(readIndex(tmp)).toContain("| later |");
+    expect(
+      [...readIndex(tmp).matchAll(/^\| (\d+) \|/gm)].map((match) =>
+        Number(match[1]),
+      ),
+    ).toEqual([2, 1]);
+  });
+
+  it("records changed topic contents with identical caller prose and keeps an unchanged retry idempotent", () => {
+    const topic = path.join(tmp, "README.md");
+    fs.writeFileSync(
+      topic,
+      "# Callbacks\n\nTransient failures allow 2 total attempts.\n",
+    );
+    const args = [
+      "--no-commit",
+      "--topic",
+      "README.md",
+      "--summary",
+      "Updated callback policy",
+    ];
+    runAddSession(tmp, "Callback decision", args);
+    const originalMarker = distinctMarkers(tmp)[0];
+    runAddSession(tmp, "Callback decision", args);
+    expect(sessionNumbers(tmp)).toEqual([1]);
+    fs.writeFileSync(
+      topic,
+      "# Callbacks\n\nOnly idempotent transient failures allow 4 total attempts; permanent failures must not retry.\n",
+    );
+    runAddSession(tmp, "Callback decision", args);
+    runAddSession(tmp, "Callback decision", args);
+    expect(sessionNumbers(tmp)).toEqual([1, 2]);
+    expect(distinctMarkers(tmp)).toHaveLength(2);
+    expect(distinctMarkers(tmp)[0]).toBe(originalMarker);
+    expect(distinctMarkers(tmp).every((marker) => marker.includes("v=3"))).toBe(
+      true,
+    );
+    expect(readIndex(tmp).match(/^\| [12] \|/gm)).toHaveLength(2);
+  });
+
+  it("rejects duplicate rows and does not trust a missing committed idempotent index", () => {
+    seedTask(tmp);
+    const args = ["--idempotency-key", "stable"];
+    runAddSession(tmp, "committed", args);
+    const original = readIndex(tmp);
+    const row = original.match(/^\| 1 \|.*$/m)?.[0];
+    if (!row) throw new Error("seeded session row is missing");
+    fs.writeFileSync(indexPath(tmp), original.replace(row, row + "\n" + row));
+    expect(tryAddSession(tmp, "committed", args).status).toBe(1);
+    fs.writeFileSync(indexPath(tmp), original.replace(row, ""));
+    expect(tryAddSession(tmp, "committed", args).status).toBe(0);
+    expect(sessionNumbers(tmp)).toEqual([1]);
+    expect(readIndex(tmp).match(/^\| 1 \|/gm)).toHaveLength(1);
+  });
+
+  it("detects an index replacement that reports success without persisting its row", () => {
+    const result = spawnSync(
+      "python3",
+      [
+        "-c",
+        `
+import sys
+sys.path.insert(0, '.trellis/scripts')
+import add_session as m
+original = m.write_text_atomic
+m.write_text_atomic = lambda path, text: True if path.name == 'index.md' else original(path, text)
+sys.exit(m.add_session('verify actual files', auto_commit=False))
+`,
+      ],
+      { cwd: tmp, encoding: "utf8" },
+    );
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("post-write verification");
+    expect(result.stderr).toContain("[BLOCKED] Checkpoint:");
+    expect(sessionNumbers(tmp)).toEqual([1]);
+  });
+
+  it("stops on merged duplicate session numbers even when one index side looks valid", () => {
+    runAddSession(tmp, "first worktree", ["--no-commit"]);
+    const journal = readJournal(tmp);
+    const entry = journal.slice(journal.indexOf("## Session 1:"));
+    fs.writeFileSync(
+      journalPath(tmp),
+      journal +
+        "\n" +
+        entry
+          .replace("first worktree", "second worktree")
+          .replace(/fp=[0-9a-f]+/, "fp=0123456789abcdef"),
+    );
+    const before = readJournal(tmp);
+    const result = tryAddSession(tmp, "next record", ["--no-commit"]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("duplicate journal session number 1");
+    expect(readJournal(tmp)).toBe(before);
+  });
+
+  it("does not create a lock or diagnostics through an escaping runtime symlink", () => {
+    const outside = fs.mkdtempSync(
+      path.join(os.tmpdir(), "trellis-runtime-outside-"),
+    );
+    try {
+      fs.symlinkSync(outside, path.join(tmp, ".trellis/.runtime"), "dir");
+      const journal = readJournal(tmp);
+      const result = tryAddSession(tmp, "must stay local", ["--no-commit"]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("escapes the project");
+      expect(fs.readdirSync(outside)).toEqual([]);
+      expect(readJournal(tmp)).toBe(journal);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["index.md", "journal-1.md"])("does not read or replace a symlinked %s", (name) => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-record-outside-"));
+    const destination = path.join(outside, "private.md");
+    try {
+      fs.writeFileSync(destination, "Private external content must stay outside.\n");
+      const state = path.join(tmp, ".trellis/workspace", DEVELOPER, name);
+      fs.unlinkSync(state);
+      fs.symlinkSync(destination, state);
+      const result = tryAddSession(tmp, "must stay in project", ["--no-commit"]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("not a symlink");
+      expect(fs.lstatSync(state).isSymbolicLink()).toBe(true);
+      expect(fs.readFileSync(destination, "utf8")).toBe("Private external content must stay outside.\n");
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("bounds lock waiting and releases a killed writer's lock without deleting its file", () => {
+    const holder = [
+      "import sys,time",
+      "from pathlib import Path",
+      "sys.path.insert(0, '.trellis/scripts')",
+      "from common.recording_lock import recording_lock",
+      "with recording_lock(Path.cwd()):",
+      "    print('ready', flush=True)",
+      "    time.sleep(20)",
+    ].join("\n");
+    const result = spawnSync(
+      "python3",
+      [
+        "-c",
+        `
+import subprocess, sys
+from pathlib import Path
+sys.path.insert(0, '.trellis/scripts')
+from common.recording_lock import recording_lock
+child = subprocess.Popen([sys.executable, '-c', ${JSON.stringify(holder)}], stdout=subprocess.PIPE, text=True)
+try:
+    assert child.stdout.readline().strip() == 'ready'
+    try:
+        with recording_lock(Path.cwd(), timeout=0.1):
+            raise AssertionError('lock admitted a second writer')
+    except TimeoutError as error:
+        assert 'do not delete' in str(error)
+finally:
+    child.kill()
+    child.wait(timeout=5)
+with recording_lock(Path.cwd(), timeout=0.5):
+    assert (Path('.trellis/.runtime/session-recording.lock')).exists()
+`,
+      ],
+      { cwd: tmp, encoding: "utf8", timeout: 10000 },
+    );
+    expect(result.status, result.stderr).toBe(0);
+    expect(tryAddSession(tmp, "after kill", ["--no-commit"]).status).toBe(0);
+    expect(sessionNumbers(tmp)).toEqual([1]);
+  });
+
+  it.each([
+    { sameRetry: false, commit: false },
+    { sameRetry: true, commit: false },
+    { sameRetry: false, commit: true },
+    { sameRetry: true, commit: true },
+  ])(
+    "serializes overlapping writers ($sameRetry retry, $commit commit)",
+    ({ sameRetry, commit }) => {
+      if (commit) seedTask(tmp);
+      // Start B while A is paused immediately before its journal replacement.
+      // Without an operation lock B succeeds first and A silently overwrites it.
+      const result = spawnSync(
+        "python3",
+        [
+          "-c",
+          `
+import json, subprocess, sys, threading
+sys.path.insert(0, '.trellis/scripts')
+import add_session as m
+ready = threading.Event()
+release = threading.Event()
+original = m.write_text_atomic
+def paused(path, text):
+    if path.name.startswith('journal-'):
+        ready.set()
+        if not release.wait(10):
+            raise RuntimeError('writer coordination timed out')
+    return original(path, text)
+m.write_text_atomic = paused
+outcomes = []
+t = threading.Thread(target=lambda: outcomes.append(m.add_session('writer A', auto_commit=${commit ? "True" : "False"}, branch='main', idempotency_key=${commit ? "'overlap'" : "None"})))
+t.start()
+if not ready.wait(10):
+    raise RuntimeError('first writer did not reach append')
+b = subprocess.Popen([sys.executable, '.trellis/scripts/add_session.py', '--title', ${JSON.stringify(sameRetry ? "writer A" : "writer B")}, ${commit ? "'--idempotency-key', 'overlap'" : "'--no-commit'"}], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+try:
+    stdout, stderr = b.communicate(timeout=0.5)
+except subprocess.TimeoutExpired:
+    release.set()
+    stdout, stderr = b.communicate(timeout=15)
+finally:
+    release.set()
+    t.join(10)
+print('OUTCOMES=' + json.dumps([outcomes, b.returncode, stderr]))
+`,
+        ],
+        { cwd: tmp, encoding: "utf8", timeout: 30000 },
+      );
+      expect(result.status, result.stderr).toBe(0);
+      const outcomes = JSON.parse(result.stdout.split("OUTCOMES=")[1]);
+      expect(outcomes[0]).toEqual([0]);
+      expect(outcomes[1], outcomes[2]).toBe(0);
+      expect(sessionNumbers(tmp)).toEqual(sameRetry ? [1] : [1, 2]);
+      expect(readIndex(tmp)).toContain("| writer A |");
+      if (!sameRetry) {
+        expect(readJournal(tmp)).toContain("writer B");
+        expect(readIndex(tmp)).toContain("| writer B |");
+      }
+    },
+  );
+
   it("retries historical recording without duplicating links and accepts a later correction in the same topic", () => {
     const relative = "docs/callbacks.md";
     const topic = path.join(tmp, relative);
@@ -607,7 +935,7 @@ describe.skipIf(!hasPython())("add_session.py auto-commit", () => {
 
     expect(journal).toContain("### Summary");
     expect(journal).toContain("### Git Commits");
-    expect(journal).toContain("### Status");
+    expect(journal).not.toContain("**Completed**");
     expect(journal).not.toContain("### Main Changes");
     expect(journal).not.toContain("### Testing");
     expect(journal).not.toContain("### Next Steps");
@@ -616,7 +944,7 @@ describe.skipIf(!hasPython())("add_session.py auto-commit", () => {
     expect(journal).not.toContain("(Add summary)");
   });
 
-  it("renders bullets for --change/--test/--next-step and keeps the [OK] testing prefix (#394)", () => {
+  it("renders supplied test outcomes without inferring completion or success", () => {
     makeTask(tmp, "task-a", "task A prd\n");
     setCurrentTask(tmp, "task-a");
     git(tmp, "add", "-A");
@@ -629,6 +957,10 @@ describe.skipIf(!hasPython())("add_session.py auto-commit", () => {
       "Fixed bug Y",
       "--test",
       "Ran unit tests",
+      "--test",
+      "未运行集成测试",
+      "--test",
+      "lint failed; build partially complete",
       "--next-step",
       "Ship it",
     ]);
@@ -642,7 +974,12 @@ describe.skipIf(!hasPython())("add_session.py auto-commit", () => {
     expect(journal).toContain("- Added feature X");
     expect(journal).toContain("- Fixed bug Y");
     expect(journal).toContain("### Testing");
-    expect(journal).toContain("- [OK] Ran unit tests");
+    expect(journal).toContain("- Ran unit tests");
+    expect(journal).toContain("- 未运行集成测试");
+    expect(journal).toContain("- lint failed; build partially complete");
+    expect(journal).not.toContain("[OK]");
+    expect(journal).not.toContain("**Completed**");
+    expect(journal).not.toContain("planning session");
     expect(journal).toContain("### Next Steps");
     expect(journal).toContain("- Ship it");
   });
@@ -843,11 +1180,11 @@ describe.skipIf(!hasPython())("add_session.py commit evidence (R1)", () => {
     expect(fs.readFileSync(journalPath(tmp)).equals(journalBefore)).toBe(true);
   });
 
-  it("keeps the planning-session rendering for --commit -", () => {
+  it("describes missing commit evidence without inferring a planning session", () => {
     runAddSession(tmp, "planning work", ["--commit", "-"]);
 
     const journal = readJournal(tmp);
-    expect(journal).toContain("(No commits - planning session)");
+    expect(journal).toContain("(No associated commits)");
     expect(journal).not.toContain("| Hash | Message |");
     expect(readIndex(tmp)).toMatch(/\|\s*1\s*\|.*\|\s*-\s*\|/);
   });
@@ -919,26 +1256,36 @@ function downgradeToLegacyMarker(
       .replace(v2Marker, v1Marker)
       .replace(/^\*\*Date\*\*: \d{4}-\d{2}-\d{2}$/m, `**Date**: ${legacyDate}`),
   );
+  // Both files came from the same earlier-day write, not just the journal.
+  fs.writeFileSync(
+    indexPath(repo),
+    readIndex(repo).replace(
+      /^(\|\s*\d+\s*\|)\s*\d{4}-\d{2}-\d{2}\s*\|/gm,
+      `$1 ${legacyDate} |`,
+    ),
+  );
 }
 
-describe.skipIf(!hasPython())("add_session.py fingerprint date rollover", () => {
-  let tmp: string;
-  const TITLE = "rollover run";
-  const SUMMARY = "interrupted before the commit";
-  const BRANCH = "main";
-  const ARGS = ["--summary", SUMMARY, "--branch", BRANCH];
+describe.skipIf(!hasPython())(
+  "add_session.py fingerprint date rollover",
+  () => {
+    let tmp: string;
+    const TITLE = "rollover run";
+    const SUMMARY = "interrupted before the commit";
+    const BRANCH = "main";
+    const ARGS = ["--summary", SUMMARY, "--branch", BRANCH];
 
-  beforeEach(() => {
+    beforeEach(() => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-session-rollover-"));
     setupRepo(tmp);
     seedTask(tmp);
   });
 
-  afterEach(() => {
+    afterEach(() => {
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  it("resumes a record written yesterday under the pre-versioning scheme", () => {
+    it("resumes a record written yesterday under the pre-versioning scheme", () => {
     // Interrupt after the journal and index writes, before the commit.
     breakCommits(tmp);
     const first = tryAddSession(tmp, TITLE, ARGS);
@@ -963,7 +1310,7 @@ describe.skipIf(!hasPython())("add_session.py fingerprint date rollover", () => 
     expect(readJournal(tmp)).toContain(v1);
   });
 
-  it("resolves a same-day legacy marker too, not just one across a rollover", () => {
+    it("resolves a same-day legacy marker too, not just one across a rollover", () => {
     breakCommits(tmp);
     expect(tryAddSession(tmp, TITLE, ARGS).status).toBe(1);
 
@@ -981,7 +1328,7 @@ describe.skipIf(!hasPython())("add_session.py fingerprint date rollover", () => 
     expect(countMarkers(tmp)).toBe(1);
   });
 
-  it("does not adopt a legacy entry whose inputs differ", () => {
+    it("does not adopt a legacy entry whose inputs differ", () => {
     breakCommits(tmp);
     expect(tryAddSession(tmp, TITLE, ARGS).status).toBe(1);
     const { v2, v1 } = markersFor(tmp, TITLE, SUMMARY, BRANCH, "2020-01-01");
@@ -1000,7 +1347,7 @@ describe.skipIf(!hasPython())("add_session.py fingerprint date rollover", () => 
     expect(countMarkers(tmp)).toBe(2);
   });
 
-  it("keeps two same-day sessions distinct now that the date is not an input", () => {
+    it("keeps two same-day sessions distinct now that the date is not an input", () => {
     runAddSession(tmp, "first session", ["--summary", "one", "--branch", BRANCH]);
     runAddSession(tmp, "second session", ["--summary", "two", "--branch", BRANCH]);
     expect(sessionNumbers(tmp)).toEqual([1, 2]);
@@ -1008,28 +1355,31 @@ describe.skipIf(!hasPython())("add_session.py fingerprint date rollover", () => 
     expect(readIndex(tmp)).toContain("**Total Sessions**: 2");
   });
 
-  it("writes the versioned marker form", () => {
+    it("writes the versioned marker form", () => {
     runAddSession(tmp, TITLE, ARGS);
     expect(readJournal(tmp)).toMatch(
       /^<!-- trellis-session: v=2 fp=[0-9a-f]{16} -->$/m,
     );
   });
-});
+  },
+);
 
-describe.skipIf(!hasPython())("add_session.py retry convergence (R2-R5)", () => {
-  let tmp: string;
+describe.skipIf(!hasPython())(
+  "add_session.py retry convergence (R2-R5)",
+  () => {
+    let tmp: string;
 
-  beforeEach(() => {
+    beforeEach(() => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-session-retry-"));
     setupRepo(tmp);
     seedTask(tmp);
   });
 
-  afterEach(() => {
+    afterEach(() => {
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  it("repairs the index row on retry when the index update failed after the append", () => {
+    it("repairs the index row on retry when the index update failed after the append", () => {
     const indexBefore = fs.readFileSync(indexPath(tmp), "utf-8");
     // Break the auto-update markers so update_index refuses, after the journal
     // append has already landed.
@@ -1058,7 +1408,7 @@ describe.skipIf(!hasPython())("add_session.py retry convergence (R2-R5)", () => 
     expect(readIndex(tmp)).toContain("**Total Sessions**: 1");
   });
 
-  it("exits non-zero with a checkpoint when the auto-commit fails, then resumes at the commit step", () => {
+    it("exits non-zero with a checkpoint when the auto-commit fails, then resumes at the commit step", () => {
     breakCommits(tmp);
 
     const first = tryAddSession(tmp, "commit fault", ["--summary", "fault run"]);
@@ -1093,7 +1443,7 @@ describe.skipIf(!hasPython())("add_session.py retry convergence (R2-R5)", () => 
     expect(committed).toContain("## Session 1: commit fault");
   });
 
-  it("treats an identical request as a new session once the earlier one is committed", () => {
+    it("treats an identical request as a new session once the earlier one is committed", () => {
     runAddSession(tmp, "same prose", ["--summary", "identical summary"]);
     runAddSession(tmp, "same prose", ["--summary", "identical summary"]);
     // A third identical run has to keep working. It would not if the new
@@ -1109,7 +1459,7 @@ describe.skipIf(!hasPython())("add_session.py retry convergence (R2-R5)", () => 
     expect(distinctMarkers(tmp).length).toBe(3);
   });
 
-  it("makes a committed record a no-op when the caller supplies an idempotency key", () => {
+    it("makes a committed record a no-op when the caller supplies an idempotency key", () => {
     runAddSession(tmp, "keyed work", [
       "--summary",
       "keyed summary",
@@ -1131,7 +1481,7 @@ describe.skipIf(!hasPython())("add_session.py retry convergence (R2-R5)", () => 
     expect(readIndex(tmp)).toContain("**Total Sessions**: 1");
   });
 
-  it("refuses to resume when two entries carry the same record marker", () => {
+    it("refuses to resume when two entries carry the same record marker", () => {
     runAddSession(tmp, "dup work", ["--summary", "dup summary", "--no-commit"]);
 
     // Duplicate the pending entry — the retry must not pick one at random.
@@ -1150,7 +1500,7 @@ describe.skipIf(!hasPython())("add_session.py retry convergence (R2-R5)", () => 
     expect(countMarkers(tmp)).toBe(2);
   });
 
-  it("refuses to resume from a marker with no session heading above it", () => {
+    it("refuses to resume from a marker with no session heading above it", () => {
     runAddSession(tmp, "orphan work", [
       "--summary",
       "orphan summary",
@@ -1172,7 +1522,7 @@ describe.skipIf(!hasPython())("add_session.py retry convergence (R2-R5)", () => 
     expect(r.stderr).toContain("without a '## Session N:' heading");
   });
 
-  it("stops after a verified journal + index when auto-commit is disabled", () => {
+    it("stops after a verified journal + index when auto-commit is disabled", () => {
     fs.writeFileSync(
       path.join(tmp, ".trellis", "config.yaml"),
       "session_auto_commit: false\n",
@@ -1189,7 +1539,7 @@ describe.skipIf(!hasPython())("add_session.py retry convergence (R2-R5)", () => 
     expect(git(tmp, "log", "--oneline")).toBe(logBefore);
   });
 
-  it("writes journal and index but skips git for --no-commit", () => {
+    it("writes journal and index but skips git for --no-commit", () => {
     const logBefore = git(tmp, "log", "--oneline");
 
     const r = tryAddSession(tmp, "manual commit", ["--no-commit"]);
@@ -1200,7 +1550,7 @@ describe.skipIf(!hasPython())("add_session.py retry convergence (R2-R5)", () => 
     expect(git(tmp, "status", "--porcelain")).toContain("journal-1.md");
   });
 
-  it("rotates to a new journal file and records the entry there", () => {
+    it("rotates to a new journal file and records the entry there", () => {
     fs.writeFileSync(
       path.join(tmp, ".trellis", "config.yaml"),
       "session_auto_commit: true\nmax_journal_lines: 12\n",
@@ -1216,7 +1566,7 @@ describe.skipIf(!hasPython())("add_session.py retry convergence (R2-R5)", () => 
     expect(readIndex(tmp)).toContain("**Active File**: `journal-2.md`");
   });
 
-  it("resumes a rotated entry without appending a second one", () => {
+    it("resumes a rotated entry without appending a second one", () => {
     fs.writeFileSync(
       path.join(tmp, ".trellis", "config.yaml"),
       "session_auto_commit: true\nmax_journal_lines: 12\n",
@@ -1235,7 +1585,8 @@ describe.skipIf(!hasPython())("add_session.py retry convergence (R2-R5)", () => 
     expect(countMarkers(tmp, 2)).toBe(1);
     expect(fs.existsSync(journalPath(tmp, 3))).toBe(false);
   });
-});
+  },
+);
 
 describe.skipIf(!hasPython())("add_session.py session numbering", () => {
   let tmp: string;
@@ -1292,11 +1643,13 @@ describe.skipIf(!hasPython())("add_session.py session numbering", () => {
  * not necessarily the git toplevel. Every git path the recorder builds has to
  * be interpreted relative to the Trellis root, not the git root.
  */
-describe.skipIf(!hasPython())("add_session.py with .trellis below the git root", () => {
-  let outer: string;
-  let project: string;
+describe.skipIf(!hasPython())(
+  "add_session.py with .trellis below the git root",
+  () => {
+    let outer: string;
+    let project: string;
 
-  beforeEach(() => {
+    beforeEach(() => {
     outer = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-session-nested-"));
     git(outer, "init", "-q", "-b", "main");
     git(outer, "config", "user.email", "test@example.com");
@@ -1306,11 +1659,11 @@ describe.skipIf(!hasPython())("add_session.py with .trellis below the git root",
     seedTask(project);
   });
 
-  afterEach(() => {
+    afterEach(() => {
     fs.rmSync(outer, { recursive: true, force: true });
   });
 
-  it("verifies the committed record and still numbers a repeat as a new session", () => {
+    it("verifies the committed record and still numbers a repeat as a new session", () => {
     const first = tryAddSession(project, "nested layout", [
       "--summary",
       "nested run",
@@ -1331,12 +1684,15 @@ describe.skipIf(!hasPython())("add_session.py with .trellis below the git root",
     expect(second.stderr).not.toContain("[RESUME]");
     expect(sessionNumbers(project)).toEqual([1, 2]);
   });
-});
+  },
+);
 
-describe.skipIf(!hasPython())("add_session.py outside any git repository", () => {
-  let project: string;
+describe.skipIf(!hasPython())(
+  "add_session.py outside any git repository",
+  () => {
+    let project: string;
 
-  beforeEach(() => {
+    beforeEach(() => {
     project = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-session-nogit-"));
     stampTrellis(project);
     // seedTask() commits via git; there is no repo here by design.
@@ -1344,11 +1700,11 @@ describe.skipIf(!hasPython())("add_session.py outside any git repository", () =>
     setCurrentTask(project, "task-a");
   });
 
-  afterEach(() => {
+    afterEach(() => {
     fs.rmSync(project, { recursive: true, force: true });
   });
 
-  it("records the session and exits 0 — a configured skip, not a retry loop", () => {
+    it("records the session and exits 0 — a configured skip, not a retry loop", () => {
     // No git here means auto-commit can never succeed; that must be
     // COMMIT_BLOCKED (exit 0, like a gitignored .trellis/), not the
     // COMMIT_FAILED checkpoint whose "fix the git error" advice never applies.
@@ -1358,4 +1714,5 @@ describe.skipIf(!hasPython())("add_session.py outside any git repository", () =>
     expect(result.stderr).not.toContain("[BLOCKED] Checkpoint:");
     expect(sessionNumbers(project)).toEqual([1]);
   });
-});
+  },
+);
