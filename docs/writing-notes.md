@@ -45,6 +45,12 @@ This is an illustrative note; replace the policy and sources with those confirme
 
 Use `mini-trellis-remember` after updating the topic. A useful journal names the changed files, the verification performed and its result, and links to the spec or research note. Routine formatting edits need no knowledge entry.
 
+Test bullets retain the supplied outcome, including failures or tests not run. No commit evidence means only that there are no associated commits. A successful recorder exit verifies the journal and index, not the topic's meaning or the completion of development.
+
+Recording uses a bounded process lock within one checkout. A partial index failure keeps the journal and reports a checkpoint; repair the named structure and retry the same command. New topic-linked records include the topic's content version in their retry identity, so a correction can create a new entry even with the same title and summary. Legacy records without that version retain their old retry identity and report the limitation.
+
+Separate worktrees can still choose the same uncommitted session number. After merging, inspect complete entries and both history rows; choosing one index side or using Git union is insufficient. A detected duplicate number stops new recording until repaired. Direct edits to the same topic also need normal conflict review.
+
 <a id="changed-decisions"></a>
 ## When a decision changes
 

@@ -35,6 +35,10 @@ python3 ./.trellis/scripts/add_session.py \
 
 Use the actual topic path; omit `--topic` for a handoff without a topic. The script writes journal/index and a relative topic link; it does not edit the topic. Verify the files before reporting completion. Skip ordinary changes and unconfirmed ideas. New notes follow the discussion language; updates keep the original document's language.
 
+After a verified update, use one short sentence linking the actual topic and journal; expand for a conflict or partial completion. A saved record does not establish that development or tests succeeded. A failed index update keeps the journal: repair the reported structure and retry the same command. Same-checkout recording is serialized; separate worktrees and direct topic edits still need conflict review.
+
+When implementation changes make an existing README/docs/spec description stale, update the affected section. Ordinary edits without new reusable knowledge need no journal entry or memory report.
+
 Promote durable boundaries into `.trellis/spec/` and link them from the matching `index.md`. Cold research can move into `.trellis/research/archive/`. When a whole note is replaced, leave a superseded mark on the old note pointing at the new path instead of deleting history:
 
 ```markdown

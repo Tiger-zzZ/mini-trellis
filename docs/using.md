@@ -2,6 +2,17 @@
 
 Use mini-trellis when previous decisions matter, and record conclusions that will help a later change. The examples below follow one callback fix from lookup to reuse.
 
+## Start with one useful rule
+
+| Starting point | First useful knowledge |
+| --- | --- |
+| Empty project | Confirm one real convention in discussion, then save it. Generated tool guides are not project rules. |
+| Existing code and docs | Update the README, guide or topic that already explains the behavior; check implementation claims against code. |
+| Existing conversations | Select the sessions or text exports to [organize](history.md); preserve corrections and source links. |
+| Trellis or another tool | Follow [migration](migration.md) where applicable; continue maintaining the original knowledge files. |
+
+After saving, follow the actual topic and journal links. Recording confirms that notes were saved; development and test outcomes still come from the work described in them. Existing documents keep their language; new notes follow the discussion or requested language.
+
 ## Look up the existing rule
 
 ```bash
@@ -40,12 +51,13 @@ A formatting change or rename can be handled as a normal documentation edit. Use
 ## Reuse it in the next session
 
 ```text
-Use the project's recorded callback rule to add a retry-limit test.
-Find the current note with mini-trellis mem recall, read its conditions,
-and use that source in the implementation.
+Implement attempt_limit(failure_kind, upstream_idempotent) in policy.py,
+returning the total number of callback attempts. Add basic tests.
 ```
 
-When the rule changes, update the topic before recording the new decision. A new session should retrieve the revised text and its source.
+Give the new session the development request directly. Check the actual implementation: for the README example, idempotent transient failures allow 2 attempts, all other cases 1. If the agent misses the condition, inspect the source and retrieval before changing the rule.
+
+Then confirm a correction to 4 total attempts for idempotent transient failures, keeping the other cases at 1. Update the same topic, retain the earlier decision's journal link, and repeat the development request in a fresh session. Ordinary spelling fixes and unconfirmed ideas need no new knowledge entry.
 
 ## More guides
 

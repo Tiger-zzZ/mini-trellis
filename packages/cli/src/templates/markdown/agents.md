@@ -15,6 +15,8 @@ Keep confirmed rules short and faithful. Unconfirmed scope, exceptions, and impl
 
 For a confirmed update, follow this short order: read the existing topic; edit that file; read it back and check the new rule, limits, and negations; run `python3 ./.trellis/scripts/add_session.py --title "..." --summary "..." --topic <actual-topic-path>`; read the journal and check its topic link. Journal-only success is not topic success; report partial writes accurately. New notes follow the requested or discussion language; updates preserve the document language.
 
+After a verified memory update, reply with one short sentence linking the actual topic and journal; expand for conflicts or partial writes. Keep existing README/docs/spec descriptions aligned with implemented changes. Ordinary edits need no memory report or journal entry.
+
 When recall excerpts already answer the question with source and qualifiers, cite them and stop. Expand only missing context; do not repeat a lookup or fall back to dialogue-only `search` merely to reconfirm sufficient evidence.
 
 ZCode, Kiro and OMP conversation histories are not parsed; use project knowledge or supply Markdown/text exports. For an explicit request to organize selected past sessions or supplied Markdown/text exports into project knowledge, use `mini-trellis-session-insight`; update existing documents and preserve sources.

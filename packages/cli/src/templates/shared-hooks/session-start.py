@@ -75,6 +75,20 @@ MAX_CONTEXT_CHARS = 4000
 RUNTIME_STATUS_VERSION = 1
 _LAST_PROJECT_DIR: Path | None = None
 
+
+def _resolve_project_dir(start: Path) -> Path:
+    """Use the same nearest-project/Git boundary as recording and recall."""
+    current = start.resolve()
+    while True:
+        trellis = current / ".trellis"
+        if trellis.is_dir() and not trellis.is_symlink():
+            return current
+        if (current / ".git").exists():
+            return current
+        if current == current.parent:
+            return start.resolve()
+        current = current.parent
+
 # Force UTF-8 on stdin/stdout/stderr on Windows. Default codepage there is
 # cp936 / cp1252 / etc. — non-ASCII content (Chinese task names, prd snippets)
 # both in stdin (hook payload from host CLI) and stdout (our emitted blocks)
@@ -538,6 +552,8 @@ def _write_runtime_status(trellis_dir: Path, platform: str | None, status: str, 
     try:
         host = {"claude": "claude-code", "droid": "factory"}.get(platform or "", platform or "unknown")
         target = trellis_dir / ".runtime" / "hooks" / f"{host}.json"
+        if not target.resolve().is_relative_to(trellis_dir.parent.resolve()):
+            raise OSError("hook diagnostics escape the project")
         target.parent.mkdir(parents=True, exist_ok=True)
         payload = {"schema": 1, "platform": host, "last_hook_at": datetime.now(timezone.utc).isoformat(), "last_status": status, "last_output_chars": max(0, int(output_chars))}
         if error_category: payload["last_error_category"] = error_category
@@ -588,8 +604,13 @@ def _main_impl():
             break
     if project_dir is None:
         project_dir = Path(_normalize_windows_shell_path(hook_input.get("cwd", "."))).resolve()
+    project_dir = _resolve_project_dir(project_dir)
 
     trellis_dir = project_dir / ".trellis"
+    if not trellis_dir.is_dir() or trellis_dir.is_symlink():
+        # An independent, uninitialized project must not borrow parent state
+        # or become initialized merely because an inherited hook ran here.
+        return
     global _LAST_PROJECT_DIR
     _LAST_PROJECT_DIR = project_dir
     context_key = _resolve_context_key(trellis_dir, hook_input)
@@ -638,10 +659,14 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
         "source and conditions, cite it and stop; use `mini-trellis mem read <ref>` "
         "only for missing context. Do not repeat a sufficient lookup.\n"
         "Research lives in `.trellis/research/`; durable rules belong in `.trellis/spec/`.\n"
-        "Record a confirmed decision, a rejected approach worth not retrying, or a useful "
-        f"handoff with `{remember_command}` or "
-        "`python3 ./.trellis/scripts/add_session.py`. The remember command has the write "
-        "steps. Do not record every turn, and do not create a git commit unless the user asks.\n"
+        "Use "
+        f"`{remember_command}` for a confirmed decision, reusable finding, rejected approach, "
+        "or useful handoff; it contains the topic-first write steps. A journal-only record "
+        "does not update a topic.\n"
+        "After a verified memory update, reply with one short sentence linking the actual "
+        "topic and journal; expand for conflicts or partial writes. Keep existing project "
+        "descriptions aligned with implemented changes. Ordinary edits need no memory "
+        "report or journal entry. Do not create a git commit unless the user asks.\n"
     )
 
     if source == "compact" and platform in {"cursor", "codebuddy", "zcode"}:

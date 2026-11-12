@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — v0.4.0 candidate
+
+- Keeps supplied test outcomes unchanged and removes inferred development completion or planning status from session notes.
+- Serializes recording within a checkout; verifies managed index structure and the exact saved record, reports partial writes, and repairs missing rows on retry without duplicating the journal or rewinding later records.
+- Includes topic content versions in new topic-linked retry identities while preserving legacy marker recovery. Detects merged duplicate journal numbers and retains the existing journal layout.
+- Aligns recall, recording and the shared SessionStart hook on the nearest initialized project, bounded by independent Git roots. Keeps runtime diagnostics inside that project.
+- Clarifies short linked recording replies and the first-use loop: save a real rule, use it in a new development session, correct the same topic and use the updated rule.
+
+Scope and remaining acceptance gates are in the [v0.4.0 draft](docs/releases/v0.4.0.md). The independent-record storage prototype is local research and is not the default format.
+
 ## v0.3.8
 
 - Manual `refresh` and automatic refresh after `upgrade` share one Y/N confirmation for managed files with content conflicts. Y applies the replacements; N, empty input and EOF keep project files. JSON and non-interactive runs report files requiring confirmation; `--dry-run` previews the changes.
