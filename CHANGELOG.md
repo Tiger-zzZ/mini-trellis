@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — v0.4.0 candidate
+## v0.4.0 — 2026-11-16
 
 - Keeps supplied test outcomes unchanged and removes inferred development completion or planning status from session notes.
 - Serializes recording within a checkout; verifies managed index structure and the exact saved record, reports partial writes, and repairs missing rows on retry without duplicating the journal or rewinding later records.
@@ -9,7 +9,7 @@
 - Clarifies short linked recording replies and the first-use loop: save a real rule, use it in a new development session, correct the same topic and use the updated rule.
 - Makes confirmed-rule recording a continuous topic/verification/journal flow, keeps one current rule body with its original conditions and language, and updates affected descriptions alongside implementation.
 
-Scope and remaining acceptance gates are in the [v0.4.0 draft](docs/releases/v0.4.0.md). The independent-record storage prototype is local research and is not the default format.
+See the [v0.4.0 release notes](docs/releases/v0.4.0.md) for the recording workflow and upgrade instructions.
 
 ## v0.3.8
 

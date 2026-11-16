@@ -28,6 +28,8 @@
 
 ## Carry the useful parts forward
 
+**New in [v0.4.0](docs/releases/v0.4.0.md):** confirmed decisions flow through topic updates, verification, and journal recording. Recording retries resume saved work, corrected topics get a new record, and recall follows the current project's boundary.
+
 | Capability | How you use it |
 | --- | --- |
 | **Keep project knowledge** | Maintain conventions and conclusions in existing README, docs, spec, and research files; link the session from a journal. |
