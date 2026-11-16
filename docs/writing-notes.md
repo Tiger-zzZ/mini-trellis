@@ -45,6 +45,8 @@ This is an illustrative note; replace the policy and sources with those confirme
 
 Use `mini-trellis-remember` after updating the topic. A useful journal names the changed files, the verification performed and its result, and links to the spec or research note. Routine formatting edits need no knowledge entry.
 
+A confirmed or corrected project rule triggers this flow unless you ask not to save it. Keep one current rule in its existing document, with its conditions intact: “when X, do not Y” must not become “never Y.” Verify the saved section once, then finish the journal entry in the same turn. For a memory-only request, the reply is one short sentence with the actual topic and journal links. When code is implemented, update affected descriptions and stale implementation status as part of that change.
+
 Test bullets retain the supplied outcome, including failures or tests not run. No commit evidence means only that there are no associated commits. A successful recorder exit verifies the journal and index, not the topic's meaning or the completion of development.
 
 Recording uses a bounded process lock within one checkout. A partial index failure keeps the journal and reports a checkpoint; repair the named structure and retry the same command. New topic-linked records include the topic's content version in their retry identity, so a correction can create a new entry even with the same title and summary. Legacy records without that version retain their old retry identity and report the limitation.

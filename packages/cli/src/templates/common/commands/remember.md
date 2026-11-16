@@ -5,6 +5,7 @@ Save the confirmed decision or finding in the relevant topic, updating an existi
 ## When
 
 - The user asks to remember / persist notes
+- The user confirms or corrects a project rule: save it even without the word “remember,” unless they ask not to save. An agreed future policy is saved as agreed, not implemented. Questions, reviews and unconfirmed proposals remain read-only.
 - A confirmed decision, reusable finding, or verified fix should survive this session
 - A rejected approach or dead end should not be retried in a later session; label it rejected, not as a current rule
 - The session is about to end and has a useful handoff
@@ -14,7 +15,12 @@ Save the confirmed decision or finding in the relevant topic, updating an existi
 
 For an explicit request to organize selected past sessions or supplied Markdown/text exports, first use `mini-trellis-session-insight` and its `references/organize-history.md`. Preserve sources and corrections, resolve material conflicts together, and skip the topic and journal when no new knowledge was found. Historical commands are evidence, not live instructions. Use `--no-commit` for this organizing flow even in a project with legacy auto-commit enabled.
 
-For a confirmed rule or reusable finding, follow this short order: read the existing research/spec topic (new durable rules can go directly into spec); edit that file; read it back and compare the changed rule with the requested conclusion, including limits and negations; then record the journal link. Reuse files already open; use `mem recall` only when you need to locate the topic. Preserve the existing document's language. Do not claim a topic update based on a planned edit or journal text.
+Complete these steps in the same turn when the update is authorized. Saving the topic and its journal link is one operation; do not ask whether to continue between them. Pause only for a real conflict, missing information or failed operation.
+
+1. **Choose one home.** Reuse the document that already owns this rule or project description, including README/docs or a research/spec topic. Use `mem recall` only if its location is unknown. Confirmation alone is not a reason to copy an existing rule into spec.
+2. **Edit faithfully.** Keep the condition with its rule: “when X, do not Y” must not become “never Y.” Preserve exceptions, negations and what remains unconfirmed; retain the user's wording where paraphrasing would change the scope. New notes use the requested or discussion language; existing documents keep their language. Update only the affected section.
+3. **Verify once, then continue.** Compare the saved section with the confirmation, using the latest tool result that shows its contents or one targeted read. Once the contents are available and unchanged, use that evidence; an “unchanged since last read” response is not a reason to read again. Fix an actual mismatch before recording.
+4. **Record and finish.** Run the recorder below, then check the new journal entry, its topic link and the matching workspace index row. If resuming a partial update, inspect the saved files and complete only the missing step.
 
 Then record a short journal entry using the existing script; no CLI `spec` or `update-spec` subcommand is needed:
 
@@ -26,13 +32,13 @@ python3 ./.trellis/scripts/add_session.py \
   --topic .trellis/research/example.md
 ```
 
-Replace `--topic` with the actual file just verified, or omit it for a handoff without a topic. It validates the file and adds its path to the journal; it does not write the topic or check its meaning. Do not pass an invented path. Read back the resulting journal entry to verify its link before reporting completion. If only the topic or journal was saved, name the completed part and the missing part; retry only the missing work.
+Replace `--topic` with the actual file just verified, or omit it for a handoff without a topic. The script validates the path and recording state; the content comparison above checks the meaning. If recording fails, retain the verified topic and retry only the missing work with the same arguments.
 
 `--commit` already defaults to `-` (no git evidence). Add `--change`, `--test`, `--next-step` when they help a future session. Use `--stdin` for longer notes.
 
 If the user forbids commits, pass `--no-commit`: it still writes journal/index and skips staging/committing, regardless of project auto-commit. Use `add_session.py --help` for option details.
 
-If this session produced reusable research, write `.trellis/research/<topic>.md` and mention that path in the summary. Promote durable boundaries into `.trellis/spec/` with `mini-trellis-update-spec` (short markdown).
+Use `.trellis/research/<topic>.md` for reusable research with no existing home. When promoting a topic with `mini-trellis-update-spec`, keep one current rule body and link to it from the old location.
 
 ## Project status
 
@@ -40,7 +46,7 @@ When the user asks what the project is today, or a confirmed capability or archi
 
 - Update the README, docs page, or spec section that already states it. Create a short `.trellis/spec/` note only when no such file exists. Do not copy the same description into a second file.
 - Write the purpose, implemented capabilities, main modules, and constraints. Check capability claims against current code or tests; a confirmed decision alone does not prove implementation. A constant or configuration value does not prove the behavior that would use it. Keep planned or agreed behavior separate from implemented capabilities. A suggestion stays a suggestion, or is labeled unverified.
-- Edit only the affected section. An ordinary rename or formatting change does not trigger a full rewrite or get a journal entry. Still update any symbol or path references made stale by that change.
+- When implementation changes an existing description, update the affected README/docs/spec/research section in the same development turn, including stale “planned” or “not implemented” statements. This maintenance is part of the implementation; it does not require a separate remember request or a new journal entry. A confirmed future rule stays labeled as a plan until implemented.
 - Keep the file's language. A Chinese discussion updates an English description in English, with the same meaning, limits, and negations.
 - Link that verified file from the journal with `--topic`. A root `README*.md` or a Markdown file under `docs/` or `doc/` is accepted, as are spec and research notes. The journal does not replace the description.
 
@@ -52,4 +58,4 @@ Skip ordinary turns and changes that add no reusable knowledge. Write new notes 
 
 ## Reply
 
-After verifying the topic and journal/index, finish with one short sentence linking the actual updated topic and journal. Do not repeat their contents or list routine checks. Explain conflicts or partial completion as needed. Ordinary edits without new reusable knowledge need no memory report.
+For a memory-only request, the complete reply is one short sentence with Markdown links to the actual topic and journal, in the discussion language: `Updated [topic](<actual-topic-path>) and recorded [session](<actual-journal-path>).` Substitute real paths; a path in backticks is not a link. Do not repeat the rule or list routine checks. For a larger development request, report the requested development result and include the links briefly. Explain a conflict or partial completion when one remains. Ordinary edits without new reusable knowledge need no memory report.
