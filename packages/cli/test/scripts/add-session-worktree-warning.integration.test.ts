@@ -3,10 +3,9 @@
  * (#415 quick-fix tier, PRD requirement 4).
  *
  * When `add_session.py` detects it is running inside a linked git worktree
- * (not the main working tree) AND `session_auto_commit` resolves true, it
- * must print a one-time, non-blocking yellow note pointing at the
- * "Workspace Journal Merge Behavior" doc section. It must stay silent in the
- * main working tree, and stay silent when `session_auto_commit` is false.
+ * (not the main working tree), it explains the uncommitted numbering and
+ * merge boundary, including when auto-commit is disabled. Main checkouts
+ * remain silent. The note must not recommend picking either index side.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -138,10 +137,11 @@ describe.skipIf(!hasPython())("add_session.py worktree warning", () => {
     );
 
     expect(r.stderr).toContain("[NOTE]");
-    expect(r.stderr).toContain("directory-structure.md");
+    expect(r.stderr).toContain("before either record is committed");
+    expect(r.stderr).not.toContain("safe to resolve by picking either side");
   });
 
-  it("stays silent in a linked worktree when session_auto_commit is false", () => {
+  it("explains uncommitted worktree conflicts when session_auto_commit is false", () => {
     setupRepo(tmp, false);
 
     worktreeDir = fs.mkdtempSync(
@@ -166,6 +166,7 @@ describe.skipIf(!hasPython())("add_session.py worktree warning", () => {
       { cwd: worktreeDir, encoding: "utf-8" },
     );
 
-    expect(r.stderr).not.toContain("[NOTE]");
+    expect(r.stderr).toContain("[NOTE]");
+    expect(r.stderr).toContain("both index rows");
   });
 });

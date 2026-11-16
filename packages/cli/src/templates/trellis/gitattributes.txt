@@ -1,9 +1,8 @@
-# Trellis: append-only developer journals should merge cleanly across
-# parallel sessions/worktrees — each session only appends a new block, so
-# there is nothing to actually conflict on.
+# Trellis: retain appended text when journals meet across worktrees.
+# Union is not record-aware: concurrent uncommitted writers can reuse a
+# session number or interleave blocks. Review both records after merging.
 #
 # Do NOT add a rule for workspace/*/index.md here — it is fully regenerated
-# every session, so a real conflict there is expected and safe to resolve by
-# picking either side (task state lives in task.json, not index.md). See
-# .trellis/spec/cli/backend/directory-structure.md for details.
+# every session. Resolve conflicts using both journals; picking either side
+# can omit a history row. Preserve user-maintained index content.
 .trellis/workspace/*/journal-*.md merge=union

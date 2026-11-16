@@ -30,7 +30,7 @@ mini-trellis doctor
 mini-trellis init -u your-name --claude --codex
 ```
 
-v0.3.8 支持 `--claude`、`--codex`、`--cursor`、`--opencode`、`--pi`、`--omp`、`--kiro`、`--dsh`、`--codebuddy` 和 `--zcode`。信任设置及平台差异见 [Agent 配置](agents_CN.md)。
+v0.4.0 支持 `--claude`、`--codex`、`--cursor`、`--opencode`、`--pi`、`--omp`、`--kiro`、`--dsh`、`--codebuddy` 和 `--zcode`。信任设置及平台差异见 [Agent 配置](agents_CN.md)。
 
 初始化创建 `.trellis/`、受管说明块和所选 Agent 的集成文件，保留已有项目知识。开发日志位于 `.trellis/workspace/<name>/`。初始化完成后，按项目惯例检查并提交文件变更。
 

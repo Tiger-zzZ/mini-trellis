@@ -55,7 +55,7 @@ DEVELOPER_HINT = (
 # =============================================================================
 
 def get_repo_root(start_path: Path | None = None) -> Path:
-    """Find the nearest directory containing .trellis/ folder.
+    """Find the nearest initialized project, bounded by an independent Git root.
 
     This handles nested git repos correctly (e.g., test project inside another repo).
 
@@ -63,17 +63,24 @@ def get_repo_root(start_path: Path | None = None) -> Path:
         start_path: Starting directory to search from. Defaults to current directory.
 
     Returns:
-        Path to repository root, or current directory if no .trellis/ found.
+        Nearest initialized project or independent Git root; otherwise the
+        original starting directory.
     """
     current = (start_path or Path.cwd()).resolve()
 
-    while current != current.parent:
-        if (current / DIR_WORKFLOW).is_dir():
+    start = current
+    while True:
+        trellis = current / DIR_WORKFLOW
+        if trellis.is_dir() and not trellis.is_symlink():
             return current
+        if (current / ".git").exists():
+            return current
+        if current == current.parent:
+            break
         current = current.parent
 
     # Fallback to current directory if no .trellis/ found
-    return Path.cwd().resolve()
+    return start
 
 
 # =============================================================================
