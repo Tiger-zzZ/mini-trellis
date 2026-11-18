@@ -72,6 +72,8 @@ mini-trellis mem read "<ref-from-recall>"
 <a id="kiro"></a>
 [Kiro 配置](agents_CN.md#kiro)
 
+[Antigravity 配置](agents_CN.md#antigravity)
+
 <a id="升级与刷新"></a>
 [升级与刷新](upgrade_CN.md)
 

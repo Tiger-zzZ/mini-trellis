@@ -73,6 +73,8 @@ Then confirm a correction to 4 total attempts for idempotent transient failures,
 <a id="kiro"></a>
 [Kiro setup](agents.md#kiro)
 
+[Antigravity setup](agents.md#antigravity)
+
 <a id="upgrade-and-refresh"></a>
 [Upgrade and refresh](upgrade.md)
 

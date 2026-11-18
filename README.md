@@ -85,7 +85,7 @@ The [installation guide](https://mini-trellis.github.io/install/) covers require
 
 ## Supported agents
 
-Claude Code · Codex · Cursor · OpenCode V1/V2 · Pi · OMP · Kiro · DeepSeek Harness · CodeBuddy · ZCode
+Claude Code · Codex · Cursor · OpenCode V1/V2 · Pi · OMP · Kiro · DeepSeek Harness · CodeBuddy · ZCode · Antigravity
 
 Combine init flags, such as `--claude --codex`. Native transcript readers support Claude Code, Codex, OpenCode V1, and Pi. See [Agent setup](https://mini-trellis.github.io/agents/) for the knowledge entry, recording command, and setup steps for each tool.
 

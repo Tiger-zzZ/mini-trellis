@@ -1,6 +1,6 @@
 # Agent 配置
 
-以下集成都可以使用项目 Markdown。启动入口、原始对话读取和 compact 恢复因平台而异。本页对应 v0.3.8。
+以下集成都可以使用项目 Markdown。启动入口、原始对话读取和 compact 恢复因平台而异。本页对应 v0.4.1。
 
 <a id="capabilities"></a>
 ## 平台能力
@@ -18,6 +18,7 @@
 | DeepSeek Harness | `--dsh` | 项目说明与技能 | — | 已保存的项目文档 |
 | CodeBuddy CLI / IDE | `--codebuddy` | SessionStart 与技能 | — | 已保存的项目文档 |
 | ZCode | `--zcode` | 信任后的 SessionStart | — | 已保存的项目文档 |
+| Google Antigravity | `--antigravity` | 项目技能与支持版本的 SessionStart | — | 已保存的项目文档 |
 
 “—”表示尚未解析该平台的原始对话。可以提供 Markdown/文本导出供 [session-insight](history_CN.md) 整理。同一仓库可组合多个初始化参数。
 
@@ -202,6 +203,24 @@ kiro-cli chat --v3
 打开项目并按 Kiro 提示信任工作区。`.kiro/hooks/mini-trellis.json` 注册 SessionStart，`.kiro/skills/` 提供 remember、session-insight、update-spec 三项技能。新会话载入简短项目入口；用 `/mini-trellis-remember` 保存已确认结论，后续通过 `mini-trellis mem recall <关键词>` 召回。compact 后通过 `AGENTS.md` 和 recall 继续读取已保存的项目知识。
 
 `refresh --kiro` 更新项目资产，`doctor` 检查注册与最近执行。已有 Trellis 项目使用 `mini-trellis migrate`，将 Trellis 技能、Agent 配置和流程 Hook 替换为此项目入口。接入采用 Kiro 当前的[独立 Hook 格式](https://kiro.dev/docs/hooks/)与 [Agent Skills](https://kiro.dev/docs/skills/)。
+
+<a id="antigravity"></a>
+## Google Antigravity
+
+在项目根目录安装，然后在 Antigravity App、CLI（`agy`）或独立 IDE 中打开该项目。
+
+```bash
+mini-trellis init -u 你的名字 --antigravity -y
+mini-trellis doctor
+```
+
+与 Codex、ZCode 共用 `.agents/skills/` 中的 remember、session-insight、update-spec。用 `/mini-trellis-remember` 保存决定，后续在新会话用 `mini-trellis mem recall <关键词>` 找到原项目约定。
+
+项目的 `.agents/hooks.json` 注册 `mini-trellis-session-start`。在 CLI 的 `/hooks` 或桌面端自定义面板核对该组，再开启新会话。`doctor` 显示注册与最近观察到的执行。
+
+现行版本使用 `.agents/` 并支持 `SessionStart`。CLI 从 1.5.4 起提供 `cwd`，早期输入则根据挂载目录定位同一个已初始化项目。只识别 `.agent/skills` 或没有 `SessionStart` 的旧版，可以打开项目根目录，让 Agent 读取 `AGENTS.md` 或按文件路径使用共享技能。参见官方[技能](https://antigravity.google/docs/skills)与 [Hook](https://antigravity.google/docs/hooks) 说明。
+
+用 `mini-trellis refresh --antigravity --dry-run` 预览更新。刷新保留已有 Hook 组和启用状态。旧自定义目录已有同名技能时，先移动或改名，再启用共享技能。
 
 <a id="dsh"></a>
 ## DeepSeek Harness

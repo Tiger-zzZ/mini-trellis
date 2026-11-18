@@ -26,7 +26,14 @@ import {
   type ManagedRemovalPlan,
 } from "../utils/managed-removal.js";
 import { installedOpenCodeVersions } from "../utils/opencode-version.js";
-import { assertSafeManagedPath } from "../utils/managed-path-safety.js";
+import {
+  assertSafeManagedPath,
+  ManagedAssetConflict,
+} from "../utils/managed-path-safety.js";
+import {
+  ANTIGRAVITY_HOOKS_PATH,
+  readAntigravityRegistration,
+} from "../utils/antigravity-hooks.js";
 
 export interface UninstallOptions {
   yes?: boolean;
@@ -113,6 +120,14 @@ function collectOwnedPaths(cwd: string): Record<string, string> {
   hashes[FILE_NAMES_AGENTS] = "";
   const platforms = getConfiguredPlatforms(cwd);
   for (const id of platforms) {
+    if (id === "antigravity") {
+      const registration = readAntigravityRegistration(cwd);
+      if (registration.state === "invalid")
+        throw new ManagedAssetConflict(
+          ANTIGRAVITY_HOOKS_PATH,
+          registration.detail,
+        );
+    }
     const versions =
       id === "opencode" ? installedOpenCodeVersions(cwd) : [undefined];
     for (const version of versions) {
@@ -121,7 +136,7 @@ function collectOwnedPaths(cwd: string): Record<string, string> {
       });
       if (!templates) continue;
       for (const rel of templates.keys()) {
-        if (id === "zcode" || id === "kiro")
+        if (id === "zcode" || id === "kiro" || id === "antigravity")
           assertSafeManagedPath(fs.realpathSync(cwd), rel, {
             followLeaf: true,
           });

@@ -26,7 +26,8 @@ export type SharedHookPlatform =
   | "cursor"
   | "codebuddy"
   | "zcode"
-  | "kiro";
+  | "kiro"
+  | "antigravity";
 
 export const SHARED_HOOKS_BY_PLATFORM: Record<
   SharedHookPlatform,
@@ -38,6 +39,7 @@ export const SHARED_HOOKS_BY_PLATFORM: Record<
   codebuddy: ["session-start.py"],
   zcode: ["session-start.py"],
   kiro: ["session-start.py"],
+  antigravity: ["session-start.py"],
 };
 
 export function getSharedHookScripts(): HookScript[] {

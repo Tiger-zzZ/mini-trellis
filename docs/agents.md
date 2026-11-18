@@ -1,6 +1,6 @@
 # Agent setup
 
-All listed integrations can use project Markdown. Startup delivery, raw conversation reading, and compact recovery depend on the platform. This page covers v0.3.8.
+All listed integrations can use project Markdown. Startup delivery, raw conversation reading, and compact recovery depend on the platform. This page covers v0.4.1.
 
 ## Capabilities
 
@@ -17,6 +17,7 @@ All listed integrations can use project Markdown. Startup delivery, raw conversa
 | DeepSeek Harness | `--dsh` | Instructions and skills | — | Saved project documents |
 | CodeBuddy CLI / IDE | `--codebuddy` | SessionStart and skills | — | Saved project documents |
 | ZCode | `--zcode` | SessionStart, after trust | — | Saved project documents |
+| Google Antigravity | `--antigravity` | Project skills and SessionStart on supported builds | — | Saved project documents |
 
 A dash means native transcripts are not parsed. You can supply Markdown/text exports to [session-insight](history.md). Combine init flags to use more than one agent in a repository.
 
@@ -198,6 +199,24 @@ kiro-cli chat --v3
 Open the project and accept Kiro's workspace trust prompt. `.kiro/hooks/mini-trellis.json` registers SessionStart, and `.kiro/skills/` contains remember, session-insight and update-spec. Start a new session to load the short project entry; use `/mini-trellis-remember` to save a confirmed decision and `mini-trellis mem recall <query>` to retrieve it later. After compact, use the saved project notes through `AGENTS.md` and recall.
 
 `refresh --kiro` updates installed assets, and `doctor` checks registration and the latest execution. Existing Trellis projects use `mini-trellis migrate` to replace their Trellis skills, agents and workflow hook with this project entry. Kiro uses the [current standalone hook format](https://kiro.dev/docs/hooks/) and [Agent Skills](https://kiro.dev/docs/skills/).
+
+<a id="antigravity"></a>
+## Google Antigravity
+
+Install from the project root and open the same project in the Antigravity App, CLI (`agy`), or standalone IDE.
+
+```bash
+mini-trellis init -u your-name --antigravity -y
+mini-trellis doctor
+```
+
+The integration shares remember, session-insight, and update-spec with Codex and ZCode under `.agents/skills/`. Use `/mini-trellis-remember` to save a decision and `mini-trellis mem recall <query>` to find the project rule in a later session.
+
+The project `.agents/hooks.json` registers `mini-trellis-session-start`. Check the group in `/hooks` in the CLI or in the desktop Customizations panel, then open a new session. `doctor` reports the installed registration and the last observed execution.
+
+Current builds use `.agents/` and support `SessionStart`. CLI 1.5.4 and later include `cwd`. For earlier payloads, the mounted workspace paths must resolve to the same initialized project. On older builds that only discover `.agent/skills` or lack `SessionStart`, open the project root and ask the agent to use `AGENTS.md` or read the shared skill by path. See the [Antigravity skills](https://antigravity.google/docs/skills) and [hooks](https://antigravity.google/docs/hooks) references.
+
+Preview updates with `mini-trellis refresh --antigravity --dry-run`. Refresh keeps existing hook groups and their enablement choices. If a legacy customization directory already contains a skill under the same name, move or rename that copy before enabling the shared skill.
 
 <a id="dsh"></a>
 ## DeepSeek Harness

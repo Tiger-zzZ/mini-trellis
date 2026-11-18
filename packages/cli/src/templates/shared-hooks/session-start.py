@@ -89,6 +89,54 @@ def _resolve_project_dir(start: Path) -> Path:
             return start.resolve()
         current = current.parent
 
+
+def _antigravity_install_dir() -> Path | None:
+    script = Path(__file__).absolute()
+    if script.parts[-4:] == (".agents", "hooks", "mini-trellis", "session-start.py"):
+        return script.parents[3]
+    return None
+
+
+def _workspace_dir(value: object) -> Path | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        path = Path(_normalize_windows_shell_path(value))
+        if path.is_absolute() and path.is_dir():
+            return path.resolve()
+    except (OSError, RuntimeError, ValueError):
+        pass
+    return None
+
+
+def _antigravity_project_dir(install_dir: Path, hook_input: dict) -> Path | None:
+    owner = install_dir.resolve()
+    if not Path(__file__).resolve().is_relative_to(owner):
+        return None
+    paths = hook_input.get("workspacePaths")
+    if not isinstance(paths, list) or not paths:
+        return None
+    workspaces: list[Path] = []
+    for value in paths:
+        workspace = _workspace_dir(value)
+        if workspace is None:
+            return None
+        workspaces.append(workspace)
+
+    # Newer agy supplies cwd. Older payloads identify only the mounted folders.
+    cwd = hook_input.get("cwd")
+    if cwd is not None and cwd != "":
+        current = _workspace_dir(cwd)
+        if (
+            current is None
+            or not any(current.is_relative_to(workspace) for workspace in workspaces)
+            or _resolve_project_dir(current) != owner
+        ):
+            return None
+    elif {_resolve_project_dir(workspace) for workspace in workspaces} != {owner}:
+        return None
+    return owner
+
 # Force UTF-8 on stdin/stdout/stderr on Windows. Default codepage there is
 # cp936 / cp1252 / etc. — non-ASCII content (Chinese task names, prd snippets)
 # both in stdin (hook payload from host CLI) and stdout (our emitted blocks)
@@ -178,6 +226,8 @@ def _format_git_state(repo_root: Path) -> str:
 
 
 def _detect_platform(input_data: dict) -> str | None:
+    if _antigravity_install_dir() is not None:
+        return "antigravity"
     if isinstance(input_data.get("cursor_version"), str):
         return "cursor"
     # CLAUDE_PROJECT_DIR is a compatibility alias that several hosts set
@@ -572,8 +622,11 @@ def _write_runtime_status(trellis_dir: Path, platform: str | None, status: str, 
 
 
 def _main_impl():
+    antigravity_dir = _antigravity_install_dir()
     if should_skip_injection():
-        sys.exit(0)
+        if antigravity_dir is not None:
+            print("{}", flush=True)
+        return
 
     try:
         hook_input = json.loads(sys.stdin.read())
@@ -596,25 +649,35 @@ def _main_impl():
         "COPILOT_PROJECT_DIR",
         "TRAE_PROJECT_DIR",
     ]
-    project_dir = None
-    for var in project_dir_env_vars:
-        val = os.environ.get(var)
-        if val:
-            project_dir = Path(_normalize_windows_shell_path(val)).resolve()
-            break
-    if project_dir is None:
-        project_dir = Path(_normalize_windows_shell_path(hook_input.get("cwd", "."))).resolve()
-    project_dir = _resolve_project_dir(project_dir)
+    if antigravity_dir is not None:
+        project_dir = _antigravity_project_dir(antigravity_dir, hook_input)
+        if project_dir is None:
+            print("{}", flush=True)
+            return
+    else:
+        project_dir = None
+        for var in project_dir_env_vars:
+            val = os.environ.get(var)
+            if val:
+                project_dir = Path(_normalize_windows_shell_path(val)).resolve()
+                break
+        if project_dir is None:
+            project_dir = Path(_normalize_windows_shell_path(hook_input.get("cwd", "."))).resolve()
+        project_dir = _resolve_project_dir(project_dir)
 
     trellis_dir = project_dir / ".trellis"
     if not trellis_dir.is_dir() or trellis_dir.is_symlink():
         # An independent, uninitialized project must not borrow parent state
         # or become initialized merely because an inherited hook ran here.
+        if antigravity_dir is not None:
+            print("{}", flush=True)
         return
     global _LAST_PROJECT_DIR
     _LAST_PROJECT_DIR = project_dir
-    context_key = _resolve_context_key(trellis_dir, hook_input)
-    _persist_context_key_for_bash(context_key)
+    context_key = None
+    if antigravity_dir is None:
+        context_key = _resolve_context_key(trellis_dir, hook_input)
+        _persist_context_key_for_bash(context_key)
 
     # Load config for scope filtering and legacy detection
     is_mono, packages, scope_config, task_pkg, default_pkg = _load_trellis_config(
@@ -628,9 +691,11 @@ def _main_impl():
     spec_index_paths = _collect_spec_index_paths(trellis_dir, allowed_pkgs)
     source = hook_input.get("source") if isinstance(hook_input.get("source"), str) else ""
     platform = _detect_platform(hook_input)
+    if platform == "antigravity":
+        source = "startup"
     if platform in {"codex", "zcode"}:
         remember_command = "$mini-trellis-remember"
-    elif platform == "kiro":
+    elif platform in {"kiro", "antigravity"}:
         remember_command = "/mini-trellis-remember"
     elif platform in {"cursor", "codebuddy"}:
         remember_command = "mini-trellis-remember"
@@ -715,6 +780,21 @@ Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. R
 
     content_hash = hashlib.sha256(context_text.encode("utf-8")).hexdigest()[:24]
 
+    if platform == "antigravity":
+        antigravity_result = {
+            "injectSteps": [{"systemMessage": {"systemMessage": context_text}}],
+        }
+        print(json.dumps(antigravity_result, ensure_ascii=False), flush=True)
+        _write_runtime_status(
+            trellis_dir,
+            platform,
+            "ok",
+            len(context_text),
+            content_hash=content_hash,
+            source=source,
+        )
+        return
+
     # Kiro SessionStart adds a hook's stdout directly to the
     # conversation context — no JSON envelope. Emit the bare overview text.
     # Conditionally isolated: all other platforms keep the JSON path below.
@@ -779,12 +859,16 @@ if __name__ == "__main__":
     try:
         _main_impl()
     except Exception as exc:
-        project = os.environ.get("CLAUDE_PROJECT_DIR") or os.environ.get("CODEX_PROJECT_DIR")
-        project_path = Path(_normalize_windows_shell_path(project)).resolve() if project else _LAST_PROJECT_DIR
+        platform = _detect_platform({})
+        project_path = _LAST_PROJECT_DIR
+        if platform != "antigravity":
+            project = os.environ.get("CLAUDE_PROJECT_DIR") or os.environ.get("CODEX_PROJECT_DIR")
+            if project:
+                project_path = Path(_normalize_windows_shell_path(project)).resolve()
         if project_path:
             _write_runtime_status(
                 project_path / ".trellis" if project_path else Path(".trellis"),
-                _detect_platform({}), "error", error_category=type(exc).__name__,
+                platform, "error", error_category=type(exc).__name__,
             )
         print(f"mini-trellis SessionStart failed: {type(exc).__name__}", file=sys.stderr)
         raise

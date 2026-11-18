@@ -1,3 +1,8 @@
+import {
+  ANTIGRAVITY_HOOK_DIR,
+  ANTIGRAVITY_HOOKS_PATH,
+} from "../utils/antigravity-hooks.js";
+
 /**
  * AI Tool Types and Registry — mini-trellis v1 hosts only.
  */
@@ -12,7 +17,8 @@ export type AITool =
   | "cursor"
   | "codebuddy"
   | "zcode"
-  | "kiro";
+  | "kiro"
+  | "antigravity";
 
 export type TemplateDir = "common" | "claude" | "codex" | "opencode" | "pi";
 
@@ -26,7 +32,8 @@ export type CliFlag =
   | "cursor"
   | "codebuddy"
   | "zcode"
-  | "kiro";
+  | "kiro"
+  | "antigravity";
 
 export interface TemplateContext {
   cmdRefPrefix: "/mini-trellis:" | "/mini-trellis-" | "$";
@@ -220,6 +227,24 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
       agentCapable: true,
       hasHooks: true,
       cliFlag: "zcode",
+    },
+  },
+  antigravity: {
+    name: "Google Antigravity",
+    templateDirs: ["common"],
+    configDir: ANTIGRAVITY_HOOK_DIR,
+    supportsAgentSkills: true,
+    extraManagedPaths: [ANTIGRAVITY_HOOKS_PATH],
+    cliFlag: "antigravity",
+    defaultChecked: false,
+    hasPythonHooks: true,
+    templateContext: {
+      cmdRefPrefix: "/mini-trellis-",
+      executorAI: "Bash scripts or tool calls",
+      userActionLabel: "Skills",
+      agentCapable: true,
+      hasHooks: true,
+      cliFlag: "antigravity",
     },
   },
 };

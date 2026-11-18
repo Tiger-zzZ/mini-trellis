@@ -9,6 +9,10 @@ import path from "node:path";
 import { DIR_NAMES, FILE_NAMES } from "../constants/paths.js";
 import { scrubKiroHooks } from "./kiro-hooks.js";
 import { scrubZCodeConfig } from "./zcode-config.js";
+import {
+  ANTIGRAVITY_HOOKS_PATH,
+  scrubAntigravityHooks,
+} from "./antigravity-hooks.js";
 import { ALL_MANAGED_DIRS } from "../configurators/index.js";
 import {
   scrubCodexConfigToml,
@@ -65,6 +69,12 @@ export interface BuildManagedRemovalPlanOptions {
 
 export function buildStructuredFileSpecs(): Map<string, StructuredFileSpec> {
   const specs: StructuredFileSpec[] = [
+    {
+      posixPath: ANTIGRAVITY_HOOKS_PATH,
+      reason:
+        "Remove mini-trellis SessionStart; preserve other Antigravity hooks",
+      scrub: scrubAntigravityHooks,
+    },
     {
       posixPath: ".kiro/hooks/mini-trellis.json",
       reason: "Remove mini-trellis SessionStart; preserve other Kiro hooks",

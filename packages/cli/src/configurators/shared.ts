@@ -11,6 +11,12 @@ import {
   ManagedAssetConflict,
 } from "../utils/managed-path-safety.js";
 import type { TemplateContext } from "../types/ai-tools.js";
+import {
+  ANTIGRAVITY_HOOKS_PATH,
+  ANTIGRAVITY_SESSION_HOOK,
+  readAntigravityRegistration,
+  writeAntigravityHooks,
+} from "../utils/antigravity-hooks.js";
 import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
 import {
   readCodeBuddySettingsIssue,
@@ -494,13 +500,18 @@ export function collectSkillTemplates(
 // silently stops managing a file (manifests/0.5.7.json).
 // ---------------------------------------------------------------------------
 
-/** Apply the python3 → python rewrite to every entry of a template map. */
+/** Apply the Python rewrite, except to configuration already serialized with it. */
 export function renderTemplateMap(
   files: Map<string, string>,
 ): Map<string, string> {
   const rendered = new Map<string, string>();
   for (const [relPath, content] of files) {
-    rendered.set(relPath, replacePythonCommandLiterals(content));
+    rendered.set(
+      relPath,
+      relPath === ANTIGRAVITY_HOOKS_PATH
+        ? content
+        : replacePythonCommandLiterals(content),
+    );
   }
   return rendered;
 }
@@ -510,6 +521,7 @@ export function assertProjectTemplatePaths(
   cwd: string,
   files: Map<string, string>,
 ): void {
+  const antigravity = files.has(ANTIGRAVITY_HOOKS_PATH);
   const paths = [...files.keys()].filter(
     (relative) =>
       relative.startsWith(".codebuddy/") ||
@@ -517,7 +529,10 @@ export function assertProjectTemplatePaths(
       relative.startsWith(".zcode/") ||
       relative.startsWith(".kiro/") ||
       relative.startsWith(".omp/") ||
-      (files.has(".zcode/config.json") &&
+      (antigravity &&
+        (relative === ANTIGRAVITY_HOOKS_PATH ||
+          relative === ANTIGRAVITY_SESSION_HOOK)) ||
+      ((antigravity || files.has(".zcode/config.json")) &&
         relative.startsWith(".agents/skills/")),
   );
   if (!paths.length) return;
@@ -539,6 +554,29 @@ export function assertProjectTemplatePaths(
         conflict,
         "duplicate ZCode skill source; move or rename the existing .zcode skill before installing the shared .agents skill; no files changed",
       );
+  }
+  if (antigravity) {
+    const registration = readAntigravityRegistration(cwd);
+    if (registration.state === "invalid")
+      throw new ManagedAssetConflict(
+        ANTIGRAVITY_HOOKS_PATH,
+        registration.detail,
+      );
+    for (const relative of paths) {
+      if (
+        !relative.startsWith(".agents/skills/") ||
+        !relative.endsWith("/SKILL.md")
+      )
+        continue;
+      for (const alias of [".agent", "_agent", "_agents"]) {
+        const legacy = alias + relative.slice(".agents".length);
+        if (existsSync(path.join(cwd, legacy)))
+          throw new ManagedAssetConflict(
+            legacy,
+            "duplicate Antigravity skill; move or rename it before installing the shared .agents skill",
+          );
+      }
+    }
   }
 }
 
@@ -589,6 +627,10 @@ export async function writeTemplateMap(
   for (const [relPath, content] of renderTemplateMap(files)) {
     const absPath = path.join(cwd, ...relPath.split("/"));
     ensureDir(path.dirname(absPath));
+    if (relPath === ANTIGRAVITY_HOOKS_PATH) {
+      writeAntigravityHooks(absPath, content);
+      continue;
+    }
     if (mergeJsonPaths.has(relPath)) {
       if (relPath === ".cursor/hooks.json" && existsSync(absPath)) {
         const issue = readCursorHooksConfigIssue(absPath);

@@ -14,7 +14,7 @@ Run project commands from the repository root. `mini-trellis --help`, `<command>
 | `platforms` | List configured agents | `--json` |
 | `uninstall` | Remove the project's integration and all of `.trellis/` | `--dry-run`, `-y` |
 
-Agent flags in v0.3.8: `--claude`, `--codex`, `--cursor`, `--opencode`, `--pi`, `--omp`, `--kiro`, `--dsh`, `--codebuddy`, `--zcode`. Init and refresh accept these flags. `--opencode-version` is also available on init; its value is `1` or `2`.
+Init and refresh accept `--claude`, `--codex`, `--cursor`, `--opencode`, `--pi`, `--omp`, `--kiro`, `--dsh`, `--codebuddy`, `--zcode`, and `--antigravity`. OpenCode also accepts `--opencode-version 1|2`.
 
 For init, `-y` accepts defaults, `-s` skips existing files, and `-f` overwrites existing files. Prefer ordinary init and review its prompts when adding an integration. Refresh applies normal managed updates directly; replacements requiring confirmation are listed in one `[y/N]` prompt. See [upgrade and refresh](upgrade.md).
 
@@ -74,7 +74,7 @@ These are instructions used inside the coding agent, rather than additional `min
 | --- | --- |
 | Claude Code / OpenCode | `/mini-trellis:remember` |
 | Codex / ZCode | `$mini-trellis-remember` or the named skill |
-| Pi / OMP / Kiro | `/mini-trellis-remember` |
+| Pi / OMP / Kiro / Antigravity | `/mini-trellis-remember` |
 | Cursor / DeepSeek Harness | `mini-trellis-remember` skill |
 | CodeBuddy | Named skill; CLI also supports `/mini-trellis:remember` |
 

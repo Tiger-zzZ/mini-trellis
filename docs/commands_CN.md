@@ -14,7 +14,7 @@
 | `platforms` | 列出已配置的 Agent | `--json` |
 | `uninstall` | 删除项目集成与整个 `.trellis/` | `--dry-run`、`-y` |
 
-v0.3.8 的平台参数为 `--claude`、`--codex`、`--cursor`、`--opencode`、`--pi`、`--omp`、`--kiro`、`--dsh`、`--codebuddy`、`--zcode`，可用于 init 和 refresh。init 同样支持 `--opencode-version`，参数值为 `1` 或 `2`。
+init 和 refresh 接受 `--claude`、`--codex`、`--cursor`、`--opencode`、`--pi`、`--omp`、`--kiro`、`--dsh`、`--codebuddy`、`--zcode` 和 `--antigravity`。OpenCode 还可选 `--opencode-version 1|2`。
 
 init 的 `-y` 接受默认选项，`-s` 跳过已有文件，`-f` 覆盖已有文件。添加集成时建议使用普通 init 并检查提示。refresh 直接更新常规受管文件；需要覆盖确认时，列出文件并统一询问 `[y/N]`。详见[升级与刷新](upgrade_CN.md)。
 
@@ -74,7 +74,7 @@ mini-trellis mem search "回调" --cwd /path/to/project
 | --- | --- |
 | Claude Code / OpenCode | `/mini-trellis:remember` |
 | Codex / ZCode | `$mini-trellis-remember` 或同名技能 |
-| Pi / OMP / Kiro | `/mini-trellis-remember` |
+| Pi / OMP / Kiro / Antigravity | `/mini-trellis-remember` |
 | Cursor / DeepSeek Harness | `mini-trellis-remember` 技能 |
 | CodeBuddy | 同名技能；CLI 也支持 `/mini-trellis:remember` |
 

@@ -20,6 +20,11 @@ import { collectCursorTemplates } from "./cursor.js";
 import { collectCodeBuddyTemplates } from "./codebuddy.js";
 import { collectKiroTemplates } from "./kiro.js";
 import { collectZCodeTemplates } from "./zcode.js";
+import { collectAntigravityTemplates } from "./antigravity.js";
+import {
+  ANTIGRAVITY_SESSION_HOOK,
+  readAntigravityRegistration,
+} from "../utils/antigravity-hooks.js";
 
 import {
   writeTemplateMap,
@@ -70,6 +75,7 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
   codebuddy: fromTemplates(collectCodeBuddyTemplates),
   zcode: fromTemplates(collectZCodeTemplates),
   kiro: fromTemplates(collectKiroTemplates),
+  antigravity: fromTemplates(collectAntigravityTemplates),
 };
 
 export const PLATFORM_IDS = Object.keys(AI_TOOLS) as AITool[];
@@ -83,6 +89,7 @@ export const PLATFORM_MANAGED_DIRS = PLATFORM_IDS.flatMap((id) =>
 export const ALL_MANAGED_DIRS = [".trellis", ...new Set(PLATFORM_MANAGED_DIRS)];
 
 const DETECT_FILES: Record<AITool, string[]> = {
+  antigravity: [ANTIGRAVITY_SESSION_HOOK],
   "claude-code": [
     ".claude/hooks/session-start.py",
     ".claude/commands/mini-trellis/remember.md",
@@ -124,6 +131,9 @@ export function getConfiguredPlatforms(cwd: string): Set<AITool> {
     const hits = DETECT_FILES[id];
     if (hits.some((rel) => fs.existsSync(path.join(cwd, rel)))) {
       platforms.add(id);
+    } else if (id === "antigravity") {
+      const { state } = readAntigravityRegistration(cwd);
+      if (state === "enabled" || state === "disabled") platforms.add(id);
     }
   }
   return platforms;
@@ -204,6 +214,9 @@ export function resolvePlatformOptions(
   }
   if (platforms.includes("omp")) {
     assertProjectTemplatePaths(cwd, collectOmpTemplates());
+  }
+  if (platforms.includes("antigravity")) {
+    assertProjectTemplatePaths(cwd, collectAntigravityTemplates());
   }
   return resolved;
 }

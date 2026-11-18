@@ -43,6 +43,11 @@ import {
 import { writeFileAtomic } from "../utils/atomic-write.js";
 import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
 import {
+  ANTIGRAVITY_HOOKS_PATH,
+  mergeAntigravityHooks,
+  writeAntigravityHooks,
+} from "../utils/antigravity-hooks.js";
+import {
   readZCodeConfigIssue,
   mergeZCodeConfig,
 } from "../utils/zcode-config.js";
@@ -84,6 +89,7 @@ const JSON_PATHS = new Set([
   ".codebuddy/settings.json",
   ".zcode/config.json",
   ".opencode/package.json",
+  ANTIGRAVITY_HOOKS_PATH,
 ]);
 
 function executableFor(relative: string): boolean {
@@ -97,7 +103,12 @@ function renderedJsonMerge(
 ): "merge" | "unchanged" | "conflict" {
   if (!fs.existsSync(filePath)) return "merge";
   try {
-    const existing = JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
+    const current = fs.readFileSync(filePath, "utf8");
+    if (relative === ANTIGRAVITY_HOOKS_PATH)
+      return mergeAntigravityHooks(current, content) === current
+        ? "unchanged"
+        : "merge";
+    const existing = JSON.parse(current) as unknown;
     const desired = JSON.parse(content) as unknown;
     const merge =
       relative === ".codebuddy/settings.json"
@@ -106,7 +117,7 @@ function renderedJsonMerge(
           ? mergeZCodeConfig
           : mergeJsonValues;
     const merged = `${JSON.stringify(merge(existing, desired), null, 2)}\n`;
-    return merged === fs.readFileSync(filePath, "utf8") ? "unchanged" : "merge";
+    return merged === current ? "unchanged" : "merge";
   } catch {
     return "conflict";
   }
@@ -344,6 +355,10 @@ function applyRefresh(cwd: string, report: RefreshReport): void {
     }
     if (!content || item.action === "unchanged" || item.action === "conflict")
       continue;
+    if (item.path === ANTIGRAVITY_HOOKS_PATH) {
+      writeAntigravityHooks(filePath, content);
+      continue;
+    }
     if (JSON_PATHS.has(item.path)) {
       mergeJsonFile(
         filePath,

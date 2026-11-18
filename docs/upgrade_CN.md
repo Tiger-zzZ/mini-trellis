@@ -12,7 +12,7 @@ mini-trellis doctor
 
 从 0.3.8 开始，`upgrade` 在 npm 更新成功后调用新版 CLI，刷新当前已初始化项目。在未初始化的目录运行时只更新 CLI；其他项目需要分别运行 `mini-trellis refresh`。完成后开启新的 Agent 会话。
 
-默认标签沿用当前版本通道（`latest`、`beta` 或 `rc`）；可用 `--tag 0.4.0` 明确选择版本。`--dry-run` 预览将执行的步骤。
+默认标签沿用当前版本通道（`latest`、`beta` 或 `rc`）；可用 `--tag 0.4.1` 明确选择版本。`--dry-run` 预览将执行的步骤。
 
 通过 `npm install -g mini-trellis@latest`，或从 0.3.7 及更早版本执行 `upgrade` 时，随后刷新一次项目：
 
@@ -29,7 +29,7 @@ mini-trellis doctor
 ## 添加 Agent
 
 ```bash
-mini-trellis init --zcode -y
+mini-trellis init --antigravity -y
 mini-trellis doctor
 ```
 

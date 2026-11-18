@@ -37,6 +37,10 @@ program
   .option("--dsh", "Include DeepSeek Harness skills")
   .option("--cursor", "Include Cursor skills and local sessionStart")
   .option(
+    "--antigravity",
+    "Include Google Antigravity skills and project SessionStart",
+  )
+  .option(
     "--kiro",
     "Include Kiro CLI V3 / IDE skills and project SessionStart hook",
   )
@@ -214,6 +218,7 @@ program
   .option("--codebuddy", "Refresh CodeBuddy CLI / IDE assets")
   .option("--zcode", "Refresh Z.ai ZCode project assets")
   .option("--kiro", "Refresh Kiro project skills and SessionStart hook")
+  .option("--antigravity", "Refresh Google Antigravity project assets")
   .option("--dry-run", "Preview changes without writing files")
   .option("--json", "Output machine-readable JSON")
   .action(async (options: Record<string, unknown>) => {
@@ -228,6 +233,7 @@ program
       codebuddy: options.codebuddy as boolean,
       zcode: options.zcode as boolean,
       kiro: options.kiro as boolean,
+      antigravity: options.antigravity as boolean,
       opencodeVersion: options.opencodeVersion as string | undefined,
       dryRun: options.dryRun as boolean,
       json: options.json as boolean,

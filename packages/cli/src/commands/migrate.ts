@@ -58,7 +58,10 @@ import {
   TRELLIS_BLOCK_START,
 } from "../utils/managed-paths.js";
 import { AI_TOOLS, type AITool } from "../types/ai-tools.js";
-import { updateManifestForTemplates } from "../utils/managed-manifest.js";
+import {
+  hashContent,
+  updateManifestForTemplates,
+} from "../utils/managed-manifest.js";
 import { collectTrellisScriptTemplates } from "../templates/extract.js";
 import { renderTemplateMap } from "../configurators/shared.js";
 import { parseOpenCodeVersion } from "../utils/opencode-version.js";
@@ -91,7 +94,7 @@ export interface MigratePlan {
   rewrites: string[];
   /** `.trellis/.version` exists and will be removed. */
   dropsVersion: boolean;
-  /** AGENTS.md carries a Trellis-managed block that will be replaced. */
+  /** Replace or add the project instruction block. */
   rewritesAgents: boolean;
 }
 
@@ -162,11 +165,12 @@ export const RETIRED_SCRIPT_MODULES = [
   "cli_adapter.py",
 ];
 
+const LEGACY_TEMPLATE_HASHES = `${DIR_NAMES.WORKFLOW}/.template-hashes.json`;
 /** Trellis-only files at fixed paths that no scan rule covers. */
 const FIXED_DELETIONS = [
   PATHS.WORKFLOW_GUIDE_FILE,
   `${PATHS.SCRIPTS}/task.py`,
-  `${DIR_NAMES.WORKFLOW}/.template-hashes.json`,
+  LEGACY_TEMPLATE_HASHES,
   ...RETIRED_SCRIPT_MODULES.map((name) => `${PATHS.SCRIPTS}/common/${name}`),
 ];
 
@@ -176,8 +180,57 @@ const REWRITES = [`${DIR_NAMES.WORKFLOW}/config.yaml`, `${PATHS.SCRIPTS}/`];
 /** Residue that survives the migration on purpose; printed after the run. */
 const PRESERVED = [`${PATHS.SPEC}/`, `${RESEARCH_REL}/`, `${PATHS.WORKSPACE}/`];
 
+/** Generic workflow names can also belong to the user. Match the Trellis hash. */
+function legacyAntigravityAssets(
+  cwd: string,
+): { path: string; matches: boolean }[] {
+  try {
+    const root = fs.realpathSync(cwd);
+    const manifest = assertSafeManagedPath(root, LEGACY_TEMPLATE_HASHES, {
+      followLeaf: true,
+    });
+    const value = JSON.parse(fs.readFileSync(manifest, "utf8")) as {
+      __version?: unknown;
+      hashes?: Record<string, unknown>;
+    } | null;
+    if (
+      value?.__version !== 2 ||
+      !value.hashes ||
+      typeof value.hashes !== "object"
+    )
+      return [];
+    const assets: { path: string; matches: boolean }[] = [];
+    for (const [relative, hash] of Object.entries(value.hashes)) {
+      if (
+        !/^\.agent\/(?:workflows\/(?:start|finish-work)\.md|skills\/trellis-[a-z0-9-]+\/SKILL\.md)$/.test(
+          relative,
+        ) ||
+        typeof hash !== "string" ||
+        !/^[a-f0-9]{64}$/.test(hash)
+      )
+        continue;
+      try {
+        const abs = assertSafeManagedPath(root, relative, { followLeaf: true });
+        if (!fs.lstatSync(abs).isFile()) continue;
+        const text = fs.readFileSync(abs, "utf8");
+        assets.push({
+          path: relative,
+          matches: hashContent(text.replaceAll("\r\n", "\n")) === hash,
+        });
+      } catch {
+        // Missing or linked-out files are outside the migration plan.
+      }
+    }
+    return assets;
+  } catch {
+    return [];
+  }
+}
+
 export function collectTrellisResidue(cwd: string): string[] {
-  const found: string[] = [];
+  const found = legacyAntigravityAssets(cwd)
+    .filter((asset) => asset.matches)
+    .map((asset) => asset.path);
 
   for (const rule of SCAN_RULES) {
     const abs = path.join(cwd, rule.dir);
@@ -250,6 +303,7 @@ function readText(abs: string): string | null {
  */
 export function legacyHostPlatforms(cwd: string): AITool[] {
   const ids = new Set<AITool>();
+  if (legacyAntigravityAssets(cwd).length > 0) ids.add("antigravity");
   const zcode = readText(path.join(cwd, ".zcode/config.json"));
   if (zcode) {
     try {
@@ -364,7 +418,8 @@ export function buildMigratePlan(cwd: string): MigratePlan {
     reconfigure: [...reconfigure].sort(),
     rewrites: REWRITES,
     dropsVersion: fs.existsSync(path.join(cwd, DIR_NAMES.WORKFLOW, ".version")),
-    rewritesAgents: agentsHasManagedBlock(cwd),
+    rewritesAgents:
+      agentsHasManagedBlock(cwd) || reconfigure.has("antigravity"),
   };
 }
 
@@ -477,7 +532,7 @@ function agentsHasManagedBlock(cwd: string): boolean {
 function rewriteAgentsMd(cwd: string): void {
   const abs = path.join(cwd, FILE_NAMES.AGENTS);
   const scrubbed = scrubManagedMarkdownBlock(
-    fs.readFileSync(abs, "utf-8"),
+    fs.existsSync(abs) ? fs.readFileSync(abs, "utf-8") : "",
     TRELLIS_BLOCK_START,
     TRELLIS_BLOCK_END,
   );
@@ -552,6 +607,11 @@ function renderPlan(
       console.log(`  ${chalk.green("=")} ${p}`);
     }
   }
+  if (
+    plan.reconfigure.includes("antigravity") &&
+    fs.existsSync(path.join(cwd, ".agent"))
+  )
+    console.log(chalk.gray("  = .agent/ entries outside the deletion list"));
 
   renderTasksConvergePlan(converge);
 }
@@ -682,6 +742,10 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
 
   renderPlan(cwd, plan, converge);
   const context = resolvePlatformOptions(cwd, plan.reconfigure, options);
+  if (plan.reconfigure.includes("antigravity"))
+    assertSafeManagedPath(fs.realpathSync(cwd), FILE_NAMES.AGENTS, {
+      followLeaf: true,
+    });
   for (const relative of plan.deletions) {
     if (
       relative.startsWith(".codebuddy/") ||
@@ -728,9 +792,22 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
     if (converge.tasks.length > 0) disposition = await promptTasksDisposition();
   }
 
-  // Scrub structured host config before rewriting it. mergeJsonFile only
-  // adds entries, so Trellis hook commands would otherwise keep pointing at
-  // scripts this command deletes.
+  // A workflow may have changed while the migration plan was awaiting confirmation.
+  const legacyDeletions = plan.deletions.filter((relative) =>
+    relative.startsWith(".agent/"),
+  );
+  if (legacyDeletions.length > 0) {
+    const matching = new Set(
+      legacyAntigravityAssets(cwd)
+        .filter((asset) => asset.matches)
+        .map((asset) => asset.path),
+    );
+    if (legacyDeletions.some((relative) => !matching.has(relative)))
+      throw new Error(
+        "Antigravity files changed after planning; review migrate --dry-run again",
+      );
+  }
+  // Remove old registrations before the template merge adds new entries.
   const codexUserToml = scrubLegacyHostConfig(cwd, plan.reconfigure);
   // Delete first so the install pass never writes a file this plan removes.
   executePlan(cwd, plan);
