@@ -36,6 +36,7 @@ function posixKeys(files: Map<string, string> | undefined): string[] {
 describe("host CLI surface", () => {
   it("exposes the supported project hosts", () => {
     expect(Object.keys(AI_TOOLS).sort()).toEqual([
+      "antigravity",
       "claude-code",
       "codebuddy",
       "codex",
@@ -52,6 +53,7 @@ describe("host CLI surface", () => {
         .map((t) => t.key)
         .sort(),
     ).toEqual([
+      "antigravity",
       "claude",
       "codebuddy",
       "codex",
@@ -74,6 +76,7 @@ describe("host CLI surface", () => {
     expect(src).toMatch(/\.option\("--omp"/);
     expect(src).toMatch(/\.option\("--dsh"/);
     expect(src).toMatch(/\.option\("--cursor"/);
+    expect(src).toMatch(/\.option\("--antigravity"/);
     expect(src).not.toMatch(/--gemini|--droid|--kimi|--copilot/);
   });
 });

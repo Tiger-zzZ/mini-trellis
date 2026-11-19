@@ -226,6 +226,7 @@ export interface InitOptions {
   codebuddy?: boolean;
   zcode?: boolean;
   kiro?: boolean;
+  antigravity?: boolean;
   opencodeVersion?: string;
   yes?: boolean;
   user?: string;

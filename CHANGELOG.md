@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.1
+
+- Adds Google Antigravity project memory with shared skills, a SessionStart entry, and `--antigravity` for init and refresh.
+- Resolves the startup workspace with or without the CLI's newer `cwd` field. Refresh and uninstall preserve unrelated project hook groups.
+- Migrates hash-matched Trellis Antigravity workflows and skills while retaining local edits and project knowledge.
+
+See the [v0.4.1 release notes](docs/releases/v0.4.1.md).
+
 ## v0.4.0 — 2026-11-16
 
 - Keeps supplied test outcomes unchanged and removes inferred development completion or planning status from session notes.

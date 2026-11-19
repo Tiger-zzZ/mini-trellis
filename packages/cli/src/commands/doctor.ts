@@ -2,6 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import chalk from "chalk";
 import { readKiroHooksIssue } from "../utils/kiro-hooks.js";
+import {
+  ANTIGRAVITY_HOOKS_PATH,
+  ANTIGRAVITY_SESSION_HOOK,
+  readAntigravityRegistration,
+} from "../utils/antigravity-hooks.js";
 import { AI_TOOLS, type AITool } from "../types/ai-tools.js";
 import { getConfiguredPlatforms } from "../configurators/index.js";
 import { needsTrellisMigration } from "./migrate.js";
@@ -89,6 +94,13 @@ function recordingCheck(cwd: string): DoctorCheck {
 }
 
 const PLATFORM_CHECKS: Record<AITool, string[]> = {
+  antigravity: [
+    ANTIGRAVITY_HOOKS_PATH,
+    ANTIGRAVITY_SESSION_HOOK,
+    ".agents/skills/mini-trellis-remember/SKILL.md",
+    ".agents/skills/mini-trellis-session-insight/SKILL.md",
+    ".agents/skills/mini-trellis-update-spec/SKILL.md",
+  ],
   "claude-code": [".claude/hooks/session-start.py", ".claude/settings.json"],
   codex: [".codex/hooks/session-start.py", ".codex/hooks.json"],
   opencode: [".opencode/plugins/session-start.js"],
@@ -127,6 +139,7 @@ const PLATFORM_CHECKS: Record<AITool, string[]> = {
 };
 
 const TRIGGER_MARKERS: Record<AITool, [string, string]> = {
+  antigravity: [ANTIGRAVITY_SESSION_HOOK, "injectSteps"],
   "claude-code": [".claude/hooks/session-start.py", "additional_context"],
   codex: [".codex/hooks/session-start.py", "additional_context"],
   opencode: [".opencode/plugins/session-start.js", "messages.transform"],
@@ -231,6 +244,26 @@ export function buildDoctorReport(cwd: string): DoctorReport {
     });
   }
   for (const platform of Object.keys(AI_TOOLS) as AITool[]) {
+    if (platform === "antigravity") {
+      if (!platforms.includes(platform)) continue;
+      const registration = readAntigravityRegistration(cwd);
+      const name = "antigravity-config";
+      if (registration.state === "invalid")
+        checks.push({ name, level: "error", detail: registration.detail });
+      else if (registration.state === "missing")
+        checks.push({
+          name,
+          level: "error",
+          detail:
+            "SessionStart is missing; run mini-trellis refresh --antigravity",
+        });
+      else
+        checks.push({
+          name,
+          level: registration.state === "disabled" ? "warn" : "ok",
+          detail: `Antigravity SessionStart is registered (${registration.state})`,
+        });
+    }
     if (platform === "zcode") {
       if (!platforms.includes("zcode")) continue;
       const conflict = findZCodeSkillConflict(cwd, PLATFORM_CHECKS.zcode);
@@ -369,7 +402,9 @@ export function buildDoctorReport(cwd: string): DoctorReport {
                 ? "no real local hook execution observed; Cursor-managed cloud agents do not run sessionStart"
                 : platform === "zcode"
                   ? "no hook execution observed; review/trust the project hook in ZCode, then start a new session. Config presence does not prove trust or model delivery"
-                  : "no real hook execution observed; run one host session",
+                  : platform === "antigravity"
+                    ? "no hook execution observed; check /hooks in agy or Customizations in the desktop host, then start a new session"
+                    : "no real hook execution observed; run one host session",
         });
       } else if (
         runtime.last_status === "ok" ||
@@ -394,8 +429,9 @@ export function buildDoctorReport(cwd: string): DoctorReport {
     checks.push({
       level: "warn",
       name: "platforms",
-      detail:
-        "no host detected; choose --claude, --codex, --opencode, --pi, --omp, --dsh, --cursor, --codebuddy, --zcode, or --kiro",
+      detail: `no host detected; choose ${Object.values(AI_TOOLS)
+        .map((tool) => `--${tool.cliFlag}`)
+        .join(", ")}`,
     });
   }
 
