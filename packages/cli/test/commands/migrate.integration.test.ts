@@ -562,6 +562,8 @@ describe("migrate", () => {
   });
 
   it("drops the active-task pointer with the tasks tree", async () => {
+    const malformed = ".trellis/.runtime/sessions/null.json";
+    plant(tmpDir, malformed, "null\n");
     await migrate({ yes: true });
 
     const session = JSON.parse(
@@ -572,6 +574,7 @@ describe("migrate", () => {
     ) as { current_task: unknown; platform: string };
     expect(session.current_task).toBeNull();
     expect(session.platform).toBe("claude");
+    expect(fs.readFileSync(path.join(tmpDir, malformed), "utf8")).toBe("null\n");
   });
 
   it("deletes the workflow files when the user asks for it", async () => {
@@ -707,6 +710,7 @@ describe("migrate", () => {
       ".trellis/tasks",
       ".trellis/tasks/archive",
       ".trellis/research/archive/2026-09",
+      ".trellis/.runtime/sessions",
     ])(
     "rejects a symlink at migration directory %s before mutation",
     async (rel) => {
@@ -721,6 +725,27 @@ describe("migrate", () => {
         "Cannot converge through a symlink",
       );
       expect(snapshot(tmpDir)).toEqual(before);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "stops before migration writes through a script-directory link outside the project",
+    async () => {
+      const outside = fs.mkdtempSync(path.join(os.tmpdir(), "mini-trellis-migrate-outside-"));
+      try {
+        plant(outside, "add_session.py", "outside content\n");
+        const scripts = path.join(tmpDir, ".trellis/scripts");
+        fs.renameSync(scripts, path.join(tmpDir, "existing-scripts"));
+        fs.symlinkSync(outside, scripts);
+        const before = snapshot(tmpDir);
+        await expect(migrate({ yes: true })).rejects.toThrow("escapes project root");
+        expect(snapshot(tmpDir)).toEqual(before);
+        expect(snapshot(outside)).toEqual({
+          "add_session.py": Buffer.from("outside content\n").toString("base64"),
+        });
+      } finally {
+        fs.rmSync(outside, { recursive: true, force: true });
+      }
     },
   );
 
@@ -973,6 +998,9 @@ describe("Cursor migration", () => {
     async (residue) => {
       await init({ yes: true, user: "tester", cursor: true });
       const file = path.join(tmpDir, config);
+      const miniConfig = ".trellis/config.yaml";
+      const userConfig = "# Recording preferences\nmax_journal_lines: 325\n";
+      plant(tmpDir, miniConfig, userConfig);
       const clean = fs.readFileSync(file, "utf8");
       const { version, hooks } = JSON.parse(clean);
       if (residue === "duplicate startup") {
@@ -990,6 +1018,7 @@ describe("Cursor migration", () => {
       expect(buildDoctorReport(tmpDir).ok).toBe(false);
       await migrate({ yes: true });
       expect(fs.readFileSync(file, "utf8")).toEqual(clean);
+      expect(fs.readFileSync(path.join(tmpDir, miniConfig), "utf8")).toBe(userConfig);
       expect(buildDoctorReport(tmpDir).ok).toBe(true);
       const after = snapshot(tmpDir);
       await migrate({ yes: true });

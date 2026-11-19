@@ -88,7 +88,7 @@ export function readCursorHooksConfigIssue(
           isObject(entry) &&
           (entry.type === undefined || entry.type === "command") &&
           typeof entry.command === "string" &&
-          entry.command.replaceAll("\\", "/").includes(CURSOR_SESSION_START),
+          commandMatchesDeletedPath(entry.command, [CURSOR_SESSION_START]),
       ))
   ) {
     return "mini-trellis sessionStart is not registered; run mini-trellis init --cursor";

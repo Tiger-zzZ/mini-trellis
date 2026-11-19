@@ -486,6 +486,7 @@ describe("0.3.2 recall", () => {
     expect(byPath.hits[0]?.status).toBe("archived");
     const read = readMemRefs({ cwd: root, refs: [byId.hits[0]?.ref ?? ""] });
     expect(read.reads[0]?.text).toContain("TASK-4419");
+    expect(read.reads[0]?.status).toBe("archived");
   });
 
   it("does not let title-only current notes crowd out an archived rule", () => {
@@ -651,9 +652,32 @@ describe("queryTerms", () => {
     expect(terms).toContain("retry");
     expect(terms).toContain("budget");
   });
+
+  it("does not form Chinese bigrams across punctuation", () => {
+    expect(queryTerms("回调、重试")).toEqual(
+      expect.arrayContaining(["回调", "重试"]),
+    );
+    expect(queryTerms("回调、重试")).not.toContain("调重");
+  });
 });
 
 describe("recall relevance and safe dedupe", () => {
+  it("keeps a Chinese body match ahead of an exact title without promoting partial coverage", () => {
+    write(".trellis/spec/callback.md", "# 支付回调规则\n回调失败后最多重试四次，永久错误只尝试一次。");
+    const todo = "docs/回调重试次数.md";
+    write(todo, "# 回调重试次数\nTODO: 待确定。");
+    write("docs/audit.md", "# 审计\n仅记录回调来源。");
+    const result = recallMem({ cwd: root, query: "回调重试次数" });
+    expect(result.hits.map((hit) => hit.path)).toEqual([
+      ".trellis/spec/callback.md", todo,
+    ]);
+    expect(result.hits[0]).toMatchObject({
+      strength: "weak",
+      excerpt: expect.stringContaining("永久错误只尝试一次"),
+    });
+    expect(recallMem({ cwd: root, query: todo }).hits[0]?.path).toBe(todo);
+  });
+
   it.each(["callback retry limit", "callback limit"])("keeps the declared current rule before truncation: %s", (currentWords) => {
     write("docs/old.md", "---\nsuperseded_by: docs/current.md\n---\n# callback retry limit\ncallback retry limit is three.\n");
     write("docs/current.md", "# Policy\n" + "General introduction. ".repeat(40) + `\n${currentWords} is two.\n`);
@@ -1530,6 +1554,58 @@ describe("review regressions: source boundaries and evidence", () => {
     expect(hit?.line).toBeGreaterThan(100);
     const read = readMemRefs({ cwd: root, refs: [hit?.ref ?? ""] });
     expect(read.reads[0]?.text).toContain("RELEASE_ALLOWED");
+  });
+
+  it("keeps distant old and current sections in one hit and expands both from its ref", () => {
+    const relative = "docs/history.md";
+    const old = "OrbitCallback retry policy: 9 attempts were proposed and rejected.";
+    const current = "OrbitCallback allows at most 4 total attempts. Permanent failures allow 1 attempt.";
+    const text = `# Callback history\n## Rejected\n${old}\n` +
+      "historical background\n".repeat(500) + `\n## Current\n${current}\n`;
+    write(relative, text);
+    const result = recallMem({ cwd: root, query: "OrbitCallback retry policy" });
+    expect(result.hits).toHaveLength(1);
+    expect(result.truncated).toBe(true);
+    const { excerpt, ref } = result.hits[0];
+    expect(excerpt).toContain(old);
+    expect(excerpt).toContain(current);
+    const currentLine = text.slice(0, text.indexOf(current)).split("\n").length;
+    expect(excerpt).toContain(`[line ${currentLine}]`);
+    const expanded = readMemRefs({ cwd: root, refs: [ref] });
+    expect(expanded.reads[0]?.text).toContain(old);
+    expect(expanded.reads[0]?.text).toContain(current);
+    expect(expanded.truncated).toBe(true);
+
+    const legacy = JSON.parse(Buffer.from(ref.split(":")[2], "base64url").toString()) as {
+      secondary?: unknown;
+    };
+    delete legacy.secondary;
+    const oldRef = `doc:v1:${Buffer.from(JSON.stringify(legacy)).toString("base64url")}`;
+    expect(readMemRefs({ cwd: root, refs: [oldRef] }).reads[0]?.text).toContain(old);
+
+    write(relative, text.replace("4 total", "3 total"));
+    const changed = readMemRefs({ cwd: root, refs: [ref] });
+    expect(changed.reads[0]).toMatchObject({ changed: true, text: "" });
+  });
+
+  it("keeps ancestor qualifications and labels fenced examples with their actual heading", () => {
+    const oldScope = "These examples were rejected and only apply to v1.";
+    write(
+      "docs/history.md",
+      `# Callback history\n## Old examples\n${oldScope}\n\n### Earlier example\n` +
+        "```markdown\n## callback retry policy\nUse 9 attempts.\n```\n" +
+        "\n## History\n" + "background\n".repeat(500) +
+        "\n## Current\nOrbitCallback retries are capped at 4 attempts.\n",
+    );
+    const hit = recallMem({ cwd: root, query: "OrbitCallback callback retry policy" }).hits[0];
+    expect(hit?.section).toBe("Earlier example");
+    expect(hit?.excerpt).toContain(oldScope);
+    expect(hit?.excerpt).toContain("Use 9 attempts");
+    expect(hit?.excerpt).toContain("capped at 4 attempts");
+    const expanded = readMemRefs({ cwd: root, refs: [hit.ref] });
+    expect(expanded.reads[0]?.text).toContain(oldScope);
+    expect(expanded.reads[0]?.text).toContain("capped at 4 attempts");
+    expect(readMemRefs({ cwd: root, refs: [hit.ref], maxChars: 275 }).truncated).toBe(true);
   });
 
   it("marks same-line-count replacement as changed and does not return unrelated evidence", () => {

@@ -163,6 +163,24 @@ describe.skipIf(!hasPython())("recording diagnostics", () => {
   });
   afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
+  it.each(["missing", "directory", "invalid UTF-8"])(
+    "fails before writing a journal entry for %s detail input",
+    (fault) => {
+      const details = path.join(tmp, "details.txt");
+      if (fault === "directory") fs.mkdirSync(details);
+      if (fault === "invalid UTF-8") fs.writeFileSync(details, Buffer.from([0xff]));
+      const journal = fs.readFileSync(journalPath(tmp), "utf8");
+      const index = readIndex(tmp);
+      const result = tryAddSession(tmp, "record details", [
+        "--no-commit", "--content-file", details,
+      ]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("cannot read --content-file");
+      expect(fs.readFileSync(journalPath(tmp), "utf8")).toBe(journal);
+      expect(readIndex(tmp)).toBe(index);
+    },
+  );
+
   it.each([
     "missing history",
     "unpaired history",

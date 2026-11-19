@@ -5,7 +5,7 @@
 ## 查找来源并展开
 
 ```bash
-mini-trellis mem recall "回调 重试"
+mini-trellis mem recall "回调重试次数"
 mini-trellis mem read "<ref-from-recall>"
 ```
 
@@ -14,12 +14,12 @@ mini-trellis mem read "<ref-from-recall>"
 以下是输出形态示例：
 
 ```text
-[doc] .trellis/spec/backend/callbacks.md:1  § 回调重试  strong
+[doc] .trellis/spec/backend/callbacks.md:1  § 支付回调规则  weak
   ref: <ref-from-recall>
-  transient 失败总共最多尝试四次，包含首次。
+  回调失败后最多重试四次，永久错误只尝试一次。
 ```
 
-使用时复制实际返回的 `ref`。引用包含来源位置，后续读取时可以提示来源已变化。标记为 `superseded` 的结果会指向替代笔记，见[决定变化后](writing-notes_CN.md#changed-decisions)。
+使用时复制实际返回的 `ref`。同一份文档的命中可显示两处相关章节及原文行号，`read` 用同一引用展开这两处，并提示来源是否已变化。嵌套 Markdown 章节的摘录会保留上级标题，并在预算内附上引言。归档和被替代的状态会保留到 `read`。参见[决定变化后](writing-notes_CN.md#changed-decisions)。
 
 <a id="sources"></a>
 ## 文档来源
@@ -37,7 +37,7 @@ mini-trellis mem read "<ref-from-recall>"
 
 ## 选择有效查询词
 
-使用资料中出现的词或标识符，例如“回调 重试”、API 名称或文件名。宽泛查询效果不佳时，换成模块中更有辨识度的词。正文包含答案的现行笔记，可以排在主要依靠标题命中的归档笔记之前；查旧资料时仍可使用明确的路径或标识符。
+使用资料中出现的词或标识符，例如“回调重试次数”、API 名称或文件名。宽泛查询效果不佳时，换成模块中更有辨识度的词。中文连写时，正文有多个词匹配的笔记可以排在同名标题前。命中强度表示字面匹配程度，依据摘录里的条件和来源状态判断规则是否适用。查旧资料时可使用明确的路径或标识符。
 
 ## 定位一段对话
 

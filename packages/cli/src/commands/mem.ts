@@ -332,7 +332,7 @@ function cmdRecall(argv: Argv): void {
     const lines: string[] = [];
     if (value.incomplete) lines.push("(search incomplete — see warnings)");
     if (value.truncated)
-      lines.push("(results limited by count or output budget)");
+      lines.push("(results or excerpts limited by count or output budget)");
     if (!value.hits.length)
       lines.push(
         value.totalHits
@@ -390,7 +390,7 @@ function cmdRead(argv: Argv): void {
           ? read.supersededBy
             ? `superseded by: ${read.supersededBy}`
             : "superseded"
-          : undefined;
+          : read.status;
       const fault = read.lineageFault
         ? `lineage ${read.lineageFault}`
         : undefined;

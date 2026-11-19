@@ -249,6 +249,8 @@ export function buildTasksConvergePlan(cwd: string): TasksConvergePlan {
   checkMigrationDirectory(tasksRoot);
   checkMigrationDirectory(archiveRoot);
   checkMigrationDirectory(path.join(cwd, RESEARCH_REL));
+  checkMigrationDirectory(path.join(cwd, path.dirname(SESSIONS_REL)));
+  checkMigrationDirectory(path.join(cwd, SESSIONS_REL));
   const tasks: ConvergeTask[] = [];
 
   const collect = (group: string, dir: string): void => {
@@ -457,16 +459,20 @@ function clearSessionTaskPointers(cwd: string): number {
   for (const entry of readdirSafe(sessions)) {
     if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
     const file = path.join(sessions, entry.name);
-    let data: Record<string, unknown>;
+    let data: unknown;
     try {
-      data = JSON.parse(fs.readFileSync(file, "utf-8")) as Record<
-        string,
-        unknown
-      >;
+      data = JSON.parse(fs.readFileSync(file, "utf-8"));
     } catch {
       continue; // Not a session file we can read; not ours to repair.
     }
-    if (!data.current_task) continue;
+    if (
+      !data ||
+      typeof data !== "object" ||
+      !("current_task" in data) ||
+      typeof data.current_task !== "string" ||
+      !data.current_task
+    )
+      continue;
     data.current_task = null;
     fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
     cleared += 1;

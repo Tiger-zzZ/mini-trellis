@@ -60,6 +60,7 @@ import {
 import { AI_TOOLS, type AITool } from "../types/ai-tools.js";
 import {
   hashContent,
+  MANIFEST_PATH,
   updateManifestForTemplates,
 } from "../utils/managed-manifest.js";
 import { collectTrellisScriptTemplates } from "../templates/extract.js";
@@ -67,6 +68,7 @@ import { renderTemplateMap } from "../configurators/shared.js";
 import { parseOpenCodeVersion } from "../utils/opencode-version.js";
 import {
   assertSafeManagedPath,
+  lstatIfPresent,
   ManagedAssetConflict,
 } from "../utils/managed-path-safety.js";
 import {
@@ -203,7 +205,7 @@ const FIXED_DELETIONS = [
 ];
 
 /** Framework files migrate rewrites in place, shown as modifications. */
-const REWRITES = [`${DIR_NAMES.WORKFLOW}/config.yaml`, `${PATHS.SCRIPTS}/`];
+const TRELLIS_CONFIG = `${DIR_NAMES.WORKFLOW}/config.yaml`;
 
 /** Residue that survives the migration on purpose; printed after the run. */
 const PRESERVED = [`${PATHS.SPEC}/`, `${RESEARCH_REL}/`, `${PATHS.WORKSPACE}/`];
@@ -443,10 +445,19 @@ export function buildMigratePlan(cwd: string): MigratePlan {
   ) {
     for (const id of getConfiguredPlatforms(cwd)) reconfigure.add(id);
   }
+  const rewrites = [`${PATHS.SCRIPTS}/`];
+  // A project already managed by mini-trellis can rerun migrate to repair
+  // leftover host registrations. Its current recording settings still apply.
+  if (
+    !fs.existsSync(path.join(cwd, MANIFEST_PATH)) ||
+    !fs.existsSync(path.join(cwd, TRELLIS_CONFIG))
+  ) {
+    rewrites.unshift(TRELLIS_CONFIG);
+  }
   return {
     deletions,
     reconfigure: [...reconfigure].sort(),
-    rewrites: REWRITES,
+    rewrites,
     dropsVersion: fs.existsSync(path.join(cwd, DIR_NAMES.WORKFLOW, ".version")),
     rewritesAgents:
       agentsHasManagedBlock(cwd) || reconfigure.has("antigravity"),
@@ -707,15 +718,17 @@ async function promptTasksDisposition(): Promise<TasksDisposition> {
 }
 
 /** Write the files a fresh mini-trellis project would have. */
-async function installMemoryLayer(cwd: string): Promise<void> {
+async function installMemoryLayer(
+  cwd: string,
+  replaceConfig: boolean,
+): Promise<void> {
   setWriteMode("force");
   await copyTrellisDir("scripts", path.join(cwd, PATHS.SCRIPTS), {
     executable: true,
   });
-  await writeFile(
-    path.join(cwd, DIR_NAMES.WORKFLOW, "config.yaml"),
-    configYamlTemplate,
-  );
+  if (replaceConfig) {
+    await writeFile(path.join(cwd, TRELLIS_CONFIG), configYamlTemplate);
+  }
 
   // Seeds are created only when absent, so an existing spec index or research
   // inbox keeps whatever the user wrote in it.
@@ -752,6 +765,13 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
   }
 
   const cwd = process.cwd();
+  const workflow = lstatIfPresent(path.join(cwd, DIR_NAMES.WORKFLOW));
+  if (workflow && !workflow.isDirectory()) {
+    throw new ManagedAssetConflict(
+      DIR_NAMES.WORKFLOW,
+      "expected a project directory",
+    );
+  }
   const plan = buildMigratePlan(cwd);
   const converge = buildTasksConvergePlan(cwd);
 
@@ -787,10 +807,21 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
 
   renderPlan(cwd, plan, converge);
   const context = resolvePlatformOptions(cwd, plan.reconfigure, options);
+  const root = fs.realpathSync(cwd);
+  const templates = collectTrellisScriptTemplates();
+  for (const relative of [
+    ...templates.keys(),
+    TRELLIS_CONFIG,
+    MANIFEST_PATH,
+    `${RESEARCH_REL}/README.md`,
+    `${PATHS.SPEC}/guides/index.md`,
+    `${PATHS.SPEC}/guides/mini-memory.md`,
+  ]) {
+    assertSafeManagedPath(root, relative, { followLeaf: true });
+  }
   if (plan.reconfigure.includes("cursor")) {
-    const root = fs.realpathSync(cwd);
-    const templates = collectPlatformTemplates("cursor", context);
-    for (const relative of templates?.keys() ?? []) {
+    const cursorTemplates = collectPlatformTemplates("cursor", context);
+    for (const relative of cursorTemplates?.keys() ?? []) {
       assertSafeManagedPath(root, relative, { followLeaf: true });
     }
     const config = path.join(cwd, CURSOR_HOOKS_CONFIG);
@@ -800,7 +831,7 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
     }
   }
   if (plan.reconfigure.includes("antigravity"))
-    assertSafeManagedPath(fs.realpathSync(cwd), FILE_NAMES.AGENTS, {
+    assertSafeManagedPath(root, FILE_NAMES.AGENTS, {
       followLeaf: true,
     });
   for (const relative of plan.deletions) {
@@ -811,7 +842,7 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
       relative.startsWith(".zcode/") ||
       relative.startsWith(".kiro/")
     )
-      assertSafeManagedPath(fs.realpathSync(cwd), relative);
+      assertSafeManagedPath(root, relative);
   }
   if (context.opencodeVersion)
     console.log(`OpenCode plugin protocol: V${context.opencodeVersion}`);
@@ -869,14 +900,13 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
   const codexUserToml = scrubLegacyHostConfig(cwd, plan.reconfigure);
   // Delete first so the install pass never writes a file this plan removes.
   executePlan(cwd, plan);
-  await installMemoryLayer(cwd);
+  await installMemoryLayer(cwd, plan.rewrites.includes(TRELLIS_CONFIG));
   if (plan.rewritesAgents) rewriteAgentsMd(cwd);
   for (const id of plan.reconfigure) {
     setWriteMode("force");
     await configurePlatform(id, cwd, context);
   }
   restoreCodexUserToml(cwd, codexUserToml);
-  const templates = collectTrellisScriptTemplates();
   for (const id of plan.reconfigure) {
     for (const [relative, content] of renderTemplateMap(
       collectPlatformTemplates(id, context) ?? new Map(),
