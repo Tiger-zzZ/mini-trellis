@@ -3,7 +3,11 @@
     ".claude/hooks/**/*.py",
     "packages/cli/src/templates/**/*.py"
   ],
-  "exclude": ["**/node_modules", "**/__pycache__", "dist"],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "dist"
+  ],
   "typeCheckingMode": "standard",
   "pythonVersion": "3.9",
   "reportMissingImports": true,

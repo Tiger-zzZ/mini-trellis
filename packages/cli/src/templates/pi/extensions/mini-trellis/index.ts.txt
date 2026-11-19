@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
+import { execFileSync } from "node:child_process";
 
 type JsonObject = Record<string, unknown>;
 
@@ -75,9 +76,200 @@ function activeJournal(root: string): string | null {
   }
 }
 
+// Plain objects (not Set) so host test transpilers that downlevel for-of still work.
+const CUE_GENERIC_SEGMENTS: Record<string, true> = {
+  src: true, lib: true, libs: true, test: true, tests: true, dist: true,
+  build: true, node_modules: true, packages: true, package: true, app: true,
+  apps: true, bin: true, cmd: true, pkg: true, internal: true, vendor: true,
+  third_party: true, deps: true, docs: true, doc: true, common: true,
+  utils: true, util: true, types: true, type: true, index: true, main: true,
+  mod: true, templates: true, "shared-hooks": true, extensions: true,
+  plugins: true, scripts: true, trellis: true, ".trellis": true, spec: true,
+  research: true, workspace: true, archive: true, markdown: true, md: true,
+  ts: true, tsx: true, js: true, jsx: true, mjs: true, cjs: true, py: true,
+  css: true, json: true, yaml: true, yml: true, toml: true, txt: true,
+  cli: true, core: true,
+};
+const CUE_MAX_PATHS = 2;
+const CUE_MAX_CHARS = 160;
+const CUE_NOISE_PARTS: Record<string, true> = {
+  __pycache__: true,
+  ".runtime": true,
+  node_modules: true,
+  ".git": true,
+};
+
+function runGit(root: string, args: string[]): string {
+  try {
+    return execFileSync("git", args, {
+      cwd: root,
+      timeout: 3000,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+function parsePorcelainPaths(porcelain: string): string[] {
+  const paths: string[] = [];
+  for (const raw of porcelain.split(/\r?\n/)) {
+    if (!raw.trim() || raw.length < 4) continue;
+    let rest = raw.slice(3);
+    const arrow = rest.indexOf(" -> ");
+    if (arrow !== -1) rest = rest.slice(arrow + 4);
+    if (rest.length >= 2 && rest.startsWith('"') && rest.endsWith('"')) {
+      rest = rest.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+    }
+    paths.push(rest.replace(/\\/g, "/"));
+  }
+  return paths;
+}
+
+function isCueNoisePath(relPath: string): boolean {
+  const parts = relPath.replace(/\\/g, "/").split("/");
+  for (let i = 0; i < parts.length; i++) {
+    if (CUE_NOISE_PARTS[parts[i]]) return true;
+  }
+  const name = parts[parts.length - 1] || "";
+  return name.endsWith(".pyc") || name.endsWith(".pyo") || name.endsWith(".tmp");
+}
+
+function pathToken(part: string): string {
+  if (!part.includes(".")) return part.toLowerCase();
+  // Leading-dot directory names (`.trellis`) are not file extensions.
+  if (part.startsWith(".") && part.lastIndexOf(".") === 0) return part.toLowerCase();
+  const stem = part.slice(0, part.lastIndexOf("."));
+  return (stem || part).toLowerCase();
+}
+
+function cueSegments(relPath: string): string[] {
+  const segments: string[] = [];
+  const seen: Record<string, true> = {};
+  const parts = relPath.replace(/\\/g, "/").split("/");
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (!part || part === "." || part === "..") continue;
+    const token = pathToken(part);
+    if (token && !CUE_GENERIC_SEGMENTS[token] && token.length > 1 && !seen[token]) {
+      seen[token] = true;
+      segments.push(token);
+    }
+  }
+  return segments;
+}
+
+function listKnowledgeCuePaths(root: string): string[] {
+  const found: string[] = [];
+  for (const kind of ["spec", "research"]) {
+    const kindRoot = join(root, ".trellis", kind);
+    if (!exists(kindRoot)) continue;
+    const stack = [kindRoot];
+    while (stack.length) {
+      const dir = stack.pop()!;
+      let entries: string[];
+      try {
+        entries = readdirSync(dir);
+      } catch {
+        continue;
+      }
+      for (const name of entries.sort()) {
+        if (name.startsWith(".") || name === "archive") continue;
+        const full = join(dir, name);
+        let st;
+        try {
+          st = statSync(full);
+        } catch {
+          continue;
+        }
+        if (st.isDirectory()) {
+          stack.push(full);
+          continue;
+        }
+        if (!st.isFile() || !name.toLowerCase().endsWith(".md")) continue;
+        if (name.toLowerCase() === "readme.md") continue;
+        const rel = full
+          .slice(root.length)
+          .replace(/\\/g, "/")
+          .replace(/^\//, "");
+        const relParts = rel.split("/");
+        let hidden = false;
+        for (let i = 0; i < relParts.length; i++) {
+          if (relParts[i].startsWith(".") && relParts[i] !== ".trellis") {
+            hidden = true;
+            break;
+          }
+        }
+        if (hidden) continue;
+        found.push(rel);
+      }
+    }
+  }
+  return found.sort();
+}
+
+function scoreKnowledgeCue(knowledgeRel: string, dirtyPaths: string[]): number {
+  const knowSegs = cueSegments(knowledgeRel);
+  if (knowSegs.length === 0) return 0;
+  let best = 0;
+  for (let d = 0; d < dirtyPaths.length; d++) {
+    const dirty = dirtyPaths[d];
+    const dirtyNorm = dirty.replace(/\/$/, "");
+    if (dirtyNorm === knowledgeRel) return 1000;
+    if (knowledgeRel.endsWith(".md")) {
+      const parent = knowledgeRel.slice(0, knowledgeRel.lastIndexOf("/") + 1);
+      if (
+        parent.startsWith(".trellis/") &&
+        (dirty.startsWith(parent) || dirtyNorm === parent.replace(/\/$/, ""))
+      ) {
+        best = Math.max(best, 500);
+      }
+    }
+    let overlap = 0;
+    const dirtySegs = cueSegments(dirtyNorm);
+    const dirtySeen: Record<string, true> = {};
+    for (let i = 0; i < dirtySegs.length; i++) dirtySeen[dirtySegs[i]] = true;
+    for (let i = 0; i < knowSegs.length; i++) {
+      if (dirtySeen[knowSegs[i]]) overlap += 1;
+    }
+    if (overlap > best) best = overlap;
+  }
+  return best;
+}
+
+function formatGitPathCue(root: string): string | null {
+  const porcelain = runGit(root, ["status", "--porcelain", "-uall"]);
+  if (!porcelain) return null;
+  const dirtyPaths = parsePorcelainPaths(porcelain).filter(
+    (p) => !isCueNoisePath(p),
+  );
+  if (dirtyPaths.length === 0) return null;
+  const knowledge = listKnowledgeCuePaths(root);
+  if (knowledge.length === 0) return null;
+
+  const ranked: Array<[number, string]> = [];
+  for (const rel of knowledge) {
+    const score = scoreKnowledgeCue(rel, dirtyPaths);
+    if (score > 0) ranked.push([score, rel]);
+  }
+  if (ranked.length === 0) return null;
+  ranked.sort((a, b) => b[0] - a[0] || (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
+  let chosen = ranked.slice(0, CUE_MAX_PATHS).map(([, rel]) => rel);
+  const render = (paths: string[]) => `Cue: ${paths.join(", ")}`;
+  let line = render(chosen);
+  while (chosen.length && line.length + 1 > CUE_MAX_CHARS) {
+    chosen = chosen.slice(0, -1);
+    if (!chosen.length) return null;
+    line = render(chosen);
+  }
+  return line;
+}
+
 function buildStartupContext(root: string): string {
   const journal = activeJournal(root);
   const specCount = countSpecIndexes(root);
+  const cue = formatGitPathCue(root);
   return `<session-context>
 mini-trellis memory is available on demand. Do not announce this hook.
 Use \`mini-trellis mem recall <query>\` for relevant prior decisions or conventions;
@@ -90,7 +282,8 @@ A rejected approach that later work should not retry can be recorded and labeled
 Record with \`/mini-trellis-remember\` or \`python3 ./.trellis/scripts/add_session.py\`. Ordinary edits and unconfirmed
 guesses are not new decisions. Do not create a git commit unless the user explicitly asks.
 </session-context>` + (journal ? `\nJournal: ${journal}` : "") +
-    (specCount ? `\nSpec indexes: ${specCount} available.` : "");
+    (specCount ? `\nSpec indexes: ${specCount} available.` : "") +
+    (cue ? `\n${cue}` : "");
 }
 
 export default function trellisExtension(pi: {
