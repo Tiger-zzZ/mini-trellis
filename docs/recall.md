@@ -33,7 +33,7 @@ Copy the actual `ref` from your output. References encode source locations, and 
 
 Ordinary documents respect `.gitignore`. Runtime files, scripts, secret-like filenames, and dependency/build directories are excluded. Discovery has file, size, depth, and time limits. Warnings and `incomplete` identify a partial search.
 
-The local transcript readers cover Claude Code, Codex, OpenCode V1, and Pi. Platform support is listed in [Agent setup](agents.md#capabilities).
+The local transcript readers cover Claude Code, Codex, OpenCode V1, Pi, and Factory Droid. Platform support is listed in [Agent setup](agents.md#capabilities).
 
 ## Choose a useful query
 
@@ -54,7 +54,7 @@ Session commands default to the current project. Use `--cwd /path/to/project` to
 <a id="compact"></a>
 ## After compact
 
-For Claude Code and Codex, the compact handoff can include the current session ID. Run the command it provides with the matching platform:
+For Claude Code, Codex, and Factory Droid, the compact handoff can include the current session ID. Run the command it provides with the matching platform:
 
 ```bash
 mini-trellis mem context <full-session-id> --platform codex

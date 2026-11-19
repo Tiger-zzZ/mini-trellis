@@ -19,6 +19,11 @@ import {
 } from "../utils/antigravity-hooks.js";
 import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
 import {
+  DROID_HOOKS_PATH,
+  mergeDroidHooks,
+  readDroidHooksIssue,
+} from "../utils/droid-hooks.js";
+import {
   readCodeBuddySettingsIssue,
   mergeCodeBuddySettings,
 } from "../utils/codebuddy-settings.js";
@@ -529,6 +534,7 @@ export function assertProjectTemplatePaths(
       relative.startsWith(".zcode/") ||
       relative.startsWith(".kiro/") ||
       relative.startsWith(".omp/") ||
+      relative.startsWith(".factory/") ||
       (antigravity &&
         (relative === ANTIGRAVITY_HOOKS_PATH ||
           relative === ANTIGRAVITY_SESSION_HOOK)) ||
@@ -597,6 +603,11 @@ export async function writeTemplateMap(
     const issue = readZCodeConfigIssue(zcodeConfig);
     if (issue) throw new ManagedAssetConflict(".zcode/config.json", issue);
   }
+  const droidHooks = path.join(cwd, DROID_HOOKS_PATH);
+  if (files.has(DROID_HOOKS_PATH) && existsSync(droidHooks)) {
+    const issue = readDroidHooksIssue(droidHooks);
+    if (issue) throw new ManagedAssetConflict(DROID_HOOKS_PATH, issue);
+  }
   const packageContent = files.get(".opencode/package.json");
   const packagePath = path.join(cwd, ".opencode/package.json");
   if (packageContent && existsSync(packagePath)) {
@@ -623,6 +634,7 @@ export async function writeTemplateMap(
     ".codebuddy/settings.json",
     ".zcode/config.json",
     ".opencode/package.json",
+    DROID_HOOKS_PATH,
   ]);
   for (const [relPath, content] of renderTemplateMap(files)) {
     const absPath = path.join(cwd, ...relPath.split("/"));
@@ -646,7 +658,9 @@ export async function writeTemplateMap(
           ? mergeCodeBuddySettings
           : relPath === ".zcode/config.json"
             ? mergeZCodeConfig
-            : undefined,
+            : relPath === DROID_HOOKS_PATH
+              ? mergeDroidHooks
+              : undefined,
       );
       if (result === "invalid") {
         console.warn(`  ⚠ Skipped ${relPath}: existing file is not valid JSON`);

@@ -227,6 +227,7 @@ export interface InitOptions {
   zcode?: boolean;
   kiro?: boolean;
   antigravity?: boolean;
+  droid?: boolean;
   opencodeVersion?: string;
   yes?: boolean;
   user?: string;
@@ -606,8 +607,19 @@ export async function init(options: InitOptions): Promise<void> {
   if (tools.includes("claude") || tools.includes("opencode")) {
     recordCommands.push("/mini-trellis:remember");
   }
-  if (tools.includes("pi") || tools.includes("omp") || tools.includes("kiro"))
+  if (
+    tools.includes("pi") ||
+    tools.includes("omp") ||
+    tools.includes("kiro") ||
+    tools.includes("droid")
+  )
     recordCommands.push("/mini-trellis-remember");
+  if (tools.includes("droid"))
+    console.log(
+      chalk.gray(
+        "  Droid: start `droid` from the project root, check the SessionStart entry in /hooks, then start a new session.",
+      ),
+    );
   if (tools.includes("kiro"))
     console.log(
       chalk.gray(

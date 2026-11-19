@@ -66,6 +66,7 @@ import { collectTrellisScriptTemplates } from "../templates/extract.js";
 import { renderTemplateMap } from "../configurators/shared.js";
 import { parseOpenCodeVersion } from "../utils/opencode-version.js";
 import { assertSafeManagedPath } from "../utils/managed-path-safety.js";
+import { DROID_SETTINGS_PATH } from "../utils/droid-hooks.js";
 import {
   scrubZCodeConfig,
   zcodeHookReferencesPaths,
@@ -154,6 +155,13 @@ const SCAN_RULES: { dir: string; match: (name: string) => boolean }[] = [
   { dir: ".pi/skills", match: (n) => n.startsWith("trellis-") },
   { dir: ".pi/extensions", match: (n) => n === "trellis" },
   { dir: ".agents/skills", match: (n) => n.startsWith("trellis-") },
+  { dir: ".factory/droids", match: (n) => /^trellis-.*\.md$/.test(n) },
+  { dir: ".factory/commands", match: (n) => n === "trellis" },
+  { dir: ".factory/skills", match: (n) => n.startsWith("trellis-") },
+  {
+    dir: ".factory/hooks",
+    match: (n) => /^(?:inject-.*|statusline)\.py$/.test(n),
+  },
 ];
 
 /** Task-engine modules no live hook or command imports. */
@@ -287,6 +295,10 @@ const CODEBUDDY_LEGACY_HOOKS = CLAUDE_LEGACY_HOOKS.map((relative) =>
 const ZCODE_LEGACY_HOOKS = CLAUDE_LEGACY_HOOKS.map((relative) =>
   relative.replace(".claude/", ".zcode/"),
 );
+/** Trellis registered these in `.factory/settings.json`; mini-trellis uses hooks.json. */
+const DROID_LEGACY_HOOKS = CLAUDE_LEGACY_HOOKS.map((relative) =>
+  relative.replace(".claude/", ".factory/"),
+);
 
 function readText(abs: string): string | null {
   try {
@@ -361,6 +373,32 @@ export function legacyHostPlatforms(cwd: string): AITool[] {
         ids.add("codebuddy");
     } catch {
       /* Invalid config is diagnosed before installation. */
+    }
+  }
+  const droid = readText(path.join(cwd, DROID_SETTINGS_PATH));
+  if (droid) {
+    try {
+      const value = JSON.parse(droid) as {
+        hooks?: Record<string, { hooks?: { command?: unknown }[] }[]>;
+      };
+      if (
+        Object.values(value?.hooks ?? {}).some(
+          (groups) =>
+            Array.isArray(groups) &&
+            groups.some(
+              (group) =>
+                Array.isArray(group?.hooks) &&
+                group.hooks.some(
+                  (hook) =>
+                    typeof hook?.command === "string" &&
+                    commandMatchesDeletedPath(hook.command, DROID_LEGACY_HOOKS),
+                ),
+            ),
+        )
+      )
+        ids.add("droid");
+    } catch {
+      /* Unparseable user settings are left alone. */
     }
   }
   const pi = readText(path.join(cwd, ".pi/settings.json"));
@@ -472,6 +510,16 @@ function scrubLegacyHostConfig(
         scrubHooksJson(before, CODEBUDDY_LEGACY_HOOKS, "nested"),
         before,
       );
+  }
+
+  if (platforms.includes("droid")) {
+    const abs = path.join(cwd, DROID_SETTINGS_PATH);
+    const before = readText(abs);
+    if (before !== null) {
+      const result = scrubHooksJson(before, DROID_LEGACY_HOOKS, "nested");
+      if (result.fullyEmpty) fs.rmSync(abs, { force: true });
+      else rewriteScrubbed(abs, result, before);
+    }
   }
 
   let codexUserToml = "";
@@ -751,7 +799,8 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
       relative.startsWith(".codebuddy/") ||
       relative.startsWith(".opencode/") ||
       relative.startsWith(".zcode/") ||
-      relative.startsWith(".kiro/")
+      relative.startsWith(".kiro/") ||
+      relative.startsWith(".factory/")
     )
       assertSafeManagedPath(fs.realpathSync(cwd), relative);
   }

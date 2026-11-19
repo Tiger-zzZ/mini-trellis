@@ -75,6 +75,8 @@ Then confirm a correction to 4 total attempts for idempotent transient failures,
 
 [Antigravity setup](agents.md#antigravity)
 
+[Factory Droid setup](agents.md#droid)
+
 <a id="upgrade-and-refresh"></a>
 [Upgrade and refresh](upgrade.md)
 

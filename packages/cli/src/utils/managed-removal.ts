@@ -8,6 +8,7 @@ import path from "node:path";
 
 import { DIR_NAMES, FILE_NAMES } from "../constants/paths.js";
 import { scrubKiroHooks } from "./kiro-hooks.js";
+import { DROID_HOOKS_PATH, scrubDroidHooks } from "./droid-hooks.js";
 import { scrubZCodeConfig } from "./zcode-config.js";
 import {
   ANTIGRAVITY_HOOKS_PATH,
@@ -74,6 +75,11 @@ export function buildStructuredFileSpecs(): Map<string, StructuredFileSpec> {
       reason:
         "Remove mini-trellis SessionStart; preserve other Antigravity hooks",
       scrub: scrubAntigravityHooks,
+    },
+    {
+      posixPath: DROID_HOOKS_PATH,
+      reason: "Remove mini-trellis SessionStart; preserve other Droid hooks",
+      scrub: scrubDroidHooks,
     },
     {
       posixPath: ".kiro/hooks/mini-trellis.json",

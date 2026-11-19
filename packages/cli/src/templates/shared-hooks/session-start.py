@@ -600,7 +600,7 @@ def _build_compact_current_state(
 def _write_runtime_status(trellis_dir: Path, platform: str | None, status: str, output_chars: int = 0, error_category: str | None = None, context_key: str | None = None, content_hash: str | None = None, source: str | None = None) -> None:
     """Write bounded diagnostic metadata; injected text is never persisted."""
     try:
-        host = {"claude": "claude-code", "droid": "factory"}.get(platform or "", platform or "unknown")
+        host = {"claude": "claude-code"}.get(platform or "", platform or "unknown")
         target = trellis_dir / ".runtime" / "hooks" / f"{host}.json"
         if not target.resolve().is_relative_to(trellis_dir.parent.resolve()):
             raise OSError("hook diagnostics escape the project")
@@ -695,7 +695,7 @@ def _main_impl():
         source = "startup"
     if platform in {"codex", "zcode"}:
         remember_command = "$mini-trellis-remember"
-    elif platform in {"kiro", "antigravity"}:
+    elif platform in {"kiro", "antigravity", "droid"}:
         remember_command = "/mini-trellis-remember"
     elif platform in {"cursor", "codebuddy"}:
         remember_command = "mini-trellis-remember"
@@ -745,7 +745,7 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
         if session_id:
             platform_flag = (
                 f" --platform {platform}"
-                if platform in {"claude", "codex", "opencode", "pi"}
+                if platform in {"claude", "codex", "opencode", "pi", "droid"}
                 else ""
             )
             output.write(
@@ -836,7 +836,7 @@ Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. R
     # Codex's SessionStart contract accepts the nested shape above; leaving the
     # extra field out there avoids an ambiguous duplicate. ZCode already had
     # the same exception for its own parser.
-    if platform not in {"codex", "zcode", "codebuddy"}:
+    if platform not in {"codex", "zcode", "codebuddy", "droid"}:
         result["additional_context"] = context_text
 
     # Output JSON - stdout is already configured for UTF-8

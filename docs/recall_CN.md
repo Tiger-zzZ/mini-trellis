@@ -33,7 +33,7 @@ mini-trellis mem read "<ref-from-recall>"
 
 普通文档遵循 `.gitignore`。运行状态、脚本、疑似密钥文件和依赖/构建目录被排除。发现过程设有文件数量、大小、深度和时间限制，部分搜索会通过告警与 `incomplete` 标明。
 
-本地对话读取支持 Claude Code、Codex、OpenCode V1 和 Pi，平台差异见 [Agent 配置](agents_CN.md#capabilities)。
+本地对话读取支持 Claude Code、Codex、OpenCode V1、Pi 和 Factory Droid，平台差异见 [Agent 配置](agents_CN.md#capabilities)。
 
 ## 选择有效查询词
 
@@ -54,7 +54,7 @@ mini-trellis mem context <完整会话-id> --platform claude --grep "重试"
 <a id="compact"></a>
 ## compact 之后
 
-Claude Code 和 Codex 的 compact 交接提示可以携带当前会话 ID。按提示执行命令，并使用对应平台参数：
+Claude Code、Codex 和 Factory Droid 的 compact 交接提示可以携带当前会话 ID。按提示执行命令，并使用对应平台参数：
 
 ```bash
 mini-trellis mem context <完整会话-id> --platform codex

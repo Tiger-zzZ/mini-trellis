@@ -18,7 +18,8 @@ export type AITool =
   | "codebuddy"
   | "zcode"
   | "kiro"
-  | "antigravity";
+  | "antigravity"
+  | "droid";
 
 export type TemplateDir = "common" | "claude" | "codex" | "opencode" | "pi";
 
@@ -33,7 +34,8 @@ export type CliFlag =
   | "codebuddy"
   | "zcode"
   | "kiro"
-  | "antigravity";
+  | "antigravity"
+  | "droid";
 
 export interface TemplateContext {
   cmdRefPrefix: "/mini-trellis:" | "/mini-trellis-" | "$";
@@ -245,6 +247,26 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
       agentCapable: true,
       hasHooks: true,
       cliFlag: "antigravity",
+    },
+  },
+  /**
+   * Factory Droid — `.factory/skills/` (also `/mini-trellis-*` commands) and a
+   * SessionStart entry in `.factory/hooks.json`. Local history is parsed.
+   */
+  droid: {
+    name: "Factory Droid",
+    templateDirs: ["common"],
+    configDir: ".factory",
+    cliFlag: "droid",
+    defaultChecked: false,
+    hasPythonHooks: true,
+    templateContext: {
+      cmdRefPrefix: "/mini-trellis-",
+      executorAI: "Bash scripts or tool calls",
+      userActionLabel: "Skills",
+      agentCapable: true,
+      hasHooks: true,
+      cliFlag: "droid",
     },
   },
 };

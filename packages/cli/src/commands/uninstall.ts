@@ -136,7 +136,12 @@ function collectOwnedPaths(cwd: string): Record<string, string> {
       });
       if (!templates) continue;
       for (const rel of templates.keys()) {
-        if (id === "zcode" || id === "kiro" || id === "antigravity")
+        if (
+          id === "zcode" ||
+          id === "kiro" ||
+          id === "antigravity" ||
+          id === "droid"
+        )
           assertSafeManagedPath(fs.realpathSync(cwd), rel, {
             followLeaf: true,
           });

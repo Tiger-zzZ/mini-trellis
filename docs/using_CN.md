@@ -74,6 +74,8 @@ mini-trellis mem read "<ref-from-recall>"
 
 [Antigravity 配置](agents_CN.md#antigravity)
 
+[Factory Droid 配置](agents_CN.md#droid)
+
 <a id="升级与刷新"></a>
 [升级与刷新](upgrade_CN.md)
 

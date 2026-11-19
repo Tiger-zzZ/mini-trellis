@@ -19,6 +19,7 @@
 | CodeBuddy CLI / IDE | `--codebuddy` | SessionStart 与技能 | — | 已保存的项目文档 |
 | ZCode | `--zcode` | 信任后的 SessionStart | — | 已保存的项目文档 |
 | Google Antigravity | `--antigravity` | 项目技能与支持版本的 SessionStart | — | 已保存的项目文档 |
+| Factory Droid | `--droid` | SessionStart 与技能 | 支持 | 当前会话与压缩边界 |
 
 “—”表示尚未解析该平台的原始对话。可以提供 Markdown/文本导出供 [session-insight](history_CN.md) 整理。同一仓库可组合多个初始化参数。
 
@@ -222,6 +223,19 @@ mini-trellis doctor
 
 用 `mini-trellis refresh --antigravity --dry-run` 预览更新。刷新保留已有 Hook 组和启用状态。旧自定义目录已有同名技能时，先移动或改名，再启用共享技能。
 
+<a id="droid"></a>
+## Factory Droid
+
+```bash
+mini-trellis init -u 你的名字 --droid -y
+droid
+```
+
+两条命令都在项目根目录执行。初始化在 `.factory/skills/` 安装 remember、session-insight、update-spec 三项技能，写入 Hook 脚本 `.factory/hooks/session-start.py`，并在 `.factory/hooks.json` 注册 SessionStart（`startup|resume|clear|compact`）。Hook 命令使用相对项目根目录的路径，因此请在项目根目录启动 `droid`。在 `/hooks` 中核对该项，再开启新会话。`.factory/settings.json` 不会被修改。
+
+记录使用 `/mini-trellis-remember`。本地历史读取自 `~/.factory/sessions/`。子 Agent 会话会标出父会话；注入的提醒、技能正文和界面提示不计入对话。compact 交接提示带有会话 ID，可用 `mini-trellis mem context <完整会话-id> --platform droid` 查找。
+
+初始化和刷新保留 `.factory/hooks.json` 中的其他 Hook 和 `hooksDisabled`。文件含 JSONC 注释或 Hook 结构无效时，初始化停止，刷新报告冲突，文件保持不变。`doctor` 用 `droid-config` 报告缺失的注册，用 `droid-runtime` 报告最近观察到的 Hook 执行。
 <a id="dsh"></a>
 ## DeepSeek Harness
 

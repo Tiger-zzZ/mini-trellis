@@ -7,7 +7,13 @@
  * reads channel events.
  */
 
-export const MEM_SOURCE_KINDS = ["claude", "codex", "opencode", "pi"] as const;
+export const MEM_SOURCE_KINDS = [
+  "claude",
+  "codex",
+  "opencode",
+  "pi",
+  "droid",
+] as const;
 export type MemSourceKind = (typeof MEM_SOURCE_KINDS)[number];
 export type MemSourceFilter = MemSourceKind | "all";
 export type MemPhase = "brainstorm" | "implement" | "all";
@@ -50,7 +56,7 @@ export interface MemSessionInfo {
   created?: string;
   updated?: string;
   filePath: string;
-  /** OpenCode only: parent session id (sub-agent chain). */
+  /** Parent session id for sub-agent chains (OpenCode, Droid Task sessions). */
   parent_id?: string;
 }
 

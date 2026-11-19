@@ -4,7 +4,7 @@ Use the `mini-trellis-session-insight` skill to turn a selected conversation or 
 
 ## Choose the source
 
-Native history readers support Claude Code, Codex, OpenCode V1, and Pi. List sessions in the current project and copy the full ID from JSON:
+Native history readers support Claude Code, Codex, OpenCode V1, Pi, and Factory Droid. List sessions in the current project and copy the full ID from JSON:
 
 ```bash
 mini-trellis mem list --platform claude --json --limit 10

@@ -14,7 +14,7 @@
 | `platforms` | 列出已配置的 Agent | `--json` |
 | `uninstall` | 删除项目集成与整个 `.trellis/` | `--dry-run`、`-y` |
 
-init 和 refresh 接受 `--claude`、`--codex`、`--cursor`、`--opencode`、`--pi`、`--omp`、`--kiro`、`--dsh`、`--codebuddy`、`--zcode` 和 `--antigravity`。OpenCode 还可选 `--opencode-version 1|2`。
+init 和 refresh 接受 `--claude`、`--codex`、`--cursor`、`--opencode`、`--pi`、`--omp`、`--kiro`、`--dsh`、`--codebuddy`、`--zcode`、`--antigravity` 和 `--droid`。OpenCode 还可选 `--opencode-version 1|2`。
 
 init 的 `-y` 接受默认选项，`-s` 跳过已有文件，`-f` 覆盖已有文件。添加集成时建议使用普通 init 并检查提示。refresh 直接更新常规受管文件；需要覆盖确认时，列出文件并统一询问 `[y/N]`。详见[升级与刷新](upgrade_CN.md)。
 
@@ -38,7 +38,7 @@ init 的 `-y` 接受默认选项，`-s` 跳过已有文件，`-f` 覆盖已有�
 | 参数 | 适用命令 | 含义与默认值 |
 | --- | --- | --- |
 | `--cwd <path>` | recall、read、list、search、context、extract | 选择项目，默认当前工作目录 |
-| `--platform <name>` | recall、会话命令 | `claude`、`codex`、`opencode`、`pi` 或 `all`，默认 all |
+| `--platform <name>` | recall、会话命令 | `claude`、`codex`、`opencode`、`pi`、`droid` 或 `all`，默认 all |
 | `--global` | list、search、context、extract | 包含所有项目；recall 不接受该参数 |
 | `--since`、`--until` | 会话筛选 | 包含边界的日期范围，格式 `YYYY-MM-DD` |
 | `--limit N` | recall、list、search、projects | 默认分别为 3、50、50、30 |
@@ -74,7 +74,7 @@ mini-trellis mem search "回调" --cwd /path/to/project
 | --- | --- |
 | Claude Code / OpenCode | `/mini-trellis:remember` |
 | Codex / ZCode | `$mini-trellis-remember` 或同名技能 |
-| Pi / OMP / Kiro / Antigravity | `/mini-trellis-remember` |
+| Pi / OMP / Kiro / Antigravity / Droid | `/mini-trellis-remember` |
 | Cursor / DeepSeek Harness | `mini-trellis-remember` 技能 |
 | CodeBuddy | 同名技能；CLI 也支持 `/mini-trellis:remember` |
 

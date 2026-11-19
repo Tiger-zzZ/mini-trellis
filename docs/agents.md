@@ -18,6 +18,7 @@ All listed integrations can use project Markdown. Startup delivery, raw conversa
 | CodeBuddy CLI / IDE | `--codebuddy` | SessionStart and skills | — | Saved project documents |
 | ZCode | `--zcode` | SessionStart, after trust | — | Saved project documents |
 | Google Antigravity | `--antigravity` | Project skills and SessionStart on supported builds | — | Saved project documents |
+| Factory Droid | `--droid` | SessionStart and skills | Yes | Current session / boundary |
 
 A dash means native transcripts are not parsed. You can supply Markdown/text exports to [session-insight](history.md). Combine init flags to use more than one agent in a repository.
 
@@ -218,6 +219,19 @@ Current builds use `.agents/` and support `SessionStart`. CLI 1.5.4 and later in
 
 Preview updates with `mini-trellis refresh --antigravity --dry-run`. Refresh keeps existing hook groups and their enablement choices. If a legacy customization directory already contains a skill under the same name, move or rename that copy before enabling the shared skill.
 
+<a id="droid"></a>
+## Factory Droid
+
+```bash
+mini-trellis init -u your-name --droid -y
+droid
+```
+
+Run both commands from the project root. Init installs remember, session-insight and update-spec under `.factory/skills/`, the hook script `.factory/hooks/session-start.py`, and a SessionStart registration (`startup|resume|clear|compact`) in `.factory/hooks.json`. The hook command uses a project-relative path, so start `droid` from the project root. Check the entry in `/hooks`, then open a new session. `.factory/settings.json` is not modified.
+
+Record with `/mini-trellis-remember`. Local history is read from `~/.factory/sessions/`. Subagent sessions list their parent session, and injected reminders, skill bodies and UI notices are left out of the dialogue. The compact handoff includes the session ID; use it with `mini-trellis mem context <full-session-id> --platform droid`.
+
+Init and refresh keep your other hooks and `hooksDisabled` in `.factory/hooks.json`. If the file has JSONC comments or an invalid hook structure, init stops and refresh reports a conflict without changing it. `doctor` reports `droid-config` for a missing registration and `droid-runtime` for the last observed hook run.
 <a id="dsh"></a>
 ## DeepSeek Harness
 

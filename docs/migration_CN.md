@@ -19,6 +19,7 @@ mini-trellis migrate             # 确认迁移，默认 no
 - 0.3.5 同样合并 `.codebuddy/settings.json`。已识别的 Trellis 阶段 hook 即使脚本已丢失也会清理，同事件下的用户 hook 保留。配置无效时在修改文件前停止迁移。
 - Kiro 迁移将 Trellis 技能、四个内置 Trellis Agent 和流程状态 Hook 替换为 CLI V3 / IDE 1.x 的项目技能与独立 SessionStart Hook；保留其他 Agent 和 Hook 文件。使用 `kiro-cli chat --v3` 启动；若原默认 Agent 为 Trellis，切换到 Kiro 内置 Agent。
 - Antigravity 迁移按 Trellis 清单哈希识别 `.agent/` 中未修改的 workflow 和技能，再在 `.agents/` 安装共享技能和 SessionStart。已编辑的 workflow 和其他用户配置原地保留。用 dry run 确认文件列表；没有 Trellis 清单哈希时，可在迁移后运行 `mini-trellis init --antigravity -y` 添加接入。
+- Droid 迁移删除 Trellis 的 `trellis-*` droid、`.factory/commands/trellis/`、`trellis-*` 技能和 `inject-*`/`statusline` Hook，并从 `.factory/settings.json` 去掉 Trellis Hook 注册；其他设置、droid 和 Hook 保留，若该文件只剩 Trellis Hook 则删除。随后 mini-trellis 在 `.factory/hooks.json` 注册 SessionStart。
 - 迁移会在 `.zcode/config.json` 的 `hooks.events` 中移除已识别的 Trellis hook 调用，包括 process/args 和脚本已缺失的注册；保留其他 hook、技能和配置。配置无效时在修改前停止。迁移后用 `zcode hooks trust review --workspace . --json` 审查新声明，接受后自行授予摘要信任；迁移不改用户级配置或信任。
 - `.pi/settings.json` 会去掉 `./extensions/trellis/index.ts` 和 `npm:pi-subagents`，保留其他 extension 与 package。
 - `.codex/config.toml` 会去掉 Trellis 写入的说明和 `[agents] max_depth = 1`，再写上 mini-trellis 的项目配置。用户自己的键会附在后面。

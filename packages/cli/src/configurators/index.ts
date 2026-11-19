@@ -21,6 +21,12 @@ import { collectCodeBuddyTemplates } from "./codebuddy.js";
 import { collectKiroTemplates } from "./kiro.js";
 import { collectZCodeTemplates } from "./zcode.js";
 import { collectAntigravityTemplates } from "./antigravity.js";
+import { collectDroidTemplates } from "./droid.js";
+import {
+  DROID_HOOKS_PATH,
+  DROID_SESSION_HOOK,
+  readDroidHooksIssue,
+} from "../utils/droid-hooks.js";
 import {
   ANTIGRAVITY_SESSION_HOOK,
   readAntigravityRegistration,
@@ -76,6 +82,7 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
   zcode: fromTemplates(collectZCodeTemplates),
   kiro: fromTemplates(collectKiroTemplates),
   antigravity: fromTemplates(collectAntigravityTemplates),
+  droid: fromTemplates(collectDroidTemplates),
 };
 
 export const PLATFORM_IDS = Object.keys(AI_TOOLS) as AITool[];
@@ -90,6 +97,8 @@ export const ALL_MANAGED_DIRS = [".trellis", ...new Set(PLATFORM_MANAGED_DIRS)];
 
 const DETECT_FILES: Record<AITool, string[]> = {
   antigravity: [ANTIGRAVITY_SESSION_HOOK],
+  // `.factory/hooks.json` alone can be user-owned; it does not identify the host.
+  droid: [DROID_SESSION_HOOK, ".factory/skills/mini-trellis-remember/SKILL.md"],
   "claude-code": [
     ".claude/hooks/session-start.py",
     ".claude/commands/mini-trellis/remember.md",
@@ -217,6 +226,12 @@ export function resolvePlatformOptions(
   }
   if (platforms.includes("antigravity")) {
     assertProjectTemplatePaths(cwd, collectAntigravityTemplates());
+  }
+  if (platforms.includes("droid")) {
+    assertProjectTemplatePaths(cwd, collectDroidTemplates());
+    const hooks = path.join(cwd, DROID_HOOKS_PATH);
+    const issue = fs.existsSync(hooks) ? readDroidHooksIssue(hooks) : null;
+    if (issue) throw new ManagedAssetConflict(DROID_HOOKS_PATH, issue);
   }
   return resolved;
 }

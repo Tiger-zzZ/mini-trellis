@@ -51,6 +51,11 @@ import {
   readZCodeConfigIssue,
   mergeZCodeConfig,
 } from "../utils/zcode-config.js";
+import {
+  DROID_HOOKS_PATH,
+  mergeDroidHooks,
+  readDroidHooksIssue,
+} from "../utils/droid-hooks.js";
 
 export type RefreshAction =
   | "add"
@@ -90,6 +95,7 @@ const JSON_PATHS = new Set([
   ".zcode/config.json",
   ".opencode/package.json",
   ANTIGRAVITY_HOOKS_PATH,
+  DROID_HOOKS_PATH,
 ]);
 
 function executableFor(relative: string): boolean {
@@ -115,7 +121,9 @@ function renderedJsonMerge(
         ? mergeCodeBuddySettings
         : relative === ".zcode/config.json"
           ? mergeZCodeConfig
-          : mergeJsonValues;
+          : relative === DROID_HOOKS_PATH
+            ? mergeDroidHooks
+            : mergeJsonValues;
     const merged = `${JSON.stringify(merge(existing, desired), null, 2)}\n`;
     return merged === current ? "unchanged" : "merge";
   } catch {
@@ -222,6 +230,13 @@ export function buildRefreshPlan(
       }
       if (relative === ".codebuddy/settings.json") {
         const issue = readCodeBuddySettingsIssue(filePath);
+        if (issue) {
+          items.push({ path: relative, action: "conflict", detail: issue });
+          continue;
+        }
+      }
+      if (relative === DROID_HOOKS_PATH) {
+        const issue = readDroidHooksIssue(filePath);
         if (issue) {
           items.push({ path: relative, action: "conflict", detail: issue });
           continue;
@@ -367,7 +382,9 @@ function applyRefresh(cwd: string, report: RefreshReport): void {
           ? mergeCodeBuddySettings
           : item.path === ".zcode/config.json"
             ? mergeZCodeConfig
-            : undefined,
+            : item.path === DROID_HOOKS_PATH
+              ? mergeDroidHooks
+              : undefined,
       );
       continue;
     }
