@@ -16,6 +16,7 @@ mini-trellis migrate             # 确认迁移，默认 no
 宿主配置按字段合并：
 
 - `.claude/settings.json` 和 `.codex/hooks.json` 会先去掉指向 `inject-*.py`、`statusline.py` 和旧 `session-start.py` 的 Trellis hook，再写入 mini-trellis 的 SessionStart。用户自己的 hook、`env` 和其他字段保留。
+- Cursor 迁移会清理 `.cursor/` 下 Trellis 自带的命令、技能、子代理和注入脚本。`.cursor/hooks.json` 中对应的旧注入注册会移除，指向 `.cursor/hooks/session-start.py` 的条目统一替换为一条 mini-trellis `sessionStart`。其他 Hook 和配置保留。Hook 配置无效时，迁移会在修改文件前停止。
 - 0.3.5 同样合并 `.codebuddy/settings.json`。已识别的 Trellis 阶段 hook 即使脚本已丢失也会清理，同事件下的用户 hook 保留。配置无效时在修改文件前停止迁移。
 - Kiro 迁移将 Trellis 技能、四个内置 Trellis Agent 和流程状态 Hook 替换为 CLI V3 / IDE 1.x 的项目技能与独立 SessionStart Hook；保留其他 Agent 和 Hook 文件。使用 `kiro-cli chat --v3` 启动；若原默认 Agent 为 Trellis，切换到 Kiro 内置 Agent。
 - Antigravity 迁移按 Trellis 清单哈希识别 `.agent/` 中未修改的 workflow 和技能，再在 `.agents/` 安装共享技能和 SessionStart。已编辑的 workflow 和其他用户配置原地保留。用 dry run 确认文件列表；没有 Trellis 清单哈希时，可在迁移后运行 `mini-trellis init --antigravity -y` 添加接入。
@@ -23,7 +24,7 @@ mini-trellis migrate             # 确认迁移，默认 no
 - `.pi/settings.json` 会去掉 `./extensions/trellis/index.ts` 和 `npm:pi-subagents`，保留其他 extension 与 package。
 - `.codex/config.toml` 会去掉 Trellis 写入的说明和 `[agents] max_depth = 1`，再写上 mini-trellis 的项目配置。用户自己的键会附在后面。
 
-如果上一次迁移已经删掉脚本，但配置里还留着 `inject-*.py`，再运行一次 `mini-trellis migrate` 会清理这些条目。
+如果之前迁移后还留有 `inject-*.py` 注册，或 Cursor 重复注册了 mini-trellis 启动项，可先运行 `mini-trellis migrate --dry-run` 查看修复计划，再执行 `mini-trellis migrate`。旧脚本已经删除时也可以修复。
 
 ## 任务材料的去向
 

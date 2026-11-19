@@ -16,6 +16,7 @@ It rewrites the detected host surfaces with mini-trellis's versions, deletes the
 Host configuration is merged by field:
 
 - `.claude/settings.json` and `.codex/hooks.json` lose Trellis hooks that point at `inject-*.py`, `statusline.py`, or an old `session-start.py`, then receive mini-trellis's SessionStart entry. User hooks, `env`, and other fields stay.
+- Cursor migration removes Trellis's known commands, skills, agents and injector scripts under `.cursor/`. In `.cursor/hooks.json`, it removes the retired injector registrations and replaces the entries for `.cursor/hooks/session-start.py` with one mini-trellis `sessionStart`. Other hooks and settings stay. An invalid hook configuration stops migration before any files change.
 - `.codebuddy/settings.json` is merged the same way in 0.3.5. Known Trellis stage hooks are removed even if their scripts are already missing; user hooks in the same event remain. Invalid settings stop migration before file changes.
 - Kiro migration replaces Trellis skills, the four shipped Trellis agents, and its workflow-state hook with project skills and a standalone SessionStart hook for CLI V3 / IDE 1.x. Other agent and hook files are kept. Start with `kiro-cli chat --v3` and use a built-in agent if your previous default was a Trellis agent.
 - Antigravity migration uses Trellis's template hashes to identify unchanged `.agent/` workflows and skills, then installs shared skills and SessionStart under `.agents/`. Edited workflows and other user customizations stay in place. Use the dry run to review the list. If Trellis has no identifying template hashes, use `mini-trellis init --antigravity -y` after migrating to add the integration.
@@ -23,7 +24,7 @@ Host configuration is merged by field:
 - `.pi/settings.json` loses `./extensions/trellis/index.ts` and `npm:pi-subagents`. Other extensions and packages stay.
 - `.codex/config.toml` loses the Trellis notes and `[agents] max_depth = 1`, then receives the mini-trellis project config. User-owned keys are appended after it.
 
-If an earlier migration deleted the scripts but left `inject-*.py` in the hook config, running `mini-trellis migrate` again removes those entries.
+If an earlier migration left known `inject-*.py` registrations, preview the repair with `mini-trellis migrate --dry-run`, then run `mini-trellis migrate` again. The repair works even if the retired scripts are already gone and also consolidates duplicate Cursor startup entries.
 
 ## Where task material goes
 

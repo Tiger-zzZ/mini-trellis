@@ -65,7 +65,16 @@ import {
 import { collectTrellisScriptTemplates } from "../templates/extract.js";
 import { renderTemplateMap } from "../configurators/shared.js";
 import { parseOpenCodeVersion } from "../utils/opencode-version.js";
-import { assertSafeManagedPath } from "../utils/managed-path-safety.js";
+import {
+  assertSafeManagedPath,
+  ManagedAssetConflict,
+} from "../utils/managed-path-safety.js";
+import {
+  CURSOR_LEGACY_INJECTORS,
+  CURSOR_SESSION_START,
+  cursorHooksNeedMigration,
+  readCursorHooksConfigIssue,
+} from "../utils/cursor-hooks-config.js";
 import {
   scrubZCodeConfig,
   zcodeHookReferencesPaths,
@@ -166,12 +175,31 @@ export const RETIRED_SCRIPT_MODULES = [
 ];
 
 const LEGACY_TEMPLATE_HASHES = `${DIR_NAMES.WORKFLOW}/.template-hashes.json`;
+const CURSOR_HOOKS_CONFIG = ".cursor/hooks.json";
 /** Trellis-only files at fixed paths that no scan rule covers. */
 const FIXED_DELETIONS = [
   PATHS.WORKFLOW_GUIDE_FILE,
   `${PATHS.SCRIPTS}/task.py`,
   LEGACY_TEMPLATE_HASHES,
   ...RETIRED_SCRIPT_MODULES.map((name) => `${PATHS.SCRIPTS}/common/${name}`),
+  // Cursor uses flat commands and dedicated skills. Match only names that
+  // Trellis shipped so user entries with the same prefix are kept.
+  ".cursor/agents/trellis-check.md",
+  ".cursor/agents/trellis-implement.md",
+  ".cursor/agents/trellis-research.md",
+  ".cursor/commands/trellis-continue.md",
+  ".cursor/commands/trellis-finish-work.md",
+  ".cursor/commands/trellis-start.md",
+  ".cursor/skills/trellis-before-dev",
+  ".cursor/skills/trellis-brainstorm",
+  ".cursor/skills/trellis-break-loop",
+  ".cursor/skills/trellis-channel",
+  ".cursor/skills/trellis-check",
+  ".cursor/skills/trellis-meta",
+  ".cursor/skills/trellis-session-insight",
+  ".cursor/skills/trellis-spec-bootstrap",
+  ".cursor/skills/trellis-update-spec",
+  ...CURSOR_LEGACY_INJECTORS,
 ];
 
 /** Framework files migrate rewrites in place, shown as modifications. */
@@ -304,6 +332,8 @@ function readText(abs: string): string | null {
 export function legacyHostPlatforms(cwd: string): AITool[] {
   const ids = new Set<AITool>();
   if (legacyAntigravityAssets(cwd).length > 0) ids.add("antigravity");
+  const cursor = readText(path.join(cwd, CURSOR_HOOKS_CONFIG));
+  if (cursor && cursorHooksNeedMigration(cursor)) ids.add("cursor");
   const zcode = readText(path.join(cwd, ".zcode/config.json"));
   if (zcode) {
     try {
@@ -441,6 +471,21 @@ function scrubLegacyHostConfig(
   cwd: string,
   platforms: readonly AITool[],
 ): string {
+  if (platforms.includes("cursor")) {
+    const abs = path.join(cwd, CURSOR_HOOKS_CONFIG);
+    const before = readText(abs);
+    if (before !== null) {
+      rewriteScrubbed(
+        abs,
+        scrubHooksJson(
+          before,
+          [CURSOR_SESSION_START, ...CURSOR_LEGACY_INJECTORS],
+          "flat",
+        ),
+        before,
+      );
+    }
+  }
   if (platforms.includes("zcode")) {
     const abs = path.join(cwd, ".zcode/config.json");
     const before = readText(abs);
@@ -742,6 +787,18 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
 
   renderPlan(cwd, plan, converge);
   const context = resolvePlatformOptions(cwd, plan.reconfigure, options);
+  if (plan.reconfigure.includes("cursor")) {
+    const root = fs.realpathSync(cwd);
+    const templates = collectPlatformTemplates("cursor", context);
+    for (const relative of templates?.keys() ?? []) {
+      assertSafeManagedPath(root, relative, { followLeaf: true });
+    }
+    const config = path.join(cwd, CURSOR_HOOKS_CONFIG);
+    if (fs.existsSync(config)) {
+      const issue = readCursorHooksConfigIssue(config);
+      if (issue) throw new ManagedAssetConflict(CURSOR_HOOKS_CONFIG, issue);
+    }
+  }
   if (plan.reconfigure.includes("antigravity"))
     assertSafeManagedPath(fs.realpathSync(cwd), FILE_NAMES.AGENTS, {
       followLeaf: true,
@@ -749,6 +806,7 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
   for (const relative of plan.deletions) {
     if (
       relative.startsWith(".codebuddy/") ||
+      relative.startsWith(".cursor/") ||
       relative.startsWith(".opencode/") ||
       relative.startsWith(".zcode/") ||
       relative.startsWith(".kiro/")

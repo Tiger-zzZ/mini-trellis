@@ -18,6 +18,7 @@ vi.mock("inquirer", () => ({
 
 import inquirer from "inquirer";
 
+import { buildDoctorReport } from "../../src/commands/doctor.js";
 import { init, type InitOptions } from "../../src/commands/init.js";
 import { migrate, collectTrellisResidue, buildMigratePlan } from "../../src/commands/migrate.js";
 import { buildTasksConvergePlan } from "../../src/commands/migrate-tasks.js";
@@ -857,6 +858,154 @@ describe("migrate", () => {
     expect(exists(tmpDir, ".claude/commands/mini-trellis/remember.md")).toBe(
       true,
     );
+  });
+});
+
+describe("Cursor migration", () => {
+  let tmpDir: string;
+  const config = ".cursor/hooks.json";
+
+  beforeEach(() => {
+    tmpDir = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), "mini-trellis-cursor-migrate-")),
+    );
+    vi.spyOn(process, "cwd").mockReturnValue(tmpDir);
+    vi.spyOn(console, "log").mockImplementation(noop);
+    resetResolvedPythonCommand();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetResolvedPythonCommand();
+    setWriteMode("ask");
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("replaces Trellis entry points in Cursor and preserves custom ones", async () => {
+    const oldFiles = [
+      ".cursor/agents/trellis-implement.md",
+      ".cursor/commands/trellis-continue.md",
+      ".cursor/commands/trellis-finish-work.md",
+      ".cursor/hooks/inject-shell-session-context.py",
+      ".cursor/hooks/inject-subagent-context.py",
+      ".cursor/hooks/inject-workflow-state.py",
+      ".cursor/skills/trellis-before-dev/SKILL.md",
+      ".cursor/skills/trellis-meta/references/overview.md",
+    ];
+    const userFiles = [
+      ".cursor/agents/trellis-audit.md",
+      ".cursor/commands/trellis-help.md",
+      ".cursor/hooks/inject-custom.py",
+      ".cursor/skills/trellis-custom/SKILL.md",
+    ];
+    for (const file of oldFiles) plant(tmpDir, file);
+    for (const file of userFiles) plant(tmpDir, file, "custom\n");
+    plant(tmpDir, ".cursor/hooks/session-start.py", "# Trellis startup\n");
+
+    const userStart = { type: "prompt", prompt: "Read team notes" };
+    const userTool = { command: "python3 .cursor/hooks/inject-custom.py" };
+    const userShell = {
+      command: "python3 lint.py .cursor/hooks/inject-shell-session-context.py",
+    };
+    plant(
+      tmpDir,
+      config,
+      JSON.stringify({
+        version: 1,
+        custom: { keep: true },
+        hooks: {
+          sessionStart: [
+            { command: "python3 .cursor/hooks/session-start.py", timeout: 10 },
+            userStart,
+          ],
+          preToolUse: [
+            {
+              command: "python3 .cursor/hooks/inject-subagent-context.py",
+              matcher: "Task|Subagent",
+            },
+            userTool,
+          ],
+          beforeSubmitPrompt: [
+            { command: "python3 .cursor/hooks/inject-workflow-state.py" },
+          ],
+          beforeShellExecution: [
+            { command: "python3 .cursor/hooks/inject-shell-session-context.py" },
+            userShell,
+          ],
+        },
+      }),
+    );
+
+    const before = snapshot(tmpDir);
+    await migrate({ dryRun: true });
+    expect(snapshot(tmpDir)).toEqual(before);
+    await migrate({ yes: true });
+
+    for (const file of oldFiles) expect(exists(tmpDir, file), file).toBe(false);
+    for (const file of userFiles) {
+      expect(fs.readFileSync(path.join(tmpDir, file), "utf8")).toBe("custom\n");
+    }
+    expect(exists(tmpDir, ".cursor/skills/mini-trellis-remember/SKILL.md")).toBe(
+      true,
+    );
+    const readConfig = fs.readFileSync(path.join(tmpDir, config), "utf8");
+    expect(JSON.parse(readConfig)).toEqual({
+      version: 1,
+      custom: { keep: true },
+      hooks: {
+        sessionStart: [
+          userStart,
+          {
+            command: expect.stringMatching(
+              / -X utf8 \.cursor\/hooks\/session-start\.py$/,
+            ),
+            timeout: 30,
+          },
+        ],
+        preToolUse: [userTool],
+        beforeShellExecution: [userShell],
+      },
+    });
+  });
+
+  it.each(["missing legacy script", "duplicate startup"])(
+    "repairs a previously migrated Cursor project with %s",
+    async (residue) => {
+      await init({ yes: true, user: "tester", cursor: true });
+      const file = path.join(tmpDir, config);
+      const clean = fs.readFileSync(file, "utf8");
+      const { version, hooks } = JSON.parse(clean);
+      if (residue === "duplicate startup") {
+        hooks.sessionStart.unshift({
+          command: 'python3 -X utf8 "./.cursor/hooks/session-start.py"',
+          timeout: 10,
+        });
+      } else {
+        hooks.beforeSubmitPrompt = [
+          { command: "python3 .cursor/hooks/inject-workflow-state.py" },
+        ];
+      }
+      plant(tmpDir, config, JSON.stringify({ version, hooks }));
+
+      expect(buildDoctorReport(tmpDir).ok).toBe(false);
+      await migrate({ yes: true });
+      expect(fs.readFileSync(file, "utf8")).toEqual(clean);
+      expect(buildDoctorReport(tmpDir).ok).toBe(true);
+      const after = snapshot(tmpDir);
+      await migrate({ yes: true });
+      expect(snapshot(tmpDir)).toEqual(after);
+    },
+  );
+
+  it("leaves the project intact when the Cursor hook config is invalid", async () => {
+    plant(tmpDir, ".trellis/workflow.md");
+    plant(tmpDir, ".cursor/hooks/session-start.py");
+    plant(tmpDir, ".cursor/hooks/inject-workflow-state.py");
+    plant(tmpDir, config, '{"hooks":{"sessionStart":false}}');
+    const before = snapshot(tmpDir);
+
+    await expect(migrate({ yes: true })).rejects.toThrow(config);
+    expect(snapshot(tmpDir)).toEqual(before);
   });
 });
 

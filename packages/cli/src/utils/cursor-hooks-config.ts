@@ -1,7 +1,45 @@
 import fs from "node:fs";
+import { commandMatchesDeletedPath } from "./uninstall-scrubbers.js";
+
+export const CURSOR_SESSION_START = ".cursor/hooks/session-start.py";
+export const CURSOR_LEGACY_INJECTORS = [
+  ".cursor/hooks/inject-shell-session-context.py",
+  ".cursor/hooks/inject-subagent-context.py",
+  ".cursor/hooks/inject-workflow-state.py",
+];
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Identify stale registrations even if no Trellis files remain. */
+export function cursorHooksNeedMigration(content: string): boolean {
+  let value: unknown;
+  try {
+    value = JSON.parse(content);
+  } catch {
+    return false;
+  }
+  if (!isObject(value) || !isObject(value.hooks)) return false;
+
+  for (const [event, entries] of Object.entries(value.hooks)) {
+    if (!Array.isArray(entries)) continue;
+    let startupCount = 0;
+    for (const entry of entries as unknown[]) {
+      if (!isObject(entry) || typeof entry.command !== "string") continue;
+      if (commandMatchesDeletedPath(entry.command, CURSOR_LEGACY_INJECTORS)) {
+        return true;
+      }
+      if (
+        event === "sessionStart" &&
+        commandMatchesDeletedPath(entry.command, [CURSOR_SESSION_START])
+      ) {
+        startupCount += 1;
+        if (startupCount > 1) return true;
+      }
+    }
+  }
+  return false;
 }
 
 /** Check the shape needed to merge Cursor hooks without replacing user data. */
@@ -50,9 +88,7 @@ export function readCursorHooksConfigIssue(
           isObject(entry) &&
           (entry.type === undefined || entry.type === "command") &&
           typeof entry.command === "string" &&
-          entry.command
-            .replaceAll("\\", "/")
-            .includes(".cursor/hooks/session-start.py"),
+          entry.command.replaceAll("\\", "/").includes(CURSOR_SESSION_START),
       ))
   ) {
     return "mini-trellis sessionStart is not registered; run mini-trellis init --cursor";
