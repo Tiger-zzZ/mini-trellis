@@ -51,6 +51,7 @@ function managedCommand(): string {
 function invoke(source: string): {
   hookSpecificOutput?: { hookEventName?: string; additionalContext?: string };
   additional_context?: string;
+  suppressOutput?: boolean;
 } {
   const result = spawnSync(managedCommand(), {
     shell: true,
@@ -146,6 +147,7 @@ describe("Factory Droid project integration", () => {
     await install();
     const startup = invoke("startup");
     expect(startup.additional_context).toBeUndefined();
+    expect(startup.suppressOutput).toBe(true);
     expect(startup.hookSpecificOutput?.hookEventName).toBe("SessionStart");
     const context = startup.hookSpecificOutput?.additionalContext ?? "";
     expect(context).toContain("<session-context>");

@@ -838,6 +838,10 @@ Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. R
     # the same exception for its own parser.
     if platform not in {"codex", "zcode", "codebuddy", "droid"}:
         result["additional_context"] = context_text
+    # Droid otherwise prints the whole injected context in the chat view at
+    # every startup; the detailed transcript still keeps it.
+    if platform == "droid":
+        result["suppressOutput"] = True
 
     # Output JSON - stdout is already configured for UTF-8
     print(json.dumps(result, ensure_ascii=False), flush=True)
