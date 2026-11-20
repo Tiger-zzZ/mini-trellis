@@ -236,6 +236,7 @@ droid
 记录使用 `/mini-trellis-remember`。本地历史读取自 `~/.factory/sessions/`。子 Agent 会话会标出父会话；注入的提醒、技能正文和界面提示不计入对话。compact 交接提示带有会话 ID，可用 `mini-trellis mem context <完整会话-id> --platform droid` 查找。
 
 初始化和刷新保留 `.factory/hooks.json` 中的其他 Hook 和 `hooksDisabled`。文件含 JSONC 注释或 Hook 结构无效时，初始化停止，刷新报告冲突，文件保持不变。`doctor` 用 `droid-config` 报告缺失的注册，用 `droid-runtime` 报告最近观察到的 Hook 执行。
+
 <a id="dsh"></a>
 ## DeepSeek Harness
 

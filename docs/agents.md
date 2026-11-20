@@ -232,6 +232,7 @@ Run both commands from the project root. Init installs remember, session-insight
 Record with `/mini-trellis-remember`. Local history is read from `~/.factory/sessions/`. Subagent sessions list their parent session, and injected reminders, skill bodies and UI notices are left out of the dialogue. The compact handoff includes the session ID; use it with `mini-trellis mem context <full-session-id> --platform droid`.
 
 Init and refresh keep your other hooks and `hooksDisabled` in `.factory/hooks.json`. If the file has JSONC comments or an invalid hook structure, init stops and refresh reports a conflict without changing it. `doctor` reports `droid-config` for a missing registration and `droid-runtime` for the last observed hook run.
+
 <a id="dsh"></a>
 ## DeepSeek Harness
 
