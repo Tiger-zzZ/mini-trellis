@@ -384,9 +384,9 @@ export function buildDoctorReport(cwd: string): DoctorReport {
         );
         if (issue) {
           checks.push({
-            level: "warn",
+            level: "error",
             name: "cursor-config",
-            detail: `.cursor/hooks.json: ${issue}; invalid configuration is kept`,
+            detail: `.cursor/hooks.json: ${issue}`,
           });
         }
       }

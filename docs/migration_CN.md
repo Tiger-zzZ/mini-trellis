@@ -16,6 +16,7 @@ mini-trellis migrate             # 确认迁移，默认 no
 宿主配置按字段合并：
 
 - `.claude/settings.json` 和 `.codex/hooks.json` 会先去掉指向 `inject-*.py`、`statusline.py` 和旧 `session-start.py` 的 Trellis hook，再写入 mini-trellis 的 SessionStart。用户自己的 hook、`env` 和其他字段保留。
+- Cursor 迁移会清理 `.cursor/` 下 Trellis 自带的命令、技能、子代理和注入脚本。`.cursor/hooks.json` 中对应的旧注入注册会移除，指向 `.cursor/hooks/session-start.py` 的条目统一替换为一条 mini-trellis `sessionStart`。其他 Hook 和配置保留。Hook 配置无效时，迁移会在修改文件前停止。
 - 0.3.5 同样合并 `.codebuddy/settings.json`。已识别的 Trellis 阶段 hook 即使脚本已丢失也会清理，同事件下的用户 hook 保留。配置无效时在修改文件前停止迁移。
 - Kiro 迁移将 Trellis 技能、四个内置 Trellis Agent 和流程状态 Hook 替换为 CLI V3 / IDE 1.x 的项目技能与独立 SessionStart Hook；保留其他 Agent 和 Hook 文件。使用 `kiro-cli chat --v3` 启动；若原默认 Agent 为 Trellis，切换到 Kiro 内置 Agent。
 - Antigravity 迁移按 Trellis 清单哈希识别 `.agent/` 中未修改的 workflow 和技能，再在 `.agents/` 安装共享技能和 SessionStart。已编辑的 workflow 和其他用户配置原地保留。用 dry run 确认文件列表；没有 Trellis 清单哈希时，可在迁移后运行 `mini-trellis init --antigravity -y` 添加接入。
@@ -23,7 +24,7 @@ mini-trellis migrate             # 确认迁移，默认 no
 - `.pi/settings.json` 会去掉 `./extensions/trellis/index.ts` 和 `npm:pi-subagents`，保留其他 extension 与 package。
 - `.codex/config.toml` 会去掉 Trellis 写入的说明和 `[agents] max_depth = 1`，再写上 mini-trellis 的项目配置。用户自己的键会附在后面。
 
-如果上一次迁移已经删掉脚本，但配置里还留着 `inject-*.py`，再运行一次 `mini-trellis migrate` 会清理这些条目。
+如果之前迁移后还留有 `inject-*.py` 注册，或 Cursor 重复注册了 mini-trellis 启动项，可先运行 `mini-trellis migrate --dry-run` 查看修复计划，再执行 `mini-trellis migrate`。旧脚本已经删除时也可以修复。
 
 ## 任务材料的去向
 
@@ -41,7 +42,7 @@ mini-trellis migrate             # 确认迁移，默认 no
 ## 迁移之后
 
 - `.trellis/spec/`、`research/`、`workspace/` 原样保留。已有 spec 内容，包括 Trellis 创建的 `backend/`、`frontend/` 文档，仍可检索；SessionStart 提供短入口，文档按需查找。
-- `.trellis/config.yaml` 和 `.trellis/scripts/` 会被 mini-trellis 版本覆盖，自定义配置和脚本修改需在迁移后重新应用。
+- 首次迁移将 `.trellis/config.yaml` 替换为 mini-trellis 默认配置。已有 mini-trellis 清单的项目重跑迁移时会保留现有配置。两种情况都会安装内置 `.trellis/scripts/`，对内置脚本的本地修改需在迁移后重新应用。
 - 缺少 `.trellis/.gitignore` 时会补上，让本地身份与运行状态保持在 Git 之外，已有用户规则保留。不会取消 Git 对已跟踪文件的跟踪。
 - 迁移后的任务目录是 `.trellis/research/` 下的 topic，`mem recall` 可查活跃和归档笔记，启动时不枚举全部主题；只有没有未处理条目时才删除 `.trellis/tasks/`。
 - `.trellis/.version` 被移除，mini-trellis 自己不会再写这个文件，Trellis CLI 在这个项目里不会再有更新提示。

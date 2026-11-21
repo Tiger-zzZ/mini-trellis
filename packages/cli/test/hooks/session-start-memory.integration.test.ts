@@ -88,7 +88,12 @@ function assertMemoryPayload(text: string): void {
 describe.skipIf(!hasPython())("session-start memory contract", () => {
   let tmpDir: string;
 
-  function hook(host = "claude", sessionId?: string, source = "startup") {
+  function hook(
+    host = "claude",
+    sessionId?: string,
+    source = "startup",
+    projectEnv?: NodeJS.ProcessEnv,
+  ) {
     const file = path.join(tmpDir, `.${host}/hooks/session-start.py`);
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.copyFileSync(SHARED_HOOK, file);
@@ -129,7 +134,7 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
     const result = spawnSync("python3", [file], {
       cwd: tmpDir,
       encoding: "utf8",
-      env,
+      env: { ...env, ...projectEnv },
       input: JSON.stringify({ cwd: tmpDir, source, session_id: sessionId }),
     });
     expect(result.status, result.stderr).toBe(0);
@@ -335,6 +340,19 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
       "";
     expect(text.length).toBeGreaterThan(0);
     assertMemoryPayload(text);
+  });
+
+  it("keeps Cursor's project state when a Claude workspace alias is inherited", () => {
+    const other = path.join(tmpDir, "other");
+    stampMemorySkeleton(other);
+    fs.writeFileSync(path.join(other, ".trellis/.developer"), "name=other-project\n");
+    fs.writeFileSync(path.join(tmpDir, ".trellis/.developer"), "name=cursor-project\n");
+    const { text } = hook("cursor", "cursor-workspace", "startup", {
+      CURSOR_PROJECT_DIR: tmpDir,
+      CLAUDE_PROJECT_DIR: other,
+    });
+    expect(text).toContain("Developer: cursor-project");
+    expect(fs.existsSync(path.join(other, ".trellis/.runtime"))).toBe(false);
   });
 
   it("uses Codex's nested output contract without a duplicate compatibility field", () => {

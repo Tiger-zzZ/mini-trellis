@@ -8,7 +8,15 @@ import {
   readDocText,
   type DocDiscovery,
 } from "./docs.js";
-import { excerptAround, matchTerms, queryTerms, windowAt } from "./lexical.js";
+import {
+  anchorLine,
+  documentAnchors,
+  documentSections,
+  documentWindow,
+  sectionAt,
+  type TextAnchor,
+} from "./document-evidence.js";
+import { excerptAround, hasCjkBigramCoverage, matchTerms, queryTerms, windowAt } from "./lexical.js";
 import { parseDocLineage, parseLineageMarks } from "./lineage.js";
 import { MEM_PLATFORMS } from "./platforms.js";
 import {
@@ -46,29 +54,32 @@ const QUERY_ECHO_WORDS = new Set([
   "where", "which", "who", "why", "will", "would",
 ]);
 
-interface EvidenceRef {
+interface EvidenceRef extends TextAnchor {
   kind: "doc" | "session";
   path?: string;
   platform?: "claude" | "codex" | "opencode" | "pi";
   id?: string;
   turn?: number;
-  start: number;
-  end: number;
+  /** Optional in v1; older refs carry only the primary offsets. */
+  secondary?: TextAnchor;
   hash: string;
 }
 interface Candidate {
   hit: RecallHit;
   source: string;
-  anchorStart: number;
-  anchorEnd: number;
+  anchor: TextAnchor;
+  secondary?: TextAnchor;
+  excerptTruncated: boolean;
   coverage: number;
-  /** Required terms matched in the body, after the first heading. */
+  /** Sufficient query coverage in the body, excluding the document title. */
   bodyEvidence: boolean;
+  cjkBodyEvidence: boolean;
   /** Required terms that contain a digit, such as TASK-4419. */
   idCoverage: number;
   derivedCoverage: number;
   titleCoverage: number;
   pathCoverage: number;
+  explicitPathMatch: boolean;
   duplicateKey: string;
 }
 
@@ -78,6 +89,13 @@ function fingerprint(text: string): string {
 function encodeRef(ref: EvidenceRef): string {
   return `${ref.kind}:v1:${Buffer.from(JSON.stringify(ref)).toString("base64url")}`;
 }
+function validAnchor(anchor: unknown): anchor is TextAnchor {
+  if (typeof anchor !== "object" || anchor === null) return false;
+  const { start, end } = anchor as TextAnchor;
+  return Number.isSafeInteger(start) && Number.isSafeInteger(end) &&
+    start >= 0 && end >= start;
+}
+
 function decodeRef(ref: string): EvidenceRef | undefined {
   if (ref.length > 8192) return undefined;
   const match = /^(doc|session):v1:([A-Za-z0-9_-]+)$/.exec(ref);
@@ -88,15 +106,16 @@ function decodeRef(ref: string): EvidenceRef | undefined {
     ) as EvidenceRef;
     if (
       x?.kind !== match[1] ||
-      !Number.isSafeInteger(x.start) ||
-      !Number.isSafeInteger(x.end) ||
-      x.start < 0 ||
-      x.end < x.start ||
+      !validAnchor(x) ||
       typeof x.hash !== "string" ||
       !/^[a-f0-9]{24}$/.test(x.hash)
     )
       return undefined;
-    if (x.kind === "doc") return typeof x.path === "string" ? x : undefined;
+    if (x.kind === "doc")
+      return typeof x.path === "string" &&
+        (x.secondary === undefined || validAnchor(x.secondary))
+        ? x
+        : undefined;
     return typeof x.id === "string" &&
       Number.isSafeInteger(x.turn) &&
       (x.turn ?? -1) >= 0 &&
@@ -113,15 +132,6 @@ function positive(value: number | undefined, fallback: number): number {
     throw new RangeError("memory limits must be non-negative integers");
   return n;
 }
-function headingBefore(text: string, index: number): string | undefined {
-  let heading: string | undefined;
-  for (const match of text.matchAll(/^(#{1,6})\s+(.*\S)\s*$/gm)) {
-    if (match.index > index) break;
-    heading = match[2];
-  }
-  return heading;
-}
-
 /** Effective notes outrank archived / superseded ones at equal coverage. */
 function inactiveRank(hit: RecallHit): number {
   return hit.status === "archived" || hit.status === "superseded" ? 1 : 0;
@@ -137,9 +147,8 @@ function hasBodyEvidence(bodyCoverage: number, requiredCount: number): boolean {
   );
 }
 
-/** Among documents only: a current body moves ahead of an archived title, and
- * an archived body moves ahead of a current title. Sessions stay in the slots
- * coverage already gave them. */
+/** Keep body evidence ahead of competing titles where the coverage rules
+ * below allow it. Session positions and exact ID priority stay intact. */
 function orderDocBodies(docs: Candidate[]): Candidate[] {
   const out: Candidate[] = [];
   for (const candidate of docs) {
@@ -150,7 +159,9 @@ function orderDocBodies(docs: Candidate[]): Candidate[] {
     const current = inactiveRank(candidate.hit) === 0;
     const at = out.findIndex((existing) =>
       current
-        ? inactiveRank(existing.hit) > 0
+        ? inactiveRank(existing.hit) > 0 ||
+          (candidate.cjkBodyEvidence && !existing.bodyEvidence &&
+            existing.titleCoverage > 0 && !existing.explicitPathMatch)
         : inactiveRank(existing.hit) === 0 && !existing.bodyEvidence,
     );
     if (at < 0) out.push(candidate);
@@ -394,13 +405,13 @@ function select(
     if (JSON.stringify(hit).length > maxChars - used) {
       // JSON escaping and metadata also consume the budget. Keep the anchor.
       let cap = Math.min(hit.excerpt.length, available);
+      const sections = hit.sourceKind === "doc" ? documentSections(candidate.source) : undefined;
       do {
-        hit.excerpt = windowAt(
-          candidate.source,
-          candidate.anchorStart,
-          candidate.anchorEnd,
-          cap,
-        ).excerpt;
+        hit.excerpt = sections
+          ? documentWindow(
+              candidate.source, sections, candidate.anchor, candidate.secondary, cap,
+            ).excerpt
+          : windowAt(candidate.source, candidate.anchor.start, candidate.anchor.end, cap).excerpt;
         cap -= Math.max(1, JSON.stringify(hit).length - (maxChars - used));
       } while (cap > 0 && JSON.stringify(hit).length > maxChars - used);
       if (!hit.excerpt || JSON.stringify(hit).length > maxChars - used) {
@@ -409,7 +420,12 @@ function select(
       }
       truncated = true;
     }
+    if (!hit.excerpt) {
+      truncated = true;
+      continue;
+    }
     hits.push(hit);
+    truncated ||= candidate.excerptTruncated;
     emitted.add(candidate.duplicateKey);
     used += JSON.stringify(hit).length;
   }
@@ -454,22 +470,31 @@ export function recallMem(options: RecallMemOptions): RecallResult {
   ): void => {
     const matches = matchTerms(text, terms);
     const pathMatches = hit.path ? matchTerms(hit.path, terms) : [];
-    const title = ref.kind === "doc"
-      ? /^#{1,6}\s+(.+)$/m.exec(text)?.[1] ?? hit.title ?? ""
-      : "";
-    const titleMatches = matchTerms(title, terms);
     if (!matches.length && !pathMatches.length) return;
-    const window = matches.length
-      ? excerptAround(text, matches.map((h) => h.term), EXCERPT_CHARS)
-      : windowAt(text, 0, 0, EXCERPT_CHARS);
+    const sections = ref.kind === "doc" ? documentSections(text) : undefined;
+    const heading = sections?.[1];
+    const title = sections ? heading?.title ?? hit.title ?? "" : "";
+    const titleMatches = matchTerms(title, terms);
+    const textTerms = matches.map(({ term }) => term);
+    let anchor: TextAnchor;
+    let secondary: TextAnchor | undefined;
+    let window: { excerpt: string; truncated: boolean };
+    if (sections) {
+      [anchor, secondary] = documentAnchors(text, sections, textTerms, EXCERPT_CHARS);
+      window = documentWindow(text, sections, anchor, secondary, EXCERPT_CHARS);
+    } else {
+      const dialogue = excerptAround(text, textTerms, EXCERPT_CHARS);
+      anchor = { start: dialogue.anchorStart, end: dialogue.anchorEnd };
+      window = dialogue;
+    }
     const matchedTerms = [...new Set([...matches, ...pathMatches].map((h) => h.term))];
     const coverage = required.filter((t) => matchedTerms.includes(t)).length;
-    const bodySource =
-      ref.kind === "doc" ? text.replace(/^#{1,6}[ \t].*$/m, "") : "";
-    const bodyHits = bodySource ? matchTerms(bodySource, terms) : [];
-    const bodyCoverage = required.filter((term) =>
-      bodyHits.some((match) => match.term === term),
-    ).length;
+    const body = heading
+      ? text.slice(0, heading.start) + text.slice(heading.bodyStart)
+      : text;
+    const bodyTerms = new Set(sections ? matchTerms(body, terms).map(({ term }) => term) : []);
+    const bodyCoverage = required.filter((term) => bodyTerms.has(term)).length;
+    const cjkBodyEvidence = bodyTerms.size > 0 && hasCjkBigramCoverage(required, bodyTerms);
     const titleCoverage = titleMatches.length / terms.length;
     const pathCoverage = pathMatches.length / terms.length;
     // Only a turn we can see is just the question loses its rank. A fact that
@@ -483,34 +508,38 @@ export function recallMem(options: RecallMemOptions): RecallResult {
       ...(title ? { title } : {}),
       ref: encodeRef({
         ...ref,
-        start: window.anchorStart,
-        end: window.anchorEnd,
+        ...anchor,
+        ...(secondary ? { secondary } : {}),
       }),
       excerpt: window.excerpt,
       matchedTerms,
       strength: !echo && coverage === required.length ? "strong" : "weak",
     };
-    if (ref.kind === "doc") {
-      record.line = text.slice(0, window.anchorStart).split("\n").length;
-      record.section = headingBefore(text, window.anchorStart);
+    if (sections) {
+      const section = sectionAt(sections, anchor.start);
+      record.line = anchorLine(text, section, anchor);
+      record.section = section.title;
     }
     candidates.push({
       hit: record,
       source: text,
-      anchorStart: window.anchorStart,
-      anchorEnd: window.anchorEnd,
+      anchor,
+      secondary,
+      excerptTruncated: !!sections && window.truncated,
       coverage: echo ? 0 : coverage,
-      bodyEvidence: hasBodyEvidence(bodyCoverage, required.length),
+      bodyEvidence: cjkBodyEvidence || hasBodyEvidence(bodyCoverage, required.length),
+      cjkBodyEvidence,
       idCoverage: required.filter(
         (term) => /\d/.test(term) && matchedTerms.includes(term),
       ).length,
       derivedCoverage: matchedTerms.length / Math.max(1, terms.length),
       titleCoverage,
       pathCoverage,
+      explicitPathMatch: pathMatches.some(({ term }) => /\.mdx?$/.test(term)),
       // The full versioned neighborhood and speaker must agree. Equal excerpts
       // alone may hide different qualifiers, denials, or attribution.
       duplicateKey: JSON.stringify([hit.sourceKind, hit.path ?? hit.sessionId,
-        hit.section, ref.hash, window.anchorStart, window.anchorEnd]),
+        hit.section, ref.hash, anchor.start, anchor.end]),
     });
   };
   const docTexts = new Map<string, string>();
@@ -673,7 +702,8 @@ function readDoc(
 ): RecallRead | undefined {
   const abs = path.resolve(discovery.root, evidence.path ?? "");
   const real = allowedDocPath(discovery.root, abs);
-  if (!real || !discovery.docs.some((d) => d.filePath === real)) {
+  const doc = real && discovery.docs.find((d) => d.filePath === real);
+  if (!doc) {
     warnings.push({
       code: "ref-outside-project",
       message:
@@ -681,7 +711,7 @@ function readDoc(
     });
     return undefined;
   }
-  const text = readDocText(discovery.root, real, warnings);
+  const text = readDocText(discovery.root, doc.filePath, warnings);
   if (text === undefined) return undefined;
   const lineage = followLineage(
     text,
@@ -691,7 +721,8 @@ function readDoc(
     warnings,
   );
   const lineageFields = {
-    ...(lineage.superseded ? { status: "superseded" as const } : {}),
+    ...(lineage.superseded ? { status: "superseded" as const }
+      : doc.archived ? { status: "archived" as const } : {}),
     ...(lineage.supersededBy ? { supersededBy: lineage.supersededBy } : {}),
     ...(lineage.fault ? { lineageFault: lineage.fault } : {}),
   };
@@ -709,14 +740,14 @@ function readDoc(
       ...lineageFields,
     };
   }
-  if (evidence.end > text.length) {
+  if (evidence.end > text.length || (evidence.secondary && evidence.secondary.end > text.length)) {
     warnings.push({
       code: "ref-invalid",
       message: "document anchor is out of bounds",
     });
     return undefined;
   }
-  const w = windowAt(text, evidence.start, evidence.end, budget);
+  const w = documentWindow(text, documentSections(text), evidence, evidence.secondary, budget);
   return {
     ref,
     sourceKind: "doc",

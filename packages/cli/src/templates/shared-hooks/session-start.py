@@ -225,34 +225,29 @@ def _format_git_state(repo_root: Path) -> str:
     return f"Git: branch {branch}; {dirty_text}."
 
 
+# Several hosts export CLAUDE_PROJECT_DIR as a compatibility alias. Prefer
+# their own keys for both platform identification and project state.
+PROJECT_DIR_ENV = {
+    "ZCODE_PROJECT_DIR": "zcode",
+    "CURSOR_PROJECT_DIR": "cursor",
+    "CODEX_PROJECT_DIR": "codex",
+    "CODEBUDDY_PROJECT_DIR": "codebuddy",
+    "FACTORY_PROJECT_DIR": "droid",
+    "GEMINI_PROJECT_DIR": "gemini",
+    "QODER_PROJECT_DIR": "qoder",
+    "KIRO_PROJECT_DIR": "kiro",
+    "COPILOT_PROJECT_DIR": "copilot",
+    "TRAE_PROJECT_DIR": "trae",
+    "CLAUDE_PROJECT_DIR": "claude",
+}
+
+
 def _detect_platform(input_data: dict) -> str | None:
     if _antigravity_install_dir() is not None:
         return "antigravity"
     if isinstance(input_data.get("cursor_version"), str):
         return "cursor"
-    # CLAUDE_PROJECT_DIR is a compatibility alias that several hosts set
-    # alongside their own variable — CodeBuddy, ZCode and Trae all do. It must
-    # therefore be checked LAST, or every one of them is detected as claude and
-    # the context key becomes `claude_<their-session-id>`. That key does not
-    # match the session file `task.py start` wrote under the host's real name,
-    # so every turn reports no_task while the pointer exists on disk.
-    # Observed on CodeBuddy IDE 4.10.4: session file `codebuddy_ae54840e….json`
-    # alongside marker `update-check-claude_ae54840e….marker`, same id.
-    env_map = {
-        "ZCODE_PROJECT_DIR": "zcode",
-        "CURSOR_PROJECT_DIR": "cursor",
-        "CODEX_PROJECT_DIR": "codex",
-        "CODEBUDDY_PROJECT_DIR": "codebuddy",
-        "FACTORY_PROJECT_DIR": "droid",
-        "GEMINI_PROJECT_DIR": "gemini",
-        "QODER_PROJECT_DIR": "qoder",
-        "KIRO_PROJECT_DIR": "kiro",
-        "COPILOT_PROJECT_DIR": "copilot",
-        "TRAE_PROJECT_DIR": "trae",
-        # Last: the shared alias, only meaningful once no vendor key matched.
-        "CLAUDE_PROJECT_DIR": "claude",
-    }
-    for env_name, platform in env_map.items():
+    for env_name, platform in PROJECT_DIR_ENV.items():
         if os.environ.get(env_name):
             return platform
     script_parts = set(Path(sys.argv[0]).parts)
@@ -636,19 +631,6 @@ def _main_impl():
         hook_input = {}
 
     # Try platform-specific env vars, hook cwd, fallback to cwd
-    project_dir_env_vars = [
-        "ZCODE_PROJECT_DIR",
-        "CLAUDE_PROJECT_DIR",
-        "CODEX_PROJECT_DIR",
-        "QODER_PROJECT_DIR",
-        "CODEBUDDY_PROJECT_DIR",
-        "FACTORY_PROJECT_DIR",
-        "CURSOR_PROJECT_DIR",
-        "GEMINI_PROJECT_DIR",
-        "KIRO_PROJECT_DIR",
-        "COPILOT_PROJECT_DIR",
-        "TRAE_PROJECT_DIR",
-    ]
     if antigravity_dir is not None:
         project_dir = _antigravity_project_dir(antigravity_dir, hook_input)
         if project_dir is None:
@@ -656,7 +638,7 @@ def _main_impl():
             return
     else:
         project_dir = None
-        for var in project_dir_env_vars:
+        for var in PROJECT_DIR_ENV:
             val = os.environ.get(var)
             if val:
                 project_dir = Path(_normalize_windows_shell_path(val)).resolve()

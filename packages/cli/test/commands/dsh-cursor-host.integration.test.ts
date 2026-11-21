@@ -259,7 +259,7 @@ describe.skipIf(!canRun)("DeepSeek and Cursor synthetic project", () => {
     expect(
       diagnosis.checks.find((check) => check.name === "cursor-config"),
     ).toMatchObject({
-      level: "warn",
+      level: "error",
       detail: expect.stringContaining("not valid JSON"),
     });
 
@@ -304,7 +304,7 @@ describe.skipIf(!canRun)("DeepSeek and Cursor synthetic project", () => {
         buildDoctorReport(tmpDir).checks.find(
           (check) => check.name === "cursor-config",
         )?.level,
-      ).toBe("warn");
+      ).toBe("error");
 
       await init({ yes: true, force: true, user: "tester", cursor: true });
       expect(fs.readFileSync(hooksPath, "utf8")).toBe(content);
@@ -316,7 +316,10 @@ describe.skipIf(!canRun)("DeepSeek and Cursor synthetic project", () => {
 
   it("repairs a missing registration without replacing user startup hooks", () => {
     const hooksPath = path.join(tmpDir, ".cursor/hooks.json");
-    const userHook = { command: "./hooks/user-start.sh", timeout: 10 };
+    const userHook = {
+      command: "python3 lint.py .cursor/hooks/session-start.py",
+      timeout: 10,
+    };
     const promptHook = { type: "prompt", prompt: "Check this session", timeout: 10 };
     fs.writeFileSync(
       hooksPath,
@@ -326,8 +329,10 @@ describe.skipIf(!canRun)("DeepSeek and Cursor synthetic project", () => {
         hooks: { sessionStart: [userHook, promptHook] },
       }),
     );
+    const diagnosis = buildDoctorReport(tmpDir);
+    expect(diagnosis.ok).toBe(false);
     expect(
-      buildDoctorReport(tmpDir).checks.find(
+      diagnosis.checks.find(
         (check) => check.name === "cursor-config",
       )?.detail,
     ).toContain("sessionStart is not registered");

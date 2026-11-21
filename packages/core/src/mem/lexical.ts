@@ -9,6 +9,7 @@
  */
 
 const CJK = /[㐀-鿿]/;
+const CJK_RUN = /[㐀-鿿]+/g;
 
 /** `Intl.Segmenter` exists on Node ≥ 16, but word granularity needs ICU data
  * that minimal builds omit. Probe once and remember. */
@@ -61,9 +62,8 @@ export function queryTerms(query: string): string[] {
         if (seg.isWordLike) push(seg.segment);
       }
     }
-    for (const gram of cjkBigrams(raw.replace(/[^㐀-鿿]/g, ""))) {
-      push(gram);
-    }
+    for (const run of raw.match(CJK_RUN) ?? [])
+      for (const gram of cjkBigrams(run)) push(gram);
   }
   return out;
 }
@@ -85,6 +85,31 @@ export function matchTerms(text: string, terms: readonly string[]): TermHit[] {
     if (hay.includes(term)) hits.push({ term, strength });
   });
   return hits;
+}
+
+/** Keep a body match when distinct bigrams cover at least half of a Chinese
+ * query token. A single shared word cannot displace an exact title. */
+export function hasCjkBigramCoverage(
+  required: readonly string[],
+  bodyTerms: ReadonlySet<string>,
+): boolean {
+  return required.some((term) => {
+    if (/[^㐀-鿿\p{P}\p{S}]/u.test(term)) return false;
+    const matched = new Set<string>();
+    let length = 0;
+    let covered = 0;
+    for (const run of term.match(CJK_RUN) ?? []) {
+      length += run.length;
+      let last = -2;
+      for (const [index, gram] of cjkBigrams(run).entries()) {
+        if (!bodyTerms.has(gram)) continue;
+        matched.add(gram);
+        covered += index === last + 1 ? 1 : 2;
+        last = index;
+      }
+    }
+    return matched.size >= 2 && covered * 2 >= length;
+  });
 }
 
 export interface TextWindow {

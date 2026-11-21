@@ -1591,10 +1591,15 @@ def main() -> int:
     args = parser.parse_args()
 
     extra_content: str | None = None
-    if args.content_file:
+    if args.content_file is not None:
         content_path = Path(args.content_file)
-        if content_path.is_file():
+        try:
+            if not content_path.is_file():
+                raise OSError("expected a regular file")
             extra_content = content_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            print(f"Error: cannot read --content-file {content_path}: {exc}. Journal not written.", file=sys.stderr)
+            return 1
     elif args.stdin:
         extra_content = sys.stdin.read()
 

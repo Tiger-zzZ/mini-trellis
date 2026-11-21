@@ -220,8 +220,7 @@ export interface ListMemProjectsOptions {
  * names the host that recorded it. */
 export type RecallSourceKind = MemSourceKind | "doc";
 
-/** How strong the lexical match was. `weak` marks the single automatic
- * relaxation used when nothing matched strongly. */
+/** How strong the lexical match was. `weak` marks partial coverage or a query echo. */
 export type RecallStrength = "strong" | "weak";
 
 /** Why a declared `superseded_by` target was not treated as the current note. */
@@ -279,7 +278,7 @@ export interface RecallResult {
   totalHits: number;
   /** True when a bound was reached and something was left unscanned. */
   incomplete: boolean;
-  /** Display cap reached; separate from incomplete scanning. */
+  /** Results or document excerpts exceeded the display cap. */
   truncated: boolean;
   warnings: MemWarning[];
 }
@@ -306,8 +305,8 @@ export interface RecallRead {
   /** Set when the source moved or changed since the ref was built. */
   changed?: boolean;
   truncated?: boolean;
-  /** Present when the document carries a superseded lineage mark. */
-  status?: "superseded";
+  /** Document archive or supersession status, when known. */
+  status?: "archived" | "superseded";
   /** Successor path only. Omitted when the target cannot be followed. */
   supersededBy?: string;
   lineageFault?: LineageFault;
