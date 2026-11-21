@@ -577,7 +577,7 @@ function cmdExtract(argv: Argv): void {
 }
 
 function cmdHelp(): void {
-  console.log(`mini-trellis mem — list/search Claude/Codex/OpenCode/Pi sessions
+  console.log(`mini-trellis mem — list/search Claude/Codex/OpenCode/Pi/Droid sessions
 
 commands:
   recall <query>                find project documents and past dialogue (default 3 hits)
@@ -602,7 +602,7 @@ flags:
   --around N                             context: turns of surrounding context per hit (default 1)
   --max-chars N                          context: text budget 6000; recall/read: stdout 3000/4000
                                          (includes refs, titles, status; diagnostics on stderr)
-  --include-children                     search / context: merge OpenCode sub-agent sessions into parent
+  --include-children                     search / context: merge OpenCode / Droid sub-agent sessions into parent
   --json                                 emit JSON
   --help, -h                             show this help
 
@@ -619,7 +619,7 @@ organize selected history:
   supplied Markdown/text exports into existing project documents.
   context is an excerpt; extract is unbounded (redirect large sessions to a
   temporary file and read bounded pages). No automatic history scan or commit.
-  Native history: Claude, Codex, OpenCode V1, Pi. OpenCode V2, CodeBuddy,
+  Native history: Claude, Codex, OpenCode V1, Pi, Droid. OpenCode V2, CodeBuddy,
   Cursor and DeepSeek Harness raw history are not parsed.
 `);
 }

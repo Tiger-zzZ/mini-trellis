@@ -3,6 +3,10 @@ import path from "node:path";
 import chalk from "chalk";
 import { readKiroHooksIssue } from "../utils/kiro-hooks.js";
 import {
+  DROID_SESSION_HOOK,
+  readDroidRegistration,
+} from "../utils/droid-hooks.js";
+import {
   ANTIGRAVITY_HOOKS_PATH,
   ANTIGRAVITY_SESSION_HOOK,
   readAntigravityRegistration,
@@ -101,6 +105,12 @@ const PLATFORM_CHECKS: Record<AITool, string[]> = {
     ".agents/skills/mini-trellis-session-insight/SKILL.md",
     ".agents/skills/mini-trellis-update-spec/SKILL.md",
   ],
+  droid: [
+    DROID_SESSION_HOOK,
+    ".factory/skills/mini-trellis-remember/SKILL.md",
+    ".factory/skills/mini-trellis-session-insight/SKILL.md",
+    ".factory/skills/mini-trellis-update-spec/SKILL.md",
+  ],
   "claude-code": [".claude/hooks/session-start.py", ".claude/settings.json"],
   codex: [".codex/hooks/session-start.py", ".codex/hooks.json"],
   opencode: [".opencode/plugins/session-start.js"],
@@ -140,6 +150,7 @@ const PLATFORM_CHECKS: Record<AITool, string[]> = {
 
 const TRIGGER_MARKERS: Record<AITool, [string, string]> = {
   antigravity: [ANTIGRAVITY_SESSION_HOOK, "injectSteps"],
+  droid: [DROID_SESSION_HOOK, "additionalContext"],
   "claude-code": [".claude/hooks/session-start.py", "additional_context"],
   codex: [".codex/hooks/session-start.py", "additional_context"],
   opencode: [".opencode/plugins/session-start.js", "messages.transform"],
@@ -274,6 +285,9 @@ export function buildDoctorReport(cwd: string): DoctorReport {
           detail: `${conflict}: ZCode-local skill conflicts with the shared .agents destination; existing file was kept. Move or rename it before installation`,
         });
     }
+    if (platform === "droid" && platforms.includes("droid")) {
+      checks.push({ name: "droid-config", ...readDroidRegistration(cwd) });
+    }
     if (platform === "kiro" && exists(".kiro/hooks/mini-trellis.json")) {
       const issue = readKiroHooksIssue(
         path.join(cwd, ".kiro/hooks/mini-trellis.json"),
@@ -296,7 +310,9 @@ export function buildDoctorReport(cwd: string): DoctorReport {
       detail: complete
         ? platform === "dsh"
           ? "DeepSeek Harness skills are present"
-          : `${AI_TOOLS[platform].name} hook and config are present`
+          : platform === "droid"
+            ? "Factory Droid startup script and skills are present"
+            : `${AI_TOOLS[platform].name} hook and config are present`
         : `${AI_TOOLS[platform].name} is partially configured (${present.length}/${files.length} files)`,
     });
     if (platform === "codebuddy" && exists(".codebuddy/settings.json")) {
@@ -404,7 +420,9 @@ export function buildDoctorReport(cwd: string): DoctorReport {
                   ? "no hook execution observed; review/trust the project hook in ZCode, then start a new session. Config presence does not prove trust or model delivery"
                   : platform === "antigravity"
                     ? "no hook execution observed; check /hooks in agy or Customizations in the desktop host, then start a new session"
-                    : "no real hook execution observed; run one host session",
+                    : platform === "droid"
+                      ? "no hook execution observed; start droid from the project root, check /hooks, then start a new session"
+                      : "no real hook execution observed; run one host session",
         });
       } else if (
         runtime.last_status === "ok" ||

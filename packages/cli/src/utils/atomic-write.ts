@@ -14,11 +14,12 @@ import path from "node:path";
 export function writeFileAtomic(
   filePath: string,
   data: string | Uint8Array,
+  mode?: number,
 ): void {
   const dir = path.dirname(filePath);
   const tmp = path.join(dir, `.${path.basename(filePath)}.${process.pid}.tmp`);
   try {
-    fs.writeFileSync(tmp, data);
+    fs.writeFileSync(tmp, data, { mode });
     fs.renameSync(tmp, filePath);
   } catch (err) {
     try {

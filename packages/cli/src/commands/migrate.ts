@@ -78,6 +78,11 @@ import {
   readCursorHooksConfigIssue,
 } from "../utils/cursor-hooks-config.js";
 import {
+  DROID_LEGACY_INJECTORS,
+  hasLegacyDroidHooks,
+  migrateDroidHooks,
+} from "../utils/droid-hooks.js";
+import {
   scrubZCodeConfig,
   zcodeHookReferencesPaths,
 } from "../utils/zcode-config.js";
@@ -165,6 +170,24 @@ const SCAN_RULES: { dir: string; match: (name: string) => boolean }[] = [
   { dir: ".pi/skills", match: (n) => n.startsWith("trellis-") },
   { dir: ".pi/extensions", match: (n) => n === "trellis" },
   { dir: ".agents/skills", match: (n) => n.startsWith("trellis-") },
+  {
+    dir: ".factory/droids",
+    match: (n) => /^trellis-(check|implement|research)\.md$/.test(n),
+  },
+  {
+    dir: ".factory/commands/trellis",
+    match: (n) =>
+      /^(before-dev|brainstorm|break-loop|check|check-cross-layer|continue|create-command|finish-work|integrate-skill|onboard|record-session|start|update-spec)\.md$/.test(
+        n,
+      ),
+  },
+  {
+    dir: ".factory/skills",
+    match: (n) =>
+      /^trellis-(before-dev|brainstorm|break-loop|channel|check|meta|session-insight|spec-bootstrap|update-spec)$/.test(
+        n,
+      ),
+  },
 ];
 
 /** Task-engine modules no live hook or command imports. */
@@ -183,6 +206,7 @@ const FIXED_DELETIONS = [
   PATHS.WORKFLOW_GUIDE_FILE,
   `${PATHS.SCRIPTS}/task.py`,
   LEGACY_TEMPLATE_HASHES,
+  ...DROID_LEGACY_INJECTORS,
   ...RETIRED_SCRIPT_MODULES.map((name) => `${PATHS.SCRIPTS}/common/${name}`),
   // Cursor uses flat commands and dedicated skills. Match only names that
   // Trellis shipped so user entries with the same prefix are kept.
@@ -395,6 +419,7 @@ export function legacyHostPlatforms(cwd: string): AITool[] {
       /* Invalid config is diagnosed before installation. */
     }
   }
+  if (hasLegacyDroidHooks(cwd)) ids.add("droid");
   const pi = readText(path.join(cwd, ".pi/settings.json"));
   if (
     pi &&
@@ -529,6 +554,8 @@ function scrubLegacyHostConfig(
         before,
       );
   }
+
+  if (platforms.includes("droid")) migrateDroidHooks(cwd);
 
   let codexUserToml = "";
   if (platforms.includes("codex")) {
@@ -840,7 +867,8 @@ export async function migrate(options: MigrateOptions = {}): Promise<void> {
       relative.startsWith(".cursor/") ||
       relative.startsWith(".opencode/") ||
       relative.startsWith(".zcode/") ||
-      relative.startsWith(".kiro/")
+      relative.startsWith(".kiro/") ||
+      relative.startsWith(".factory/")
     )
       assertSafeManagedPath(root, relative);
   }

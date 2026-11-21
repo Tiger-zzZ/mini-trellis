@@ -52,6 +52,7 @@ program
     "--codebuddy",
     "Include CodeBuddy CLI / IDE commands, skills and SessionStart",
   )
+  .option("--droid", "Include Factory Droid skills and project SessionStart")
   .option("-y, --yes", "Skip prompts and use defaults")
   .option(
     "-u, --user <name>",
@@ -219,6 +220,7 @@ program
   .option("--zcode", "Refresh Z.ai ZCode project assets")
   .option("--kiro", "Refresh Kiro project skills and SessionStart hook")
   .option("--antigravity", "Refresh Google Antigravity project assets")
+  .option("--droid", "Refresh Factory Droid skills and SessionStart hook")
   .option("--dry-run", "Preview changes without writing files")
   .option("--json", "Output machine-readable JSON")
   .action(async (options: Record<string, unknown>) => {
@@ -234,6 +236,7 @@ program
       zcode: options.zcode as boolean,
       kiro: options.kiro as boolean,
       antigravity: options.antigravity as boolean,
+      droid: options.droid as boolean,
       opencodeVersion: options.opencodeVersion as string | undefined,
       dryRun: options.dryRun as boolean,
       json: options.json as boolean,

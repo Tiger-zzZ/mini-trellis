@@ -28,6 +28,12 @@ import {
   piListSessions,
   piSearch,
 } from "./adapters/pi.js";
+import {
+  collectDroidTurnsAndEvents,
+  droidExtractDialogue,
+  droidListSessions,
+  droidSearch,
+} from "./adapters/droid.js";
 import type {
   DialogueTurn,
   MemFilter,
@@ -90,5 +96,12 @@ export const MEM_PLATFORMS: Record<MemSourceKind, MemPlatformAdapter> = {
     extract: (s, warnings) => piExtractDialogue(s, warnings),
     search: (s, kw, warnings) => piSearch(s, kw, warnings),
     collect: (s, warnings) => collectPiTurnsAndEvents(s, warnings),
+  },
+  droid: {
+    phaseSupported: true,
+    list: (f, warnings) => droidListSessions(f, warnings),
+    extract: (s, warnings) => droidExtractDialogue(s, warnings),
+    search: (s, kw, warnings) => droidSearch(s, kw, warnings),
+    collect: (s, warnings) => collectDroidTurnsAndEvents(s, warnings),
   },
 };

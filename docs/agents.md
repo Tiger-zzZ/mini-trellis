@@ -18,6 +18,7 @@ All listed integrations can use project Markdown. Startup delivery, raw conversa
 | CodeBuddy CLI / IDE | `--codebuddy` | SessionStart and skills | — | Saved project documents |
 | ZCode | `--zcode` | SessionStart, after trust | — | Saved project documents |
 | Google Antigravity | `--antigravity` | Project skills and SessionStart on supported builds | — | Saved project documents |
+| Factory Droid | `--droid` | SessionStart and skills | Yes | Current session / boundary |
 
 A dash means native transcripts are not parsed. You can supply Markdown/text exports to [session-insight](history.md). Combine init flags to use more than one agent in a repository.
 
@@ -217,6 +218,20 @@ The project `.agents/hooks.json` registers `mini-trellis-session-start`. Check t
 Current builds use `.agents/` and support `SessionStart`. CLI 1.5.4 and later include `cwd`. For earlier payloads, the mounted workspace paths must resolve to the same initialized project. On older builds that only discover `.agent/skills` or lack `SessionStart`, open the project root and ask the agent to use `AGENTS.md` or read the shared skill by path. See the [Antigravity skills](https://antigravity.google/docs/skills) and [hooks](https://antigravity.google/docs/hooks) references.
 
 Preview updates with `mini-trellis refresh --antigravity --dry-run`. Refresh keeps existing hook groups and their enablement choices. If a legacy customization directory already contains a skill under the same name, move or rename that copy before enabling the shared skill.
+
+<a id="droid"></a>
+## Factory Droid
+
+```bash
+mini-trellis init -u your-name --droid -y
+droid
+```
+
+Run both commands from the project root. Init installs remember, session-insight and update-spec under `.factory/skills/`, the hook script `.factory/hooks/session-start.py`, and a SessionStart registration (`startup|resume|clear|compact`) in the project’s active hook configuration. New projects use `.factory/hooks.json`. When `SessionStart` already comes from `.factory/settings.json` or the legacy `.factory/hooks/hooks.json`, mini-trellis updates it there. The hook command uses a project-relative path, so start `droid` from the project root. Check the entry in `/hooks`, then open a new session.
+
+Record with `/mini-trellis-remember`. Local history is read from `~/.factory/sessions/`. Subagent sessions list their parent session, and injected reminders, skill bodies and UI notices are left out of the dialogue. The compact handoff includes the session ID; use it with `mini-trellis mem context <full-session-id> --platform droid`.
+
+Init and refresh preserve other handlers, explicit empty event lists, and `hooksDisabled`. Project settings support JSONC comments and a UTF-8 BOM. Invalid JSON or an invalid `SessionStart` array stops the write. `doctor` checks that the registration covers all four session sources and reports the last observed hook run under `droid-runtime`.
 
 <a id="dsh"></a>
 ## DeepSeek Harness

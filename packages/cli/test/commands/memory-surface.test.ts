@@ -41,6 +41,7 @@ describe("host CLI surface", () => {
       "codebuddy",
       "codex",
       "cursor",
+      "droid",
       "dsh",
       "kiro",
       "omp",
@@ -58,6 +59,7 @@ describe("host CLI surface", () => {
       "codebuddy",
       "codex",
       "cursor",
+      "droid",
       "dsh",
       "kiro",
       "omp",
@@ -77,7 +79,8 @@ describe("host CLI surface", () => {
     expect(src).toMatch(/\.option\("--dsh"/);
     expect(src).toMatch(/\.option\("--cursor"/);
     expect(src).toMatch(/\.option\("--antigravity"/);
-    expect(src).not.toMatch(/--gemini|--droid|--kimi|--copilot/);
+    expect(src).toMatch(/\.option\("--droid"/);
+    expect(src).not.toMatch(/--gemini|--kimi|--copilot/);
   });
 });
 

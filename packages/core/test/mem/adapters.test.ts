@@ -79,6 +79,13 @@ const { opencodeDataDir, opencodeDbPath, HOME } =
   await import("../../src/mem/internal/paths.js");
 const { piListSessions, piExtractDialogue, piSearch } =
   await import("../../src/mem/adapters/pi.js");
+const {
+  droidListSessions,
+  droidExtractDialogue,
+  droidSearch,
+  collectDroidTurnsAndEvents,
+} = await import("../../src/mem/adapters/droid.js");
+const { droidProjectDirName } = await import("../../src/mem/internal/paths.js");
 
 import type { MemFilter, MemSessionInfo } from "../../src/mem/types.js";
 import {
@@ -98,6 +105,7 @@ function mkFilter(overrides: Partial<MemFilter> = {}): MemFilter {
 const CLAUDE_PROJECTS = nodePath.join(fakeHome, ".claude", "projects");
 const CODEX_SESSIONS = nodePath.join(fakeHome, ".codex", "sessions");
 const PI_SESSIONS = nodePath.join(fakeHome, ".pi", "agent", "sessions");
+const DROID_SESSIONS_ROOT = nodePath.join(fakeHome, ".factory", "sessions");
 
 function writeJsonl(file: string, lines: readonly unknown[]): void {
   nodeFs.mkdirSync(nodePath.dirname(file), { recursive: true });
@@ -1895,5 +1903,147 @@ describe.skipIf(!SQLITE_PY)("opencode adapter", () => {
     const warnings: { code: string; message: string }[] = [];
     expect(opencodeExtractDialogue(stale, warnings)).toEqual([]);
     expect(warnings).toEqual([]);
+  });
+});
+
+// =============================================================================
+// droidListSessions / droidExtractDialogue
+// =============================================================================
+
+describe("droidListSessions / droidExtractDialogue", () => {
+  const projectCwd = "/tmp/droid.project";
+  const projectDir = nodePath.join(
+    DROID_SESSIONS_ROOT,
+    droidProjectDirName(projectCwd),
+  );
+  const sessionFile = nodePath.join(projectDir, "droid-main.jsonl");
+  const childFile = nodePath.join(projectDir, "droid-child.jsonl");
+
+  afterEach(() => {
+    rimraf(nodePath.join(fakeHome, ".factory"));
+  });
+
+  function message(
+    id: string,
+    parentId: string | null,
+    role: string,
+    content: unknown,
+    visibility?: string,
+  ) {
+    return {
+      type: "message",
+      id,
+      parentId,
+      timestamp: `2026-07-01T10:00:0${id.length % 10}.000Z`,
+      message: { role, content, ...(visibility ? { visibility } : {}) },
+    };
+  }
+
+  it("keeps dots in the project dir name", () => {
+    expect(droidProjectDirName("/Users/x/a.b/c")).toBe("-Users-x-a.b-c");
+  });
+
+  it("returns no sessions when the Droid sessions root doesn't exist", () => {
+    expect(droidListSessions(mkFilter())).toEqual([]);
+  });
+
+  it("lists title, cwd and subagent parent from the session header", () => {
+    writeJsonl(sessionFile, [
+      { type: "session_start", id: "droid-main", title: "Droid task", cwd: projectCwd },
+      message("u1", null, "user", [{ type: "text", text: "hello droid" }]),
+    ]);
+    writeJsonl(childFile, [
+      {
+        type: "session_start",
+        id: "droid-child",
+        title: "Sub",
+        cwd: projectCwd,
+        callingSessionId: "droid-main",
+      },
+      message("c1", null, "user", "explore"),
+    ]);
+    writeJsonl(nodePath.join(DROID_SESSIONS_ROOT, "-tmp-other", "x.jsonl"), [
+      { type: "session_start", id: "other", cwd: "/tmp/other" },
+    ]);
+
+    const found = droidListSessions(mkFilter({ cwd: projectCwd }));
+    expect(found.map((s) => s.id).sort()).toEqual(["droid-child", "droid-main"]);
+    const main = found.find((s) => s.id === "droid-main");
+    expect(main).toMatchObject({
+      platform: "droid",
+      title: "Droid task",
+      cwd: projectCwd,
+      created: "2026-07-01T10:00:02.000Z",
+    });
+    expect(main?.parent_id).toBeUndefined();
+    expect(found.find((s) => s.id === "droid-child")?.parent_id).toBe(
+      "droid-main",
+    );
+    expect(droidListSessions(mkFilter()).map((s) => s.id)).toContain("other");
+  });
+
+  it("extracts the active branch, drops injections and notices, and marks compaction", () => {
+    writeJsonl(sessionFile, [
+      { type: "session_start", id: "droid-main", cwd: projectCwd },
+      message("u1", null, "user", [
+        { type: "text", text: "<system-reminder>env</system-reminder>" },
+        { type: "text", text: "fix the parser" },
+      ]),
+      message("inj", "u1", "user", [{ type: "text", text: "skill body" }], "llm_only"),
+      message("a1", "inj", "assistant", [
+        { type: "text", text: "working on it" },
+        {
+          type: "tool_use",
+          name: "Execute",
+          input: { command: "python3 ./.trellis/scripts/task.py create Demo --slug demo" },
+        },
+      ]),
+      message("old", "a1", "user", "abandoned branch"),
+      { type: "compaction_state", summaryKind: "llm_summary", summaryText: "abandoned summary" },
+      message("u2", "a1", "user", "now add tests"),
+      {
+        type: "compaction_state",
+        summaryKind: "llm_summary",
+        summaryText: "parser fixed",
+      },
+      { type: "compaction_state", summaryKind: "provider_switch_serialization", summaryText: "x" },
+      message("a2", "u2", "assistant", [{ type: "text", text: "tests added" }]),
+      message("n1", "a2", "user", "Model switched", "user_only"),
+    ]);
+
+    const [session] = droidListSessions(mkFilter({ cwd: projectCwd }));
+    const turns = droidExtractDialogue(session);
+    const texts = turns.map((t) => t.text);
+    expect(texts[0]).toBe("fix the parser");
+    expect(texts).toContain("working on it");
+    expect(texts).toContain("now add tests");
+    expect(texts.at(-1)).toBe("tests added");
+    expect(texts.join("\n")).not.toMatch(/skill body|abandoned branch|Model switched|system-reminder/);
+    const markers = texts.filter((t) => t.includes("context compacted"));
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toContain("parser fixed");
+    expect(droidSearch(session, "parser").count).toBeGreaterThan(0);
+    expect(collectDroidTurnsAndEvents(session).events).toMatchObject([
+      { action: "create", slug: "demo" },
+    ]);
+  });
+
+  it("keeps only reachable turns when a parent is missing", () => {
+    writeJsonl(sessionFile, [
+      { type: "session_start", id: "droid-main", cwd: projectCwd },
+      message("old", null, "user", "retracted decision"),
+      { type: "compaction_state", summaryText: "retracted summary" },
+      message("current", "missing", "user", "current decision"),
+      message("reply", "current", "assistant", [
+        null,
+        { type: "text", text: "recorded" },
+      ]),
+    ]);
+    const [session] = droidListSessions(mkFilter({ cwd: projectCwd }));
+    expect(droidExtractDialogue(session).map((turn) => turn.text)).toEqual([
+      "current decision",
+      "recorded",
+    ]);
+    expect(droidSearch(session, "retracted").count).toBe(0);
   });
 });

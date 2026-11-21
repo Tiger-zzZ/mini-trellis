@@ -13,6 +13,7 @@ import * as path from "node:path";
 export const HOME = os.homedir();
 export const CLAUDE_PROJECTS = path.join(HOME, ".claude", "projects");
 export const CODEX_SESSIONS = path.join(HOME, ".codex", "sessions");
+export const DROID_SESSIONS = path.join(HOME, ".factory", "sessions");
 /**
  * OpenCode's data root: `$XDG_DATA_HOME/opencode`, falling back to
  * `~/.local/share/opencode`.
@@ -114,6 +115,12 @@ function readPiSettingsSessionDir(settingsFile: string): string | undefined {
  * `/Users/x/.codex/...` → `-Users-x--codex-...`, `snap_note` → `snap-note`. */
 export function claudeProjectDirFromCwd(cwd: string): string {
   return path.join(CLAUDE_PROJECTS, cwd.replace(/[/\\:_.]/g, "-"));
+}
+
+/** Droid names a project dir by replacing every path separator and drive
+ * colon in the cwd with `-`; dots are kept (`/a/.b` → `-a-.b`). */
+export function droidProjectDirName(cwd: string): string {
+  return path.resolve(cwd).replace(/[/\\:]/g, "-");
 }
 
 /** Pi encodes a cwd as `--<resolved-cwd-with-separators-as-dashes>--`. */

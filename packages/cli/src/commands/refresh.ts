@@ -51,6 +51,12 @@ import {
   readZCodeConfigIssue,
   mergeZCodeConfig,
 } from "../utils/zcode-config.js";
+import {
+  DROID_CONFIG_PATHS,
+  isDroidConfigPath,
+  mergeDroidHooks,
+  writeDroidHooks,
+} from "../utils/droid-hooks.js";
 
 export type RefreshAction =
   | "add"
@@ -90,6 +96,7 @@ const JSON_PATHS = new Set([
   ".zcode/config.json",
   ".opencode/package.json",
   ANTIGRAVITY_HOOKS_PATH,
+  ...DROID_CONFIG_PATHS,
 ]);
 
 function executableFor(relative: string): boolean {
@@ -106,6 +113,10 @@ function renderedJsonMerge(
     const current = fs.readFileSync(filePath, "utf8");
     if (relative === ANTIGRAVITY_HOOKS_PATH)
       return mergeAntigravityHooks(current, content) === current
+        ? "unchanged"
+        : "merge";
+    if (isDroidConfigPath(relative))
+      return mergeDroidHooks(current, relative, content) === current
         ? "unchanged"
         : "merge";
     const existing = JSON.parse(current) as unknown;
@@ -328,6 +339,9 @@ function applyRefresh(cwd: string, report: RefreshReport): void {
   const templates = collectTrellisScriptTemplates();
   addPlatformTemplates(templates, report.platforms, {
     opencodeVersion: report.opencodeVersion,
+    droidHooksPath: report.items
+      .map((item) => item.path)
+      .find(isDroidConfigPath),
   });
   for (const item of report.items) {
     const filePath = path.join(cwd, ...item.path.split("/"));
@@ -357,6 +371,10 @@ function applyRefresh(cwd: string, report: RefreshReport): void {
       continue;
     if (item.path === ANTIGRAVITY_HOOKS_PATH) {
       writeAntigravityHooks(filePath, content);
+      continue;
+    }
+    if (isDroidConfigPath(item.path)) {
+      writeDroidHooks(cwd, item.path, content);
       continue;
     }
     if (JSON_PATHS.has(item.path)) {

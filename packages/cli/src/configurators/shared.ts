@@ -19,6 +19,11 @@ import {
 } from "../utils/antigravity-hooks.js";
 import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
 import {
+  type DroidConfigPath,
+  isDroidConfigPath,
+  writeDroidHooks,
+} from "../utils/droid-hooks.js";
+import {
   readCodeBuddySettingsIssue,
   mergeCodeBuddySettings,
 } from "../utils/codebuddy-settings.js";
@@ -37,6 +42,7 @@ import {
  */
 export interface PlatformConfigureOptions {
   opencodeVersion?: OpenCodeVersion;
+  droidHooksPath?: DroidConfigPath;
 }
 
 /**
@@ -529,6 +535,7 @@ export function assertProjectTemplatePaths(
       relative.startsWith(".zcode/") ||
       relative.startsWith(".kiro/") ||
       relative.startsWith(".omp/") ||
+      relative.startsWith(".factory/") ||
       (antigravity &&
         (relative === ANTIGRAVITY_HOOKS_PATH ||
           relative === ANTIGRAVITY_SESSION_HOOK)) ||
@@ -629,6 +636,10 @@ export async function writeTemplateMap(
     ensureDir(path.dirname(absPath));
     if (relPath === ANTIGRAVITY_HOOKS_PATH) {
       writeAntigravityHooks(absPath, content);
+      continue;
+    }
+    if (isDroidConfigPath(relPath)) {
+      writeDroidHooks(cwd, relPath, content);
       continue;
     }
     if (mergeJsonPaths.has(relPath)) {

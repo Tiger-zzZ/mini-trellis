@@ -81,9 +81,9 @@ mini-trellis mem read "<ref-from-recall>"
 
 ## 支持的工具
 
-Claude Code · Codex · Cursor · OpenCode V1/V2 · Pi · OMP · Kiro · DeepSeek Harness · CodeBuddy · ZCode · Antigravity
+Claude Code · Codex · Cursor · OpenCode V1/V2 · Pi · OMP · Kiro · DeepSeek Harness · CodeBuddy · ZCode · Antigravity · Factory Droid
 
-可以组合初始化参数，例如 `--claude --codex`。原始对话读取支持 Claude Code、Codex、OpenCode V1 和 Pi；全部平台的知识入口、记录命令和配置步骤见 [Agent 配置](https://mini-trellis.github.io/zh/agents/)。
+可以组合初始化参数，例如 `--claude --codex`。原始对话读取支持 Claude Code、Codex、OpenCode V1、Pi 和 Factory Droid；全部平台的知识入口、记录命令和配置步骤见 [Agent 配置](https://mini-trellis.github.io/zh/agents/)。
 
 ## 文档
 

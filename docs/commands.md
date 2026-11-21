@@ -14,7 +14,7 @@ Run project commands from the repository root. `mini-trellis --help`, `<command>
 | `platforms` | List configured agents | `--json` |
 | `uninstall` | Remove the project's integration and all of `.trellis/` | `--dry-run`, `-y` |
 
-Init and refresh accept `--claude`, `--codex`, `--cursor`, `--opencode`, `--pi`, `--omp`, `--kiro`, `--dsh`, `--codebuddy`, `--zcode`, and `--antigravity`. OpenCode also accepts `--opencode-version 1|2`.
+Init and refresh accept `--claude`, `--codex`, `--cursor`, `--opencode`, `--pi`, `--omp`, `--kiro`, `--dsh`, `--codebuddy`, `--zcode`, `--antigravity`, and `--droid`. OpenCode also accepts `--opencode-version 1|2`.
 
 For init, `-y` accepts defaults, `-s` skips existing files, and `-f` overwrites existing files. Prefer ordinary init and review its prompts when adding an integration. Refresh applies normal managed updates directly; replacements requiring confirmation are listed in one `[y/N]` prompt. See [upgrade and refresh](upgrade.md).
 
@@ -38,7 +38,7 @@ For init, `-y` accepts defaults, `-s` skips existing files, and `-f` overwrites 
 | Option | Applies to | Meaning / default |
 | --- | --- | --- |
 | `--cwd <path>` | recall, read, list, search, context, extract | Choose the project; defaults to the working directory |
-| `--platform <name>` | recall and session commands | `claude`, `codex`, `opencode`, `pi`, or `all`; defaults to all |
+| `--platform <name>` | recall and session commands | `claude`, `codex`, `opencode`, `pi`, `droid`, or `all`; defaults to all |
 | `--global` | list, search, context, extract | Include all projects; recall rejects this option |
 | `--since`, `--until` | Session selection | Inclusive date bounds (`YYYY-MM-DD`) |
 | `--limit N` | recall, list, search, projects | Defaults: recall 3, list/search 50, projects 30 |
@@ -74,7 +74,7 @@ These are instructions used inside the coding agent, rather than additional `min
 | --- | --- |
 | Claude Code / OpenCode | `/mini-trellis:remember` |
 | Codex / ZCode | `$mini-trellis-remember` or the named skill |
-| Pi / OMP / Kiro / Antigravity | `/mini-trellis-remember` |
+| Pi / OMP / Kiro / Antigravity / Droid | `/mini-trellis-remember` |
 | Cursor / DeepSeek Harness | `mini-trellis-remember` skill |
 | CodeBuddy | Named skill; CLI also supports `/mini-trellis:remember` |
 

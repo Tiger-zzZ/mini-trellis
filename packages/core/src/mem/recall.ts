@@ -25,8 +25,10 @@ import {
   resolveFilter,
   WIDE_LIMIT,
 } from "./sessions.js";
+import { MEM_SOURCE_KINDS } from "./types.js";
 import type {
   DialogueTurn,
+  MemSourceKind,
   MemWarning,
   ReadMemRefsOptions,
   LineageFault,
@@ -57,7 +59,7 @@ const QUERY_ECHO_WORDS = new Set([
 interface EvidenceRef extends TextAnchor {
   kind: "doc" | "session";
   path?: string;
-  platform?: "claude" | "codex" | "opencode" | "pi";
+  platform?: MemSourceKind;
   id?: string;
   turn?: number;
   /** Optional in v1; older refs carry only the primary offsets. */
@@ -119,7 +121,7 @@ function decodeRef(ref: string): EvidenceRef | undefined {
     return typeof x.id === "string" &&
       Number.isSafeInteger(x.turn) &&
       (x.turn ?? -1) >= 0 &&
-      ["claude", "codex", "opencode", "pi"].includes(x.platform ?? "")
+      (MEM_SOURCE_KINDS as readonly string[]).includes(x.platform ?? "")
       ? x
       : undefined;
   } catch {

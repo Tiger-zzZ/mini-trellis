@@ -9,7 +9,7 @@ How to call `mini-trellis mem` and when that is the right move. Capability, not 
 
 ## What it is
 
-The CLI discovers and searches project Markdown locally without an index service or extra configuration. It also reads native conversation logs from Claude Code, Codex, OpenCode V1, and Pi. For Antigravity, OpenCode V2, CodeBuddy, Cursor, DeepSeek Harness, ZCode, and Kiro, use `mini-trellis mem recall` to find saved project knowledge. To review a specific conversation from one of these hosts, read a Markdown or plain-text export supplied by the user.
+The CLI discovers and searches project Markdown locally without an index service or extra configuration. It also reads native conversation logs from Claude Code, Codex, OpenCode V1, Pi, and Factory Droid. For Antigravity, OpenCode V2, CodeBuddy, Cursor, DeepSeek Harness, ZCode, and Kiro, use `mini-trellis mem recall` to find saved project knowledge. To review a specific conversation from one of these hosts, read a Markdown or plain-text export supplied by the user.
 
 ```bash
 mini-trellis mem recall "<topic or path>"
