@@ -19,9 +19,9 @@ import {
 } from "../utils/antigravity-hooks.js";
 import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
 import {
-  DROID_HOOKS_PATH,
-  mergeDroidHooks,
-  readDroidHooksIssue,
+  type DroidConfigPath,
+  isDroidConfigPath,
+  writeDroidHooks,
 } from "../utils/droid-hooks.js";
 import {
   readCodeBuddySettingsIssue,
@@ -42,6 +42,7 @@ import {
  */
 export interface PlatformConfigureOptions {
   opencodeVersion?: OpenCodeVersion;
+  droidHooksPath?: DroidConfigPath;
 }
 
 /**
@@ -603,11 +604,6 @@ export async function writeTemplateMap(
     const issue = readZCodeConfigIssue(zcodeConfig);
     if (issue) throw new ManagedAssetConflict(".zcode/config.json", issue);
   }
-  const droidHooks = path.join(cwd, DROID_HOOKS_PATH);
-  if (files.has(DROID_HOOKS_PATH) && existsSync(droidHooks)) {
-    const issue = readDroidHooksIssue(droidHooks);
-    if (issue) throw new ManagedAssetConflict(DROID_HOOKS_PATH, issue);
-  }
   const packageContent = files.get(".opencode/package.json");
   const packagePath = path.join(cwd, ".opencode/package.json");
   if (packageContent && existsSync(packagePath)) {
@@ -634,13 +630,16 @@ export async function writeTemplateMap(
     ".codebuddy/settings.json",
     ".zcode/config.json",
     ".opencode/package.json",
-    DROID_HOOKS_PATH,
   ]);
   for (const [relPath, content] of renderTemplateMap(files)) {
     const absPath = path.join(cwd, ...relPath.split("/"));
     ensureDir(path.dirname(absPath));
     if (relPath === ANTIGRAVITY_HOOKS_PATH) {
       writeAntigravityHooks(absPath, content);
+      continue;
+    }
+    if (isDroidConfigPath(relPath)) {
+      writeDroidHooks(cwd, relPath, content);
       continue;
     }
     if (mergeJsonPaths.has(relPath)) {
@@ -658,9 +657,7 @@ export async function writeTemplateMap(
           ? mergeCodeBuddySettings
           : relPath === ".zcode/config.json"
             ? mergeZCodeConfig
-            : relPath === DROID_HOOKS_PATH
-              ? mergeDroidHooks
-              : undefined,
+            : undefined,
       );
       if (result === "invalid") {
         console.warn(`  ⚠ Skipped ${relPath}: existing file is not valid JSON`);

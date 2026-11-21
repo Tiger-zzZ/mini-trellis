@@ -10,6 +10,7 @@ import readline from "node:readline";
 import chalk from "chalk";
 import inquirer from "inquirer";
 
+import { resolveDroidHooksPath } from "../utils/droid-hooks.js";
 import { DIR_NAMES } from "../constants/paths.js";
 import {
   collectPlatformTemplates,
@@ -133,6 +134,9 @@ function collectOwnedPaths(cwd: string): Record<string, string> {
     for (const version of versions) {
       const templates = collectPlatformTemplates(id, {
         opencodeVersion: version,
+        ...(id === "droid"
+          ? { droidHooksPath: resolveDroidHooksPath(cwd) }
+          : {}),
       });
       if (!templates) continue;
       for (const rel of templates.keys()) {

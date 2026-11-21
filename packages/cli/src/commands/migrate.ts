@@ -66,7 +66,11 @@ import { collectTrellisScriptTemplates } from "../templates/extract.js";
 import { renderTemplateMap } from "../configurators/shared.js";
 import { parseOpenCodeVersion } from "../utils/opencode-version.js";
 import { assertSafeManagedPath } from "../utils/managed-path-safety.js";
-import { DROID_SETTINGS_PATH } from "../utils/droid-hooks.js";
+import {
+  DROID_LEGACY_INJECTORS,
+  hasLegacyDroidHooks,
+  migrateDroidHooks,
+} from "../utils/droid-hooks.js";
 import {
   scrubZCodeConfig,
   zcodeHookReferencesPaths,
@@ -155,12 +159,23 @@ const SCAN_RULES: { dir: string; match: (name: string) => boolean }[] = [
   { dir: ".pi/skills", match: (n) => n.startsWith("trellis-") },
   { dir: ".pi/extensions", match: (n) => n === "trellis" },
   { dir: ".agents/skills", match: (n) => n.startsWith("trellis-") },
-  { dir: ".factory/droids", match: (n) => /^trellis-.*\.md$/.test(n) },
-  { dir: ".factory/commands", match: (n) => n === "trellis" },
-  { dir: ".factory/skills", match: (n) => n.startsWith("trellis-") },
   {
-    dir: ".factory/hooks",
-    match: (n) => /^(?:inject-.*|statusline)\.py$/.test(n),
+    dir: ".factory/droids",
+    match: (n) => /^trellis-(check|implement|research)\.md$/.test(n),
+  },
+  {
+    dir: ".factory/commands/trellis",
+    match: (n) =>
+      /^(before-dev|brainstorm|break-loop|check|check-cross-layer|continue|create-command|finish-work|integrate-skill|onboard|record-session|start|update-spec)\.md$/.test(
+        n,
+      ),
+  },
+  {
+    dir: ".factory/skills",
+    match: (n) =>
+      /^trellis-(before-dev|brainstorm|break-loop|channel|check|meta|session-insight|spec-bootstrap|update-spec)$/.test(
+        n,
+      ),
   },
 ];
 
@@ -179,6 +194,7 @@ const FIXED_DELETIONS = [
   PATHS.WORKFLOW_GUIDE_FILE,
   `${PATHS.SCRIPTS}/task.py`,
   LEGACY_TEMPLATE_HASHES,
+  ...DROID_LEGACY_INJECTORS,
   ...RETIRED_SCRIPT_MODULES.map((name) => `${PATHS.SCRIPTS}/common/${name}`),
 ];
 
@@ -295,10 +311,6 @@ const CODEBUDDY_LEGACY_HOOKS = CLAUDE_LEGACY_HOOKS.map((relative) =>
 const ZCODE_LEGACY_HOOKS = CLAUDE_LEGACY_HOOKS.map((relative) =>
   relative.replace(".claude/", ".zcode/"),
 );
-/** Trellis registered these in `.factory/settings.json`; mini-trellis uses hooks.json. */
-const DROID_LEGACY_HOOKS = CLAUDE_LEGACY_HOOKS.map((relative) =>
-  relative.replace(".claude/", ".factory/"),
-);
 
 function readText(abs: string): string | null {
   try {
@@ -375,32 +387,7 @@ export function legacyHostPlatforms(cwd: string): AITool[] {
       /* Invalid config is diagnosed before installation. */
     }
   }
-  const droid = readText(path.join(cwd, DROID_SETTINGS_PATH));
-  if (droid) {
-    try {
-      const value = JSON.parse(droid) as {
-        hooks?: Record<string, { hooks?: { command?: unknown }[] }[]>;
-      };
-      if (
-        Object.values(value?.hooks ?? {}).some(
-          (groups) =>
-            Array.isArray(groups) &&
-            groups.some(
-              (group) =>
-                Array.isArray(group?.hooks) &&
-                group.hooks.some(
-                  (hook) =>
-                    typeof hook?.command === "string" &&
-                    commandMatchesDeletedPath(hook.command, DROID_LEGACY_HOOKS),
-                ),
-            ),
-        )
-      )
-        ids.add("droid");
-    } catch {
-      /* Unparseable user settings are left alone. */
-    }
-  }
+  if (hasLegacyDroidHooks(cwd)) ids.add("droid");
   const pi = readText(path.join(cwd, ".pi/settings.json"));
   if (
     pi &&
@@ -512,15 +499,7 @@ function scrubLegacyHostConfig(
       );
   }
 
-  if (platforms.includes("droid")) {
-    const abs = path.join(cwd, DROID_SETTINGS_PATH);
-    const before = readText(abs);
-    if (before !== null) {
-      const result = scrubHooksJson(before, DROID_LEGACY_HOOKS, "nested");
-      if (result.fullyEmpty) fs.rmSync(abs, { force: true });
-      else rewriteScrubbed(abs, result, before);
-    }
-  }
+  if (platforms.includes("droid")) migrateDroidHooks(cwd);
 
   let codexUserToml = "";
   if (platforms.includes("codex")) {

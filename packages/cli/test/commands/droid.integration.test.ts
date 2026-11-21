@@ -13,6 +13,8 @@ import { resetResolvedPythonCommand } from "../../src/configurators/shared.js";
 import { setWriteMode } from "../../src/utils/file-writer.js";
 
 const config = ".factory/hooks.json";
+const settings = ".factory/settings.json";
+const oldConfig = ".factory/hooks/hooks.json";
 const hook = ".factory/hooks/session-start.py";
 const skill = ".factory/skills/mini-trellis-remember/SKILL.md";
 const runtime = ".trellis/.runtime/hooks/droid.json";
@@ -184,7 +186,7 @@ describe("Factory Droid project integration", () => {
     }
   });
 
-  it("migrates a legacy Trellis Droid layout and scrubs only its settings hooks", async () => {
+  it("replaces Trellis hooks in settings and leaves user hooks active", async () => {
     const legacy = [
       ".factory/droids/trellis-implement.md",
       ".factory/commands/trellis/start.md",
@@ -195,6 +197,11 @@ describe("Factory Droid project integration", () => {
     for (const relative of legacy) write(relative, "legacy\n");
     write(hook, "# legacy session start\n");
     write(".factory/droids/reviewer.md", "user droid\n");
+    write(".factory/hooks/inject-company-context.py", "company hook\n");
+    write(".factory/hooks/statusline.py", "user status\n");
+    write(".factory/commands/trellis/team.md", "team command\n");
+    write(".factory/skills/trellis-team/SKILL.md", "team skill\n");
+    write(".factory/droids/trellis-team.md", "team droid\n");
     write(
       ".factory/settings.json",
       JSON.stringify({
@@ -204,7 +211,11 @@ describe("Factory Droid project integration", () => {
             {
               matcher: "startup",
               hooks: [
-                { type: "command", command: "python3 .factory/hooks/session-start.py" },
+                {
+                  type: "command",
+                  command: "python3 .factory/hooks/session-start.py",
+                },
+                { type: "command", command: "./hello.sh" },
               ],
             },
           ],
@@ -218,7 +229,10 @@ describe("Factory Droid project integration", () => {
                 },
               ],
             },
-            { matcher: "Execute", hooks: [{ type: "command", command: "./guard.sh" }] },
+            {
+              matcher: "Execute",
+              hooks: [{ type: "command", command: "./guard.sh" }],
+            },
           ],
         },
       }),
@@ -228,7 +242,7 @@ describe("Factory Droid project integration", () => {
     const plan = buildMigratePlan(cwd);
     expect(plan.reconfigure).toEqual(["droid"]);
     expect(plan.deletions).toEqual([
-      ".factory/commands/trellis",
+      ".factory/commands/trellis/start.md",
       ".factory/droids/trellis-implement.md",
       ".factory/hooks/inject-subagent-context.py",
       ".factory/hooks/inject-workflow-state.py",
@@ -239,16 +253,92 @@ describe("Factory Droid project integration", () => {
     for (const relative of legacy) expect(exists(relative)).toBe(false);
     expect(read(".factory/droids/reviewer.md")).toBe("user droid\n");
     expect(read(hook)).not.toBe("# legacy session start\n");
-    expect(JSON.parse(read(".factory/settings.json"))).toEqual({
-      model: "user",
-      hooks: {
-        PreToolUse: [
-          { matcher: "Execute", hooks: [{ type: "command", command: "./guard.sh" }] },
-        ],
+    expect(read(".factory/hooks/inject-company-context.py")).toBe(
+      "company hook\n",
+    );
+    expect(read(".factory/hooks/statusline.py")).toBe("user status\n");
+    expect(read(".factory/commands/trellis/team.md")).toBe("team command\n");
+    expect(read(".factory/skills/trellis-team/SKILL.md")).toBe("team skill\n");
+    expect(read(".factory/droids/trellis-team.md")).toBe("team droid\n");
+    const migrated = JSON.parse(read(settings));
+    expect(migrated.model).toBe("user");
+    expect(migrated.hooks.PreToolUse).toEqual([
+      {
+        matcher: "Execute",
+        hooks: [{ type: "command", command: "./guard.sh" }],
       },
-    });
-    expect(managedCommand()).toContain(hook);
+    ]);
+    expect(migrated.hooks.SessionStart).toEqual([
+      {
+        matcher: "startup",
+        hooks: [{ type: "command", command: "./hello.sh" }],
+      },
+      expect.objectContaining({ matcher: "startup|resume|clear|compact" }),
+    ]);
+    expect(exists(config)).toBe(false);
+    expect(buildMigratePlan(cwd).reconfigure).toEqual([]);
     expect(read(".trellis/research/decision.md")).toBe("keep this decision\n");
     expect(buildDoctorReport(cwd).ok).toBe(true);
+  });
+
+  it("keeps the legacy standalone file active and respects its event overrides", async () => {
+    write(oldConfig, '{"Stop":[],"PreToolUse":[],"SessionStart":[]}');
+    const userSettings =
+      '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"./inherited.sh"}]}]}}';
+    write(settings, userSettings);
+    await install();
+    expect(exists(config)).toBe(false);
+    expect(read(settings)).toBe(userSettings);
+    const hooks = JSON.parse(read(oldConfig));
+    expect(hooks.Stop).toEqual([]);
+    expect(hooks.SessionStart).toHaveLength(1);
+    hooks.SessionStart[0].matcher = "compact";
+    write(oldConfig, JSON.stringify(hooks));
+    expect(buildDoctorReport(cwd).checks).toContainEqual(
+      expect.objectContaining({ name: "droid-config", level: "error" }),
+    );
+    expect(runRefresh({ cwd, dryRun: true }).items).toContainEqual(
+      expect.objectContaining({ path: oldConfig, action: "merge" }),
+    );
+    expect(runRefresh({ cwd }).ok).toBe(true);
+    expect(JSON.parse(read(oldConfig)).SessionStart).toHaveLength(1);
+    expect(buildDoctorReport(cwd).ok).toBe(true);
+    expect(runRefresh({ cwd, dryRun: true }).items).toContainEqual(
+      expect.objectContaining({ path: oldConfig, action: "unchanged" }),
+    );
+  });
+
+  it("repairs stale registrations in both project files before deleting scripts", async () => {
+    const injector = ".factory/hooks/inject-workflow-state.py";
+    const oldEvent = `[{"hooks":[{"type":"command","command":"python3 ${injector}"},\n// team event handler\n{"type":"command","command":"./team.sh"}]}]`;
+    write(
+      settings,
+      `\uFEFF{\n// team model\n"model":"team", "hooks":{"UserPromptSubmit":${oldEvent}}\n}`,
+    );
+    fs.chmodSync(path.join(cwd, settings), 0o600);
+    write(
+      config,
+      `{\n// keep team defaults\n"Stop": [], "PreToolUse":${oldEvent}, "SessionStart":[]\n}`,
+    );
+    expect(buildMigratePlan(cwd).reconfigure).toEqual(["droid"]);
+    await migrate({ yes: true });
+    expect(read(settings)).toContain("// team model");
+    expect(read(settings).startsWith("\uFEFF")).toBe(true);
+    if (process.platform !== "win32")
+      expect(fs.statSync(path.join(cwd, settings)).mode & 0o777).toBe(0o600);
+    expect(read(settings)).not.toContain(injector);
+    expect(read(settings)).toContain("// team event handler");
+    expect(read(config)).toContain("// keep team defaults");
+    expect(read(config)).not.toContain(injector);
+    expect(read(config)).toContain(hook);
+    expect(buildMigratePlan(cwd).reconfigure).toEqual([]);
+    expect(buildDoctorReport(cwd).ok).toBe(true);
+
+    write(injector, "old hook\n");
+    write(settings, "{");
+    await expect(migrate({ yes: true })).rejects.toThrow(
+      /\.factory\/settings\.json/,
+    );
+    expect(read(injector)).toBe("old hook\n");
   });
 });

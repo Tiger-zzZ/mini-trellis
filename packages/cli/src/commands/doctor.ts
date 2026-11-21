@@ -3,9 +3,8 @@ import path from "node:path";
 import chalk from "chalk";
 import { readKiroHooksIssue } from "../utils/kiro-hooks.js";
 import {
-  DROID_HOOKS_PATH,
   DROID_SESSION_HOOK,
-  readDroidHooksIssue,
+  readDroidRegistration,
 } from "../utils/droid-hooks.js";
 import {
   ANTIGRAVITY_HOOKS_PATH,
@@ -107,7 +106,6 @@ const PLATFORM_CHECKS: Record<AITool, string[]> = {
     ".agents/skills/mini-trellis-update-spec/SKILL.md",
   ],
   droid: [
-    DROID_HOOKS_PATH,
     DROID_SESSION_HOOK,
     ".factory/skills/mini-trellis-remember/SKILL.md",
     ".factory/skills/mini-trellis-session-insight/SKILL.md",
@@ -288,11 +286,7 @@ export function buildDoctorReport(cwd: string): DoctorReport {
         });
     }
     if (platform === "droid" && platforms.includes("droid")) {
-      const issue = exists(DROID_HOOKS_PATH)
-        ? readDroidHooksIssue(path.join(cwd, DROID_HOOKS_PATH), true)
-        : "SessionStart is missing; run mini-trellis refresh --droid";
-      if (issue)
-        checks.push({ name: "droid-config", level: "error", detail: issue });
+      checks.push({ name: "droid-config", ...readDroidRegistration(cwd) });
     }
     if (platform === "kiro" && exists(".kiro/hooks/mini-trellis.json")) {
       const issue = readKiroHooksIssue(
@@ -316,7 +310,9 @@ export function buildDoctorReport(cwd: string): DoctorReport {
       detail: complete
         ? platform === "dsh"
           ? "DeepSeek Harness skills are present"
-          : `${AI_TOOLS[platform].name} hook and config are present`
+          : platform === "droid"
+            ? "Factory Droid startup script and skills are present"
+            : `${AI_TOOLS[platform].name} hook and config are present`
         : `${AI_TOOLS[platform].name} is partially configured (${present.length}/${files.length} files)`,
     });
     if (platform === "codebuddy" && exists(".codebuddy/settings.json")) {

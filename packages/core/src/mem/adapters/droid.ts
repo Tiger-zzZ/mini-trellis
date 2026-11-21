@@ -49,7 +49,7 @@ interface DroidBlock {
 
 interface DroidMessage {
   role?: string;
-  content?: string | DroidBlock[];
+  content?: string | (DroidBlock | null)[];
   visibility?: string;
 }
 
@@ -168,7 +168,7 @@ function isDialogueMessage(msg: DroidMessage | undefined): boolean {
   return msg.role === "user" || msg.role === "assistant";
 }
 
-function textOf(content: string | DroidBlock[] | undefined): {
+function textOf(content: DroidMessage["content"]): {
   text: string;
   rawLength: number;
 } {
@@ -178,7 +178,7 @@ function textOf(content: string | DroidBlock[] | undefined): {
   const parts: string[] = [];
   let rawLength = 0;
   for (const block of content) {
-    if (block.type !== "text" || typeof block.text !== "string") continue;
+    if (block?.type !== "text" || typeof block.text !== "string") continue;
     rawLength += block.text.length;
     const cleaned = stripInjectionTags(block.text);
     if (cleaned) parts.push(cleaned);
@@ -189,9 +189,8 @@ function textOf(content: string | DroidBlock[] | undefined): {
 /**
  * Message ids on the branch the session ended on. The leaf is the last
  * dialogue message, so a trailing UI notice cannot hide the conversation.
- * Returns `undefined` (keep everything) when the chain is broken.
  */
-function activeMessageIds(records: DroidRecord[]): Set<string> | undefined {
+function activeMessageIds(records: DroidRecord[]): Set<string> {
   const byId = new Map<string, DroidRecord>();
   let leaf: DroidRecord | undefined;
   for (const r of records) {
@@ -199,15 +198,10 @@ function activeMessageIds(records: DroidRecord[]): Set<string> | undefined {
     byId.set(r.id, r);
     if (isDialogueMessage(r.message)) leaf = r;
   }
-  if (!leaf) return undefined;
   const ids = new Set<string>();
-  let current: DroidRecord | undefined = leaf;
-  while (current && typeof current.id === "string" && !ids.has(current.id)) {
-    ids.add(current.id);
-    const parent = current.parentId;
-    if (typeof parent !== "string" || !parent) return ids;
-    current = byId.get(parent);
-    if (!current) return undefined;
+  while (leaf?.id && !ids.has(leaf.id)) {
+    ids.add(leaf.id);
+    leaf = leaf.parentId ? byId.get(leaf.parentId) : undefined;
   }
   return ids;
 }
@@ -217,16 +211,29 @@ function buildDroidTurnsAndEvents(
   warnings?: MemWarning[],
 ): { turns: DialogueTurn[]; events: TaskPyEvent[] } {
   const records: DroidRecord[] = [];
-  readJsonl<DroidRecord>(s.filePath, (r) => {
-    if (r.type === "message" || r.type === "compaction_state") records.push(r);
-  }, warnings);
+  readJsonl<DroidRecord>(
+    s.filePath,
+    (r) => {
+      if (r.type === "message" || r.type === "compaction_state")
+        records.push(r);
+    },
+    warnings,
+  );
   const active = activeMessageIds(records);
   const turns: DialogueTurn[] = [];
   const events: TaskPyEvent[] = [];
+  let precedingMessage: string | undefined;
 
   for (const r of records) {
     if (r.type === "compaction_state") {
-      if (r.summaryKind === "provider_switch_serialization") continue;
+      // Unlinked compaction records summarize the branch at their position in the log.
+      const anchor = r.parentId ?? precedingMessage;
+      if (
+        !anchor ||
+        !active.has(anchor) ||
+        r.summaryKind === "provider_switch_serialization"
+      )
+        continue;
       turns.push(
         compactionBoundaryTurn(
           "context compacted here; the turns above are the conversation Droid summarized",
@@ -237,13 +244,14 @@ function buildDroidTurnsAndEvents(
       );
       continue;
     }
-    if (active && typeof r.id === "string" && !active.has(r.id)) continue;
+    precedingMessage = r.id;
+    if (!r.id || !active.has(r.id)) continue;
     const msg = r.message;
     if (!msg || !isDialogueMessage(msg)) continue;
 
     if (msg.role === "assistant" && Array.isArray(msg.content)) {
       for (const block of msg.content) {
-        if (block.type !== "tool_use" || block.name !== "Execute") continue;
+        if (block?.type !== "tool_use" || block.name !== "Execute") continue;
         const input = block.input;
         if (!input || typeof input !== "object") continue;
         const command = (input as { command?: unknown }).command;

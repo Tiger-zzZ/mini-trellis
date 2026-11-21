@@ -1999,6 +1999,7 @@ describe("droidListSessions / droidExtractDialogue", () => {
         },
       ]),
       message("old", "a1", "user", "abandoned branch"),
+      { type: "compaction_state", summaryKind: "llm_summary", summaryText: "abandoned summary" },
       message("u2", "a1", "user", "now add tests"),
       {
         type: "compaction_state",
@@ -2025,5 +2026,24 @@ describe("droidListSessions / droidExtractDialogue", () => {
     expect(collectDroidTurnsAndEvents(session).events).toMatchObject([
       { action: "create", slug: "demo" },
     ]);
+  });
+
+  it("keeps only reachable turns when a parent is missing", () => {
+    writeJsonl(sessionFile, [
+      { type: "session_start", id: "droid-main", cwd: projectCwd },
+      message("old", null, "user", "retracted decision"),
+      { type: "compaction_state", summaryText: "retracted summary" },
+      message("current", "missing", "user", "current decision"),
+      message("reply", "current", "assistant", [
+        null,
+        { type: "text", text: "recorded" },
+      ]),
+    ]);
+    const [session] = droidListSessions(mkFilter({ cwd: projectCwd }));
+    expect(droidExtractDialogue(session).map((turn) => turn.text)).toEqual([
+      "current decision",
+      "recorded",
+    ]);
+    expect(droidSearch(session, "retracted").count).toBe(0);
   });
 });

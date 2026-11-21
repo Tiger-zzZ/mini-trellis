@@ -23,9 +23,8 @@ import { collectZCodeTemplates } from "./zcode.js";
 import { collectAntigravityTemplates } from "./antigravity.js";
 import { collectDroidTemplates } from "./droid.js";
 import {
-  DROID_HOOKS_PATH,
   DROID_SESSION_HOOK,
-  readDroidHooksIssue,
+  resolveDroidHooksPath,
 } from "../utils/droid-hooks.js";
 import {
   ANTIGRAVITY_SESSION_HOOK,
@@ -82,7 +81,16 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
   zcode: fromTemplates(collectZCodeTemplates),
   kiro: fromTemplates(collectKiroTemplates),
   antigravity: fromTemplates(collectAntigravityTemplates),
-  droid: fromTemplates(collectDroidTemplates),
+  droid: {
+    collectTemplates: collectDroidTemplates,
+    configure: (cwd, options) =>
+      writeTemplateMap(
+        cwd,
+        collectDroidTemplates({
+          droidHooksPath: options?.droidHooksPath ?? resolveDroidHooksPath(cwd),
+        }),
+      ),
+  },
 };
 
 export const PLATFORM_IDS = Object.keys(AI_TOOLS) as AITool[];
@@ -228,10 +236,8 @@ export function resolvePlatformOptions(
     assertProjectTemplatePaths(cwd, collectAntigravityTemplates());
   }
   if (platforms.includes("droid")) {
-    assertProjectTemplatePaths(cwd, collectDroidTemplates());
-    const hooks = path.join(cwd, DROID_HOOKS_PATH);
-    const issue = fs.existsSync(hooks) ? readDroidHooksIssue(hooks) : null;
-    if (issue) throw new ManagedAssetConflict(DROID_HOOKS_PATH, issue);
+    resolved.droidHooksPath = resolveDroidHooksPath(cwd);
+    assertProjectTemplatePaths(cwd, collectDroidTemplates(resolved));
   }
   return resolved;
 }

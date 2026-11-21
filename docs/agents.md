@@ -227,11 +227,11 @@ mini-trellis init -u your-name --droid -y
 droid
 ```
 
-Run both commands from the project root. Init installs remember, session-insight and update-spec under `.factory/skills/`, the hook script `.factory/hooks/session-start.py`, and a SessionStart registration (`startup|resume|clear|compact`) in `.factory/hooks.json`. The hook command uses a project-relative path, so start `droid` from the project root. Check the entry in `/hooks`, then open a new session. `.factory/settings.json` is not modified.
+Run both commands from the project root. Init installs remember, session-insight and update-spec under `.factory/skills/`, the hook script `.factory/hooks/session-start.py`, and a SessionStart registration (`startup|resume|clear|compact`) in the project’s active hook configuration. New projects use `.factory/hooks.json`. When `SessionStart` already comes from `.factory/settings.json` or the legacy `.factory/hooks/hooks.json`, mini-trellis updates it there. The hook command uses a project-relative path, so start `droid` from the project root. Check the entry in `/hooks`, then open a new session.
 
 Record with `/mini-trellis-remember`. Local history is read from `~/.factory/sessions/`. Subagent sessions list their parent session, and injected reminders, skill bodies and UI notices are left out of the dialogue. The compact handoff includes the session ID; use it with `mini-trellis mem context <full-session-id> --platform droid`.
 
-Init and refresh keep your other hooks and `hooksDisabled` in `.factory/hooks.json`. If the file has JSONC comments or an invalid hook structure, init stops and refresh reports a conflict without changing it. `doctor` reports `droid-config` for a missing registration and `droid-runtime` for the last observed hook run.
+Init and refresh preserve other handlers, explicit empty event lists, and `hooksDisabled`. Project settings support JSONC comments and a UTF-8 BOM. Invalid JSON or an invalid `SessionStart` array stops the write. `doctor` checks that the registration covers all four session sources and reports the last observed hook run under `droid-runtime`.
 
 <a id="dsh"></a>
 ## DeepSeek Harness

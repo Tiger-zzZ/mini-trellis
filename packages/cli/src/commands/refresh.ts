@@ -52,9 +52,10 @@ import {
   mergeZCodeConfig,
 } from "../utils/zcode-config.js";
 import {
-  DROID_HOOKS_PATH,
+  DROID_CONFIG_PATHS,
+  isDroidConfigPath,
   mergeDroidHooks,
-  readDroidHooksIssue,
+  writeDroidHooks,
 } from "../utils/droid-hooks.js";
 
 export type RefreshAction =
@@ -95,7 +96,7 @@ const JSON_PATHS = new Set([
   ".zcode/config.json",
   ".opencode/package.json",
   ANTIGRAVITY_HOOKS_PATH,
-  DROID_HOOKS_PATH,
+  ...DROID_CONFIG_PATHS,
 ]);
 
 function executableFor(relative: string): boolean {
@@ -114,6 +115,10 @@ function renderedJsonMerge(
       return mergeAntigravityHooks(current, content) === current
         ? "unchanged"
         : "merge";
+    if (isDroidConfigPath(relative))
+      return mergeDroidHooks(current, relative, content) === current
+        ? "unchanged"
+        : "merge";
     const existing = JSON.parse(current) as unknown;
     const desired = JSON.parse(content) as unknown;
     const merge =
@@ -121,9 +126,7 @@ function renderedJsonMerge(
         ? mergeCodeBuddySettings
         : relative === ".zcode/config.json"
           ? mergeZCodeConfig
-          : relative === DROID_HOOKS_PATH
-            ? mergeDroidHooks
-            : mergeJsonValues;
+          : mergeJsonValues;
     const merged = `${JSON.stringify(merge(existing, desired), null, 2)}\n`;
     return merged === current ? "unchanged" : "merge";
   } catch {
@@ -235,13 +238,6 @@ export function buildRefreshPlan(
           continue;
         }
       }
-      if (relative === DROID_HOOKS_PATH) {
-        const issue = readDroidHooksIssue(filePath);
-        if (issue) {
-          items.push({ path: relative, action: "conflict", detail: issue });
-          continue;
-        }
-      }
       if (relative === ".zcode/config.json") {
         const issue = readZCodeConfigIssue(filePath);
         if (issue) {
@@ -343,6 +339,9 @@ function applyRefresh(cwd: string, report: RefreshReport): void {
   const templates = collectTrellisScriptTemplates();
   addPlatformTemplates(templates, report.platforms, {
     opencodeVersion: report.opencodeVersion,
+    droidHooksPath: report.items
+      .map((item) => item.path)
+      .find(isDroidConfigPath),
   });
   for (const item of report.items) {
     const filePath = path.join(cwd, ...item.path.split("/"));
@@ -374,6 +373,10 @@ function applyRefresh(cwd: string, report: RefreshReport): void {
       writeAntigravityHooks(filePath, content);
       continue;
     }
+    if (isDroidConfigPath(item.path)) {
+      writeDroidHooks(cwd, item.path, content);
+      continue;
+    }
     if (JSON_PATHS.has(item.path)) {
       mergeJsonFile(
         filePath,
@@ -382,9 +385,7 @@ function applyRefresh(cwd: string, report: RefreshReport): void {
           ? mergeCodeBuddySettings
           : item.path === ".zcode/config.json"
             ? mergeZCodeConfig
-            : item.path === DROID_HOOKS_PATH
-              ? mergeDroidHooks
-              : undefined,
+            : undefined,
       );
       continue;
     }
