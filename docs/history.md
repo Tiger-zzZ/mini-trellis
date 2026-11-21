@@ -12,6 +12,8 @@ mini-trellis mem list --platform claude --json --limit 10
 
 For other agents, provide a Markdown or plain-text export. See [Agent setup](agents.md#capabilities) for supported sources.
 
+Droid 1.17.0 saves a rewind as a new session with its own ID. Searches can match the original session, the fork, or both when they share the same text. To review the conversation after a rewind, select the new session ID.
+
 ## Ask for a focused review
 
 ```text

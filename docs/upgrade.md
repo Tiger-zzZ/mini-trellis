@@ -12,7 +12,7 @@ mini-trellis doctor
 
 From 0.3.8 onward, after npm succeeds, `upgrade` calls the new CLI to refresh the current initialized project. Outside an initialized project it updates only the CLI; run `mini-trellis refresh` separately in other projects. Open a new agent session afterward.
 
-The default tag follows the installed release channel (`latest`, `beta`, or `rc`); `--tag 0.4.1` selects a version explicitly. `--dry-run` previews the steps.
+The default tag follows the installed release channel (`latest`, `beta`, or `rc`); `--tag 0.4.2` selects a version explicitly. `--dry-run` previews the steps.
 
 After `npm install -g mini-trellis@latest`, or an `upgrade` started by 0.3.7 or earlier, refresh the project once:
 

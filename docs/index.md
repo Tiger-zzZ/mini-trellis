@@ -1,6 +1,6 @@
 # Documentation
 
-mini-trellis keeps project knowledge in Markdown and searches it alongside local coding-agent conversations. These guides describe **v0.4.1**.
+mini-trellis keeps project knowledge in Markdown and searches it alongside local coding-agent conversations. These guides describe **v0.4.2**.
 
 ## Start here
 

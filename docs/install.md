@@ -30,7 +30,7 @@ You can combine flags:
 mini-trellis init -u your-name --claude --codex
 ```
 
-v0.4.1 supports `--claude`, `--codex`, `--cursor`, `--opencode`, `--pi`, `--omp`, `--kiro`, `--dsh`, `--codebuddy`, `--zcode`, `--antigravity`, and `--droid`. See [Agent setup](agents.md) for trust prompts and platform differences.
+v0.4.2 supports `--claude`, `--codex`, `--cursor`, `--opencode`, `--pi`, `--omp`, `--kiro`, `--dsh`, `--codebuddy`, `--zcode`, `--antigravity`, and `--droid`. See [Agent setup](agents.md) for trust prompts and platform differences.
 
 Initialization creates `.trellis/`, the managed instruction block, and the selected agent's integration files. Existing project knowledge is retained. A developer journal lives under `.trellis/workspace/<name>/`. Initialization writes files; review and commit the changes with your usual Git workflow.
 
