@@ -1,6 +1,6 @@
 # Agent 配置
 
-以下集成都可以使用项目 Markdown。启动入口、原始对话读取和 compact 恢复因平台而异。本页对应 v0.4.1。
+以下集成都可以使用项目 Markdown。启动入口、原始对话读取和 compact 恢复因平台而异。本页对应 v0.4.2。
 
 <a id="capabilities"></a>
 ## 平台能力

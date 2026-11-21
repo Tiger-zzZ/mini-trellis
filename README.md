@@ -28,7 +28,7 @@
 
 ## Carry the useful parts forward
 
-**New in [v0.4.0](docs/releases/v0.4.0.md):** confirmed decisions flow through topic updates, verification, and journal recording. Recording retries resume saved work, corrected topics get a new record, and recall follows the current project's boundary.
+**New in v0.4.2.** Factory Droid can record and recall project decisions. Cursor migration preserves custom hooks, and recall can surface current rules alongside rejected proposals in long documents. [Release notes](docs/releases/v0.4.2.md)
 
 | Capability | How you use it |
 | --- | --- |

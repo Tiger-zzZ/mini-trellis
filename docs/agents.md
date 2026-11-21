@@ -1,6 +1,6 @@
 # Agent setup
 
-All listed integrations can use project Markdown. Startup delivery, raw conversation reading, and compact recovery depend on the platform. This page covers v0.4.1.
+All listed integrations can use project Markdown. Startup delivery, raw conversation reading, and compact recovery depend on the platform. This page covers v0.4.2.
 
 ## Capabilities
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.2
+
+- Adds Factory Droid project skills, SessionStart integration and native conversation history. Trellis migration preserves custom handlers and JSONC comments in the active hook configuration. Droid forks remain separately searchable sessions.
+- Cleans up known legacy Cursor hooks, including entries whose script is missing. Migration preserves custom hooks and existing mini-trellis settings and leaves one managed startup command. Startup and diagnostics use the host project and registered command.
+- Stops journal recording before writing when the supplied content file cannot be read.
+- Ranks Chinese queries typed without spaces against rule text as well as titles. A reference to a long Markdown source can show both the current rule and an earlier rejected proposal within the default read budget.
+
+See the [v0.4.2 release notes](docs/releases/v0.4.2.md).
+
 ## v0.4.1
 
 - Adds Google Antigravity project memory with shared skills, a SessionStart entry, and `--antigravity` for init and refresh.

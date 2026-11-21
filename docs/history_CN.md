@@ -12,6 +12,8 @@ mini-trellis mem list --platform claude --json --limit 10
 
 其他 Agent 可以提供 Markdown 或纯文本导出。来源支持情况见 [Agent 配置](agents_CN.md#capabilities)。
 
+Droid 1.17.0 回退时会创建有独立 ID 的新会话。搜索可以命中原会话和新会话，共有的开头可能出现两次。整理回退后的对话时，请选择新会话的 ID。
+
 ## 提出明确的整理请求
 
 ```text
