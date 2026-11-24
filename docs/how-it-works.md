@@ -16,18 +16,18 @@ Existing project documents remain in place. A journal links to the current topic
 
 ## The startup entry points to knowledge
 
-Supported integrations give the agent a short orientation: journal location, spec indexes, and research entry points. It can then retrieve the documents relevant to the work.
+Supported integrations show the active journal and selected entries from `.trellis/index.md`, with a 1,200-character budget for navigation. Each line gives a document path and when to open it. When the catalog is missing or has no usable entries, the hook lists existing spec indexes.
 
 Injection timing depends on the agent. Claude Code uses SessionStart; OpenCode V2 rebuilds the short entry for each outgoing model request; DeepSeek Harness uses project instructions and skills. The [platform matrix](agents.md#capabilities) describes the differences. Startup size is therefore a measured property of a particular integration and version, rather than a universal constant.
 
-## Recall first, expand when useful
+## Open a relevant entry and search remaining gaps
 
 ```bash
 mini-trellis mem recall "callback retries"
 mini-trellis mem read "<ref-from-recall>"
 ```
 
-`recall` searches project Markdown and supported local transcripts. It returns short excerpts with source references. `read` expands a reference. The search is local and lexical; it uses words and identifiers in the material. No embedding service is involved.
+`recall` searches project Markdown by default. Select `--source history` for supported local transcripts or `--source all` for both. It returns short excerpts with source references. `read` expands a reference. The search is local and lexical; it uses words and identifiers in the material. No embedding service is involved.
 
 ## Update the knowledge as the project changes
 

@@ -9,7 +9,7 @@ const DSH_SKILL_NOTE = `
 
 ## DeepSeek Harness
 
-There is no project SessionStart hook. When you need project knowledge, run \`mini-trellis mem recall\` yourself. If the excerpt does not answer the question, run \`mini-trellis mem read\` on the returned ref. After a confirmed decision, use the \`mini-trellis-remember\` skill. Compressed transcripts in \`~/.dsh/sessions\` are not read.
+There is no project SessionStart hook. Follow the project instructions and open the relevant entry in \`.trellis/index.md\`. For remaining gaps, run \`mini-trellis mem recall\`. If the excerpt does not answer the question, run \`mini-trellis mem read\` on the returned ref. After a confirmed decision, use the \`mini-trellis-remember\` skill. Compressed transcripts in \`~/.dsh/sessions\` are not read.
 `;
 
 /** Short skills only. No SessionStart, role agents, or shared `.agents/skills/` copy. */

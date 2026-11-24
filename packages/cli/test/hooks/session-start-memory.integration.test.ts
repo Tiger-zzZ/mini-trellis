@@ -128,6 +128,7 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
           !key.endsWith("_PROJECT_DIR") &&
           !key.endsWith("_NON_INTERACTIVE") &&
           !key.startsWith("TRELLIS_") &&
+          key !== "CLAUDE_CODE_SESSION_ID" &&
           key !== "CLAUDE_ENV_FILE",
       ),
     );
@@ -158,7 +159,7 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
   });
 
   it.each(["claude", "codex", "codebuddy", "zcode"])(
-    "%s deduplicates startup and restores context after compact, clear and resume",
+    "%s handler deduplicates startup and rebuilds context when a lifecycle event is supplied",
     (host) => {
       const first = hook(host, "same");
       assertMemoryPayload(first.text);
@@ -439,6 +440,85 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
     },
   );
 
+  it("renders complete catalog lines within budget, counts missing targets and excludes navigation from the body", () => {
+    const index = path.join(tmpDir, ".trellis/index.md");
+    const first = "- .trellis/research/hot-topic.md — when changing the hot path";
+    const next = "- .trellis/spec/guides/index.md — " + "目录".repeat(70);
+    const missing = "- docs/vanished.md — old location";
+    fs.writeFileSync(index, [first, ...Array<string>(15).fill(next), missing].join("\n"));
+    const text = hook("codex", "catalog").text;
+    const start = text.indexOf(first);
+    const catalog = text.slice(start, text.indexOf("\n</current-state>", start));
+    expect(start).toBeGreaterThan(0);
+    expect([...catalog].length).toBeLessThanOrEqual(1200);
+    expect(catalog).not.toContain("vanished.md");
+    expect(catalog.split("\n").slice(1, -2).every((line: string) => line === next)).toBe(true);
+    expect(catalog).toContain("Skipped 1 invalid catalog entry.");
+    expect(catalog).toContain(".trellis/index.md (lines 17)");
+    expect(catalog).toContain("More entries: open .trellis/index.md");
+    expect(hook("codex", "catalog").data).toEqual({});
+    fs.writeFileSync(index, first);
+    expect(hook("codex", "catalog").text).toContain(first);
+  });
+
+  it("renders hand-written bullets and links to project or child project documentation", () => {
+    for (const file of ["packages/core/package.json", "packages/core/README.md", "service/.git", "service/docs/start here.md"]) {
+      const target = path.join(tmpDir, file);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, "");
+    }
+    fs.writeFileSync(path.join(tmpDir, ".trellis/index.md"), [
+      "# Knowledge",
+      "- .trellis/research/hot-topic.md — ordinary",
+      "* `packages/core/README.md` - public API",
+      "+ [start the service](<service/docs/start here.md>)",
+    ].join("\n"));
+    const { text } = hook("codex", "manual-catalog");
+    expect(text).toContain("- .trellis/research/hot-topic.md — ordinary\n- packages/core/README.md — public API\n- service/docs/start here.md — start the service");
+    expect(text).not.toContain("invalid catalog");
+  });
+
+  it("reports bounded source line numbers and falls back to spec when no catalog entry survives", () => {
+    const vendor = path.join(tmpDir, "node_modules/example");
+    fs.mkdirSync(vendor, { recursive: true });
+    fs.writeFileSync(path.join(vendor, "package.json"), "{}");
+    fs.writeFileSync(path.join(vendor, "README.md"), "# vendor");
+    fs.writeFileSync(path.join(tmpDir, "other.md"), "# Root document");
+    const unsupported = process.platform === "win32" ? "other.md" : ".trellis/research/alias.md";
+    if (process.platform !== "win32")
+      fs.symlinkSync(path.join(tmpDir, "other.md"), path.join(tmpDir, unsupported));
+    fs.writeFileSync(path.join(tmpDir, ".trellis/index.md"), [
+      "# Knowledge", "", "* [gone](docs/moved.md)", "- bad separator", "",
+      "- node_modules/example/README.md - vendor", `- ${unsupported} — other`, "+",
+    ].join("\n"));
+    const { text } = hook("codex", "invalid-catalog");
+    expect(text).toContain("- .trellis/spec/guides/index.md");
+    expect(text).toContain("Skipped 5 invalid catalog entries. See .trellis/index.md (lines 3, 4, 6, …).");
+    expect(text).not.toContain("alias.md");
+  });
+
+  it("keeps the entry when an inherited hook runs against older project scripts", () => {
+    fs.unlinkSync(path.join(tmpDir, ".trellis/scripts/common/knowledge_catalog.py"));
+    const { text } = hook("codex", "old-project");
+    expect(text).toContain("Open .trellis/index.md if present");
+    expect(text).toContain("$mini-trellis-remember");
+  });
+
+  it("keeps a complete navigation pointer when the entire hook exceeds its budget", () => {
+    const backend = path.join(tmpDir, ".trellis/spec/backend");
+    fs.mkdirSync(backend, { recursive: true });
+    fs.writeFileSync(path.join(backend, "index.md"), "# Backend\n");
+    const packages = Array.from({ length: 180 }, (_, i) =>
+      `  long-workspace-package-${i}:\n    path: pkgs/p${i}`);
+    fs.writeFileSync(path.join(tmpDir, ".trellis/config.yaml"), ["packages:", ...packages].join("\n"));
+    for (const text of [hook("codex", "many-packages").text, buildSessionContext({ directory: tmpDir })]) {
+      expect(text.length).toBeLessThanOrEqual(4000);
+      expect(text).toContain("[mini-trellis context truncated; open .trellis/index.md or .trellis/spec/]");
+      expect(text).not.toContain("Monorepo packages: long-workspace-package");
+      expect(text.trimEnd().endsWith("</ready>")).toBe(true);
+    }
+  });
+
   it("Pi reuses present context and restores it after compaction", () => {
     const source = fs.readFileSync(
       path.join(
@@ -460,11 +540,16 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
         extension({ on(name, handler) { handlers[name] = handler; } });
         const fire = systemPrompt => handlers.before_agent_start({ systemPrompt }).systemPrompt;
         const first = fire('existing');
-        process.stdout.write(JSON.stringify({ first, repeated: fire(first), compacted: fire('compacted') }));
+        const repeated = fire(first);
+        const fs = await import('node:fs');
+        fs.writeFileSync('.trellis/index.md', '- .trellis/spec/guides/mini-memory.md — new entry');
+        process.stdout.write(JSON.stringify({ first, repeated, changed: fire(first), compacted: fire('compacted') }));
       `,
     });
     const value = JSON.parse(result);
     expect(value.repeated).toBe(value.first);
+    expect(value.changed.match(/mini-trellis memory is available/g)).toHaveLength(1);
+    expect(value.changed).toContain("mini-memory.md — new entry");
     assertMemoryPayload(value.compacted);
     expect(value.first).toContain("/mini-trellis-remember");
     expect(value.compacted).toContain("/mini-trellis-remember");

@@ -83,6 +83,8 @@ export interface SearchHit {
 export interface MemWarning {
   code: string;
   message: string;
+  /** A readable history store omitted content, for example during compact. */
+  kind?: "history-gap";
 }
 
 export interface MemSearchMatch {
@@ -226,6 +228,8 @@ export interface ListMemProjectsOptions {
  * names the host that recorded it. */
 export type RecallSourceKind = MemSourceKind | "doc";
 
+export type RecallScope = "docs" | "history" | "all";
+
 /** How strong the lexical match was. `weak` marks partial coverage or a query echo. */
 export type RecallStrength = "strong" | "weak";
 
@@ -278,19 +282,22 @@ export interface RecallHit {
 }
 
 export interface RecallResult {
+  source: RecallScope;
   /** Ranked hits, capped at the requested limit. */
   hits: RecallHit[];
   /** Hits found before the cap. */
   totalHits: number;
-  /** True when a bound was reached and something was left unscanned. */
+  /** Requested sources could not be fully scanned. Content gaps have their own warnings. */
   incomplete: boolean;
-  /** Results or document excerpts exceeded the display cap. */
+  /** Results or excerpts exceeded the display cap. */
   truncated: boolean;
   warnings: MemWarning[];
 }
 
 export interface RecallMemOptions {
   query: string;
+  /** Search project documents by default. Platform filters apply to history. */
+  source?: RecallScope;
   /** Project directory. Defaults to the working directory. */
   cwd?: string;
   /** Max hits to return (default 3). */

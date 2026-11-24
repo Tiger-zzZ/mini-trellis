@@ -89,6 +89,7 @@ export function readJsonl<T>(
       // One bounded diagnostic per read, without copying transcript contents.
       warnings?.push({
         code: "session-history-incomplete",
+        kind: "history-gap",
         message: `${file}: skipped ${malformed} malformed JSONL records (first at line ${firstMalformed}); history is incomplete and may omit corrections.`,
       });
     }

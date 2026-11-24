@@ -6,6 +6,7 @@ import {
   allowedDocPath,
   discoverDocs,
   readDocText,
+  resolveProjectRoot,
   type DocDiscovery,
 } from "./docs.js";
 import {
@@ -16,7 +17,7 @@ import {
   sectionAt,
   type TextAnchor,
 } from "./document-evidence.js";
-import { excerptAround, hasCjkBigramCoverage, matchTerms, queryTerms, windowAt } from "./lexical.js";
+import { analyzeQuery, excerptAround, hasCjkBigramCoverage, matchTerms, windowAt } from "./lexical.js";
 import { parseDocLineage, parseLineageMarks } from "./lineage.js";
 import { MEM_PLATFORMS } from "./platforms.js";
 import {
@@ -435,6 +436,7 @@ function select(
 }
 
 export function recallMem(options: RecallMemOptions): RecallResult {
+  const source = options.source ?? "docs";
   const limit = positive(options.limit, 3);
   const maxChars = positive(options.maxChars, 3000);
   const warnings: MemWarning[] = [];
@@ -444,25 +446,20 @@ export function recallMem(options: RecallMemOptions): RecallResult {
       code: "query-truncated",
       message: "query exceeded 2000 characters; results are partial",
     });
-  const terms = queryTerms(query);
+  const { tokens, required, terms } = analyzeQuery(query);
   if (!terms.length)
     return {
+      source,
       hits: [],
       totalHits: 0,
-      incomplete: warnings.length > 0,
+      incomplete: false,
       truncated: false,
       warnings,
     };
-  const required = [
-    ...new Set(
-      query
-        .normalize("NFKC")
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((t) => t.length >= 2),
-    ),
-  ];
-  const discovery = discoverDocs(path.resolve(options.cwd ?? process.cwd()));
+  const cwd = options.cwd ?? process.cwd();
+  const discovery: DocDiscovery = source === "history"
+    ? { ...resolveProjectRoot(cwd), docs: [], warnings: [] }
+    : discoverDocs(cwd);
   warnings.push(...discovery.warnings);
   const candidates: Candidate[] = [];
   const add = (
@@ -496,7 +493,7 @@ export function recallMem(options: RecallMemOptions): RecallResult {
       : text;
     const bodyTerms = new Set(sections ? matchTerms(body, terms).map(({ term }) => term) : []);
     const bodyCoverage = required.filter((term) => bodyTerms.has(term)).length;
-    const cjkBodyEvidence = bodyTerms.size > 0 && hasCjkBigramCoverage(required, bodyTerms);
+    const cjkBodyEvidence = bodyTerms.size > 0 && hasCjkBigramCoverage(tokens, bodyTerms);
     const titleCoverage = titleMatches.length / terms.length;
     const pathCoverage = pathMatches.length / terms.length;
     // Only a turn we can see is just the question loses its rank. A fact that
@@ -504,7 +501,7 @@ export function recallMem(options: RecallMemOptions): RecallResult {
     const echo =
       ref.kind === "session" &&
       hit.section === "user" &&
-      isQueryEcho(text, required);
+      isQueryEcho(text, tokens);
     const record: RecallHit = {
       ...hit,
       ...(title ? { title } : {}),
@@ -527,7 +524,7 @@ export function recallMem(options: RecallMemOptions): RecallResult {
       source: text,
       anchor,
       secondary,
-      excerptTruncated: !!sections && window.truncated,
+      excerptTruncated: window.truncated,
       coverage: echo ? 0 : coverage,
       bodyEvidence: cjkBodyEvidence || hasBodyEvidence(bodyCoverage, required.length),
       cjkBodyEvidence,
@@ -582,7 +579,7 @@ export function recallMem(options: RecallMemOptions): RecallResult {
     platform: options.platform,
     limit: WIDE_LIMIT,
   });
-  const sessions = listAll(filter, warnings);
+  const sessions = source === "docs" ? [] : listAll(filter, warnings);
   // OpenCode sessions share one database; prepare it once per recall, as search does.
   const releases = prepareSqliteStores(sessions, warnings);
   try {
@@ -639,9 +636,10 @@ export function recallMem(options: RecallMemOptions): RecallResult {
     : candidates;
   const selected = select(pool, limit, maxChars);
   return {
+    source,
     ...selected,
     totalHits: pool.length,
-    incomplete: warnings.length > 0,
+    incomplete: warnings.some(w => w.code !== "query-truncated" && w.kind !== "history-gap"),
     warnings,
   };
 }
@@ -829,8 +827,10 @@ function readSession(
 
 /** Expand only versioned refs emitted by recall, with one total batch budget. */
 export function readMemRefs(options: ReadMemRefsOptions): RecallReadResult {
-  const discovery = discoverDocs(path.resolve(options.cwd ?? process.cwd()));
-  const warnings = [...discovery.warnings];
+  const cwd = options.cwd ?? process.cwd();
+  let discovery: DocDiscovery | undefined;
+  let historyRoot: string | undefined;
+  const warnings: MemWarning[] = [];
   const budget = positive(options.maxChars, 4000);
   const reads: RecallRead[] = [];
   let used = 0;
@@ -864,19 +864,24 @@ export function readMemRefs(options: ReadMemRefsOptions): RecallReadResult {
       truncated = true;
       break;
     }
-    let read =
-      evidence.kind === "doc"
-        ? readDoc(ref, evidence, discovery, remaining, warnings)
-        : readSession(ref, evidence, discovery.root, remaining, warnings);
+    const expand = (cap: number): RecallRead | undefined => {
+      if (evidence.kind === "session") {
+        historyRoot ??= discovery?.root ?? resolveProjectRoot(cwd).root;
+        return readSession(ref, evidence, historyRoot, cap, warnings);
+      }
+      if (!discovery) {
+        discovery = discoverDocs(cwd);
+        warnings.push(...discovery.warnings);
+      }
+      return readDoc(ref, evidence, discovery, cap, warnings);
+    };
+    let read = expand(remaining);
     if (!read) continue;
     let cap = remaining;
     while (JSON.stringify(read).length > allowance && cap > 0) {
       cap -= Math.max(1, JSON.stringify(read).length - allowance);
       if (cap <= 0) break;
-      read =
-        evidence.kind === "doc"
-          ? readDoc(ref, evidence, discovery, cap, warnings)
-          : readSession(ref, evidence, discovery.root, cap, warnings);
+      read = expand(cap);
       if (!read) break;
     }
     if (!read || JSON.stringify(read).length > allowance) {

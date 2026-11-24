@@ -9,6 +9,8 @@ mini-trellis mem recall "回调重试次数"
 mini-trellis mem read "<ref-from-recall>"
 ```
 
+`recall` 默认查项目文档。查原话或否决理由用 `--source history`，文档和对话一起查用 `--source all`。
+
 `recall` 默认最多返回三条命中，标准输出预算为 3,000 字符，包含引用和状态。`read` 的整批输出预算为 4,000 字符。两者均可使用 `--max-chars`，`recall` 还支持 `--limit`。
 
 以下是输出形态示例：
@@ -37,6 +39,8 @@ mini-trellis mem read "<ref-from-recall>"
 
 ## 选择有效查询词
 
+当前上下文不足时，先按 `.trellis/index.md` 打开相关正文。如果非零命中仍然缺条件、互相冲突或不相关，可以展开相关引用，或依据项目叫法、笔记语言改写一次。证据足够就停止。
+
 使用资料中出现的词或标识符，例如“回调重试次数”、API 名称或文件名。宽泛查询效果不佳时，换成模块中更有辨识度的词。中文连写时，正文有多个词匹配的笔记可以排在同名标题前。命中强度表示字面匹配程度，依据摘录里的条件和来源状态判断规则是否适用。查旧资料时可使用明确的路径或标识符。
 
 ## 定位一段对话
@@ -47,7 +51,7 @@ mini-trellis mem list --platform claude --json --limit 10
 mini-trellis mem context <完整会话-id> --platform claude --grep "重试"
 ```
 
-会话命令默认限定当前项目。使用 `--cwd /path/to/project` 选择其他项目，或在会话命令中用 `--global` 扩大范围。`recall` 始终按项目检索，不接受 `--global`。平台参数筛选对话来源，项目文档仍参与召回。
+会话命令默认限定当前项目。使用 `--cwd /path/to/project` 选择其他项目，或在会话命令中用 `--global` 扩大范围。`recall` 始终按项目检索，不接受 `--global`。平台参数在 `--source history` 和 `--source all` 下筛选对话来源。
 
 `mem projects` 列出已发现的项目路径。文本输出可能缩短会话 ID，查询上下文时从 JSON 结果复制完整 ID。ID 有歧义时，根据提示进一步限定项目和平台。
 
@@ -67,7 +71,8 @@ OpenCode V1 和 Pi 需要先用 `mem list` 选定会话，再以完整 ID 调用
 ## 理解结果状态
 
 - `truncated`：实际内容或命中数量超过返回条数或输出预算。
-- `incomplete`：部分来源未能完整搜索。判断是否有记录前，先阅读告警。
+- `incomplete` 表示本次选择的来源有部分未能扫描。`source` 给出本次范围。
+- `history-gap` 告警表示已读取的历史有内容缺失，例如压缩前的助手回复、加密载荷或损坏的记录。`incomplete` 为假时也要检查告警，空结果只能说明在可用资料中未找到。
 - `session-history-missing` / `session-history-unreadable`：未找到选定历史，或文件无法读取。
 - `opencode-v2-history-unsupported`：已跳过 V2 对话；项目文档和 V1 历史仍可检索。
 

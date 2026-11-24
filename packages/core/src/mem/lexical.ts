@@ -38,34 +38,63 @@ function cjkBigrams(run: string): string[] {
   return grams;
 }
 
-/**
- * Terms a query should match on. Order is preserved and duplicates dropped.
- * A CJK run contributes its whole span, its segmented words, and its bigrams;
- * everything else contributes whitespace-delimited tokens.
- */
-export function queryTerms(query: string): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  const push = (term: string): void => {
-    if (term.length < 2) return;
-    if (seen.has(term)) return;
-    seen.add(term);
-    out.push(term);
-  };
-
-  for (const raw of normalize(query).split(/\s+/)) {
-    if (!raw) continue;
-    push(raw);
-    if (!CJK.test(raw)) continue;
-    if (segmenter) {
-      for (const seg of segmenter.segment(raw)) {
-        if (seg.isWordLike) push(seg.segment);
+function chineseKeywords(run: string): string[] {
+  const words: string[] = [];
+  for (const span of run.split(/有什么|什么|怎么|如何|哪些|是否/u)) {
+    if (!segmenter || span.length <= 3) {
+      words.push(span);
+      continue;
+    }
+    // ICU also returns adjacent single Han characters for technical terms.
+    // Keep that span together; its overlapping bigrams are optional matches.
+    let singles = "";
+    for (const { segment } of segmenter.segment(span)) {
+      if (segment.length === 1) singles += segment;
+      else {
+        words.push(singles, segment);
+        singles = "";
       }
     }
-    for (const run of raw.match(CJK_RUN) ?? [])
-      for (const gram of cjkBigrams(run)) push(gram);
+    words.push(singles);
   }
-  return out;
+  return words;
+}
+
+/** Raw tokens retain exact matches; coverage uses keywords, not optional bigrams. */
+export function analyzeQuery(query: string): {
+  tokens: string[];
+  required: string[];
+  terms: string[];
+} {
+  const tokens = [...new Set(normalize(query).split(/\s+/).filter(t => t.length >= 2))];
+  const terms = new Set<string>();
+  const keywords = new Set<string>();
+  for (const token of tokens) {
+    terms.add(token);
+    if (!CJK.test(token)) {
+      keywords.add(token);
+      continue;
+    }
+    const words: string[] = [];
+    for (const part of token.split(/([㐀-鿿]+)/u)) {
+      if (CJK.test(part)) words.push(...chineseKeywords(part));
+      // Keep embedded identifiers such as TASK-4419 and foo_bar intact.
+      else words.push(...(part.match(/[\p{L}\p{N}_]+(?:[-./:#@][\p{L}\p{N}_]+)*/gu) ?? []));
+    }
+    const pathQuery = /\.mdx?$/.test(token);
+    if (pathQuery) keywords.add(token);
+    for (const word of words.filter(w => w.length >= 2)) {
+      terms.add(word);
+      if (!pathQuery) keywords.add(word);
+    }
+    for (const run of token.match(CJK_RUN) ?? [])
+      for (const gram of cjkBigrams(run)) terms.add(gram);
+  }
+  return { tokens, terms: [...terms], required: keywords.size ? [...keywords] : tokens };
+}
+
+export function queryTerms(query: string): string[] {
+  return analyzeQuery(query).terms;
 }
 
 export interface TermHit {

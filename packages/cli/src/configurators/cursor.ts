@@ -12,7 +12,7 @@ const CURSOR_SKILL_NOTE = `
 
 ## Cursor
 
-Local sessionStart supplies a short memory entry. A successful hook record alone does not prove model delivery. Use the AGENTS.md instructions and \`mini-trellis mem recall\`, then \`mini-trellis mem read\` if the excerpt is not enough. Cursor-managed cloud agents do not run sessionStart; self-hosted machines have not been verified. Cursor conversation history is not parsed. After a confirmed decision, use the \`mini-trellis-remember\` skill.
+Local sessionStart supplies a short memory entry. A successful hook record alone does not prove model delivery. Follow the AGENTS.md instructions and open the relevant catalog entry. Fill gaps with \`mini-trellis mem recall\`, then \`mini-trellis mem read\` if the excerpt is not enough. Cursor-managed cloud agents do not run sessionStart; self-hosted machines have not been verified. Cursor conversation history is not parsed. After a confirmed decision, use the \`mini-trellis-remember\` skill.
 `;
 
 /**
