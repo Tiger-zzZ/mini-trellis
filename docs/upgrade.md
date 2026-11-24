@@ -12,6 +12,8 @@ mini-trellis doctor
 
 From 0.3.8 onward, after npm succeeds, `upgrade` calls the new CLI to refresh the current initialized project. Outside an initialized project it updates only the CLI; run `mini-trellis refresh` separately in other projects. Open a new agent session afterward.
 
+When moving from a release that searched documents and conversations together, add `--source all` to scripts that need that behavior. The new `mem recall` default searches project documents. Use `--source history` for original turns. Refresh each project's hook and skills so compact recovery offers the appropriate history command. Existing `mem context <session-id>` commands still work.
+
 The default tag follows the installed release channel (`latest`, `beta`, or `rc`); `--tag 0.4.2` selects a version explicitly. `--dry-run` previews the steps.
 
 After `npm install -g mini-trellis@latest`, or an `upgrade` started by 0.3.7 or earlier, refresh the project once:

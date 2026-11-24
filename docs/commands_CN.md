@@ -24,7 +24,7 @@ init 的 `-y` 接受默认选项，`-s` 跳过已有文件，`-f` 覆盖已有�
 
 | 命令 | 读取内容 | 典型用途 |
 | --- | --- | --- |
-| `mem recall "查询"` | 项目文档与本地对话 | 查找决定或规则 |
+| `mem recall "查询"` | 默认查项目文档 | 查找决定或规则 |
 | `mem read "ref" ["ref" ...]` | recall 引用指向的来源 | 展开一条或多条摘录 |
 | `mem list` | 本地会话信息 | 选择会话 |
 | `mem search "关键词"` | 本地对话正文 | 查找讨论 |
@@ -38,6 +38,7 @@ init 的 `-y` 接受默认选项，`-s` 跳过已有文件，`-f` 覆盖已有�
 | 参数 | 适用命令 | 含义与默认值 |
 | --- | --- | --- |
 | `--cwd <path>` | recall、read、list、search、context、extract | 选择项目，默认当前工作目录 |
+| `--source docs\|history\|all` | recall | 项目文档（默认）、已支持的本地对话、两者同查 |
 | `--platform <name>` | recall、会话命令 | `claude`、`codex`、`opencode`、`pi`、`droid` 或 `all`，默认 all |
 | `--global` | list、search、context、extract | 包含所有项目；recall 不接受该参数 |
 | `--since`、`--until` | 会话筛选 | 包含边界的日期范围，格式 `YYYY-MM-DD` |
@@ -50,7 +51,7 @@ init 的 `-y` 接受默认选项，`-s` 跳过已有文件，`-f` 覆盖已有�
 | `--phase <name>` | extract | `brainstorm`、`implement` 或 `all`，默认 all |
 | `--json` | 除 help 外的全部记忆命令 | 输出机器可读 JSON |
 
-recall 的平台参数只筛选对话来源，项目文档仍参与检索。日期参数用于会话命令，不筛选统一召回结果。read 读取选定项目中的引用。extract 不限制输出大小，也不使用 `--max-chars`。
+recall 的平台参数在 `--source history` 和 `--source all` 下筛选对话来源。日期参数用于会话命令，不筛选统一召回结果。read 读取选定项目中的引用。extract 不限制输出大小，也不使用 `--max-chars`。
 
 ```bash
 mini-trellis mem recall "回调 重试" --limit 5 --max-chars 5000

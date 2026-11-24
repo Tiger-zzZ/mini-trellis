@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 
@@ -29,15 +30,15 @@ function findRoot(start: string): string {
   return start;
 }
 
-function countSpecIndexes(root: string): number {
+function specIndexes(root: string): string[] {
   const specDir = join(root, ".trellis", "spec");
-  if (!exists(specDir)) return 0;
+  if (!exists(specDir)) return [];
   try {
-    return readdirSync(specDir).filter((name) =>
+    return readdirSync(specDir).sort().filter((name) =>
       exists(join(specDir, name, "index.md")),
-    ).length;
+    ).map(name => `.trellis/spec/${name}/index.md`);
   } catch {
-    return 0;
+    return [];
   }
 }
 
@@ -77,20 +78,22 @@ function activeJournal(root: string): string | null {
 
 function buildStartupContext(root: string): string {
   const journal = activeJournal(root);
-  const specCount = countSpecIndexes(root);
+  let entry: string;
+  try {
+    const script = join(root, ".trellis", "scripts", "common", "knowledge_catalog.py");
+    entry = execFileSync(process.platform === "win32" ? "python" : "python3", ["-I", "-X", "utf8", script], {
+      cwd: root, input: specIndexes(root).join("\n"), encoding: "utf8", timeout: 3000,
+    }).trimEnd();
+  } catch {
+    entry = "Open .trellis/index.md if present, or the relevant .trellis/spec/ index.";
+  }
   return `<session-context>
 mini-trellis memory is available on demand. Do not announce this hook.
-Use \`mini-trellis mem recall <query>\` for relevant prior decisions or conventions;
-include the affected path/identifier when useful. Unrelated edits need no history lookup.
-Use \`mini-trellis mem read <ref>\` only if an excerpt lacks needed context or qualifiers.
-Reuse evidence already in the current context; recall again after compact or when a
-source changes or disappears. Never treat stale or missing sources as current rules.
-Keep confirmed decisions in \`.trellis/research/<topic>.md\` and lasting rules in \`.trellis/spec/\`.
-A rejected approach that later work should not retry can be recorded and labeled rejected.
-Record with \`/mini-trellis-remember\` or \`python3 ./.trellis/scripts/add_session.py\`. Ordinary edits and unconfirmed
-guesses are not new decisions. Do not create a git commit unless the user explicitly asks.
-</session-context>` + (journal ? `\nJournal: ${journal}` : "") +
-    (specCount ? `\nSpec indexes: ${specCount} available.` : "");
+Before a design, behavior change or project-specific answer, open the relevant entry if you need project knowledge.
+For remaining gaps use \`mini-trellis mem recall <query>\`. Expand missing context with \`mini-trellis mem read <ref>\`.
+If needed, try one rewrite using a term from the project. Stop when the evidence suffices. On a confirmed or corrected rule, run \`/mini-trellis-remember\` unless asked not to save.
+${[journal && `Journal: ${journal}`, entry].filter(Boolean).join("\n")}
+</session-context>`;
 }
 
 export default function trellisExtension(pi: {
@@ -105,9 +108,9 @@ export default function trellisExtension(pi: {
   pi.on?.("before_agent_start", (event) => {
     const cur = (event as { systemPrompt?: string }).systemPrompt ?? "";
     const startup = buildStartupContext(root);
-    if (cur.includes(startup)) return { systemPrompt: cur };
+    const previous = /(?:\n\n)?<session-context>\nmini-trellis memory is available on demand\.[\s\S]*?<\/session-context>/g;
     return {
-      systemPrompt: [cur, startup].filter(Boolean).join("\n\n"),
+      systemPrompt: [cur.replace(previous, ""), startup].filter(Boolean).join("\n\n"),
     };
   });
 

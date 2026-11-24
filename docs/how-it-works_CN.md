@@ -16,18 +16,18 @@ mini-trellis 连接项目文档、Agent 技能和本地对话历史。Markdown �
 
 ## 启动入口指向知识位置
 
-支持启动集成的 Agent 会收到一段简短说明，其中包括日志位置、spec 索引和调研入口，再根据当前工作读取相关文档。
+支持注入的 Agent 会收到当前日志位置和 `.trellis/index.md` 选入的条目。目录预算为 1200 字符，每行给出文档路径和适用场景。目录不存在或没有可用条目时，hook 列出现有 spec 索引。
 
 注入时机因平台而异：Claude Code 使用 SessionStart；OpenCode V2 在每次模型请求中重建短入口；DeepSeek Harness 通过项目说明和技能使用知识。差异见[平台能力表](agents_CN.md#capabilities)。启动文本大小需要结合平台和版本测量。
 
-## 先检索，再展开原文
+## 按目录读正文，按需补查
 
 ```bash
 mini-trellis mem recall "回调 重试"
 mini-trellis mem read "<ref-from-recall>"
 ```
 
-`recall` 搜索项目 Markdown 和已支持的本地对话记录，返回短摘录与来源引用；`read` 展开引用。检索在本地按词项和标识符匹配，直接使用资料中的文字，无需配置 Embedding 服务。
+`recall` 默认搜索项目 Markdown。`--source history` 查已支持的本地对话，`--source all` 两者同查。结果带短摘录和来源引用，`read` 可按引用展开。检索在本地按词项和标识符匹配，直接使用资料中的文字，无需配置 Embedding 服务。
 
 ## 随项目变化更新知识
 

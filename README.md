@@ -33,7 +33,7 @@
 | Capability | How you use it |
 | --- | --- |
 | **Keep project knowledge** | Maintain conventions and conclusions in existing README, docs, spec, and research files; link the session from a journal. |
-| **Find the source** | `mem recall` searches documents and supported local conversations, returning excerpts, paths, and references. |
+| **Find the source** | `mem recall` returns excerpts and references from project documents. Use `--source history` for local conversations or `--source all` for both. |
 | **Organize past discussions** | `session-insight` turns selected conversations or text exports into existing project documents. |
 | **Update decisions** | Edit the current topic, retain the reasoning, and link old notes to their replacements. |
 | **Work across agents** | Different coding tools use the same project Markdown; the platform matrix lists native history support. |

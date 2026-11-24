@@ -66,7 +66,42 @@ function claudeSessions(
 }
 
 describe("JSONL recall integrity", () => {
-  it("marks recall incomplete and preserves warnings when expanding its ref", () => {
+  it("scans only selected sources and keeps history gaps distinct from scan and output limits", () => {
+    write("docs/notes.md", "# Dispatch\nParcel totals include returns.");
+    const entry = { type: "message", role: "user", content: [{ type: "input_text", text: "Parcel totals were confirmed." }] };
+    const events = [
+      { type: "compacted", payload: { replacement_history: [entry] } },
+      { type: "response_item", payload: { type: "agent_message", content: [
+        { type: "input_text", text: "Message Type: FINAL_ANSWER\nTask name: /root/child\nSender: /root/child\nPayload:\n" },
+        { type: "encrypted_content", encrypted_content: "opaque" },
+      ] } },
+    ];
+    write("rollout.jsonl", events.map(e => JSON.stringify(e)).join("\n"));
+    const list = vi.mocked(MEM_PLATFORMS.codex.list).mockReturnValue([{
+      platform: "codex", id: "fixture", cwd: root, filePath: path.join(root, "rollout.jsonl"),
+    }]);
+    const docs = recallMem({ cwd: root, query: "parcel totals" });
+    expect(docs).toMatchObject({ source: "docs", incomplete: false, warnings: [] });
+    expect(docs.hits.map(h => h.sourceKind)).toEqual(["doc"]);
+    expect(list).not.toHaveBeenCalled();
+
+    write("docs/oversized.md", "x".repeat(1_000_001));
+    const history = recallMem({ cwd: root, query: "parcel totals", source: "history" });
+    expect(history).toMatchObject({ incomplete: false, truncated: false });
+    expect(history.warnings.map(w => [w.code, w.kind])).toEqual([
+      ["codex-compaction-assistant-dropped", "history-gap"],
+      ["codex-inter-agent-encrypted", "history-gap"],
+    ]);
+    const read = readMemRefs({ cwd: root, refs: [history.hits[0].ref] });
+    expect(read.reads[0]?.text).toContain("Parcel totals were confirmed.");
+    expect(read.warnings).toEqual(history.warnings);
+    const all = recallMem({ cwd: root, query: "parcel totals", source: "all", limit: 1 });
+    expect(all).toMatchObject({ incomplete: true, truncated: true, totalHits: 2 });
+    expect(all.warnings.map(w => w.code)).toContain("doc-too-large");
+    expect(all.warnings).toEqual(expect.arrayContaining(history.warnings));
+  });
+
+  it("reports missing history content in recall and read", () => {
     const filePath = path.join(root, "claude.jsonl");
     fs.writeFileSync(filePath, JSON.stringify({ type: "user", message: {
       role: "user", content: "Confirmed: callback retries allow 2 attempts.",
@@ -74,9 +109,10 @@ describe("JSONL recall integrity", () => {
     vi.mocked(MEM_PLATFORMS.claude.list).mockReturnValue([
       { id: "selected", platform: "claude", cwd: root, filePath },
     ]);
-    const result = recallMem({ cwd: root, query: "callback retries" });
+    const result = recallMem({ source: "history", cwd: root, query: "callback retries" });
     expect(result.hits).toHaveLength(1);
-    expect(result.incomplete).toBe(true);
+    expect(result.incomplete).toBe(false);
+    expect(result.warnings[0]?.kind).toBe("history-gap");
     expect(result.warnings.map((w) => w.code)).toContain("session-history-incomplete");
     const expanded = readMemRefs({ cwd: root, refs: [result.hits[0].ref] });
     expect(expanded.warnings.map((w) => w.code)).toContain("session-history-incomplete");
@@ -117,7 +153,7 @@ describe("SQLite recall lifecycle", () => {
         },
       ]);
 
-    const first = recallMem({ cwd: root, query: "注释 规范", limit: 10 });
+    const first = recallMem({ source: "history", cwd: root, query: "注释 规范", limit: 10 });
     expect(first.hits.map((hit) => hit.sessionId).sort()).toEqual([
       "one",
       "other-host",
@@ -131,7 +167,7 @@ describe("SQLite recall lifecycle", () => {
     extract.mockReturnValue([
       { role: "assistant", text: "注释规范：更新后的约束。" },
     ]);
-    const second = recallMem({ cwd: root, query: "注释 规范", limit: 10 });
+    const second = recallMem({ source: "history", cwd: root, query: "注释 规范", limit: 10 });
     expect(
       second.hits.some((hit) => hit.excerpt.includes("更新后的约束")),
     ).toBe(true);
@@ -149,7 +185,7 @@ describe("SQLite recall lifecycle", () => {
       .mockImplementationOnce(() => {
         throw new Error("synthetic read failure");
       });
-    expect(() => recallMem({ cwd: root, query: "注释 规范" })).toThrow(
+    expect(() => recallMem({ source: "history", cwd: root, query: "注释 规范" })).toThrow(
       "synthetic read failure",
     );
     expect(prepare).toHaveBeenCalledTimes(1);
@@ -168,7 +204,7 @@ describe("0.3.2 recall", () => {
       { id: "ask-2", turns: [{ role: "user", text: "What is the OrbitCallback retry policy?" }] },
       { id: "ask-3", turns: [{ role: "user", text: "Please explain our OrbitCallback retry policy" }] },
     ]);
-    const result = recallMem({ cwd: root, query: "OrbitCallback retry policy" });
+    const result = recallMem({ source: "all", cwd: root, query: "OrbitCallback retry policy" });
     const docAt = result.hits.findIndex(
       (hit) => hit.path === ".trellis/spec/retry-budget.md",
     );
@@ -210,7 +246,7 @@ describe("0.3.2 recall", () => {
         }],
       },
     ]);
-    const result = recallMem({ cwd: root, query: "OrbitCallback retry policy" });
+    const result = recallMem({ source: "all", cwd: root, query: "OrbitCallback retry policy" });
     const docAt = result.hits.findIndex(
       (hit) => hit.path === ".trellis/spec/retry-budget.md",
     );
@@ -229,7 +265,7 @@ describe("0.3.2 recall", () => {
         turns: [{ role: "user", text: "What is the OrbitCallback retry policy?" }],
       },
     ]);
-    const result = recallMem({ cwd: root, query: "OrbitCallback retry policy" });
+    const result = recallMem({ source: "all", cwd: root, query: "OrbitCallback retry policy" });
     expect(result.hits.some((hit) => hit.strength === "strong")).toBe(false);
     expect(result.hits[0]?.section).toBe("user");
     expect(result.hits[0]?.excerpt.toLowerCase()).toContain("orbitcallback retry policy");
@@ -255,7 +291,7 @@ describe("0.3.2 recall", () => {
         ],
       },
     ]);
-    const result = recallMem({ cwd: root, query: "OrbitCallback retry policy" });
+    const result = recallMem({ source: "all", cwd: root, query: "OrbitCallback retry policy" });
     const answer = result.hits.find(
       (hit) => hit.section === "assistant" && hit.excerpt.includes("at most 4"),
     );
@@ -283,6 +319,7 @@ describe("0.3.2 recall", () => {
       },
     ]);
     const result = recallMem({
+      source: "all",
       cwd: root,
       query: "OrbitCallback retry policy",
       limit: 5,
@@ -322,7 +359,7 @@ describe("0.3.2 recall", () => {
           ],
         },
       ]);
-      const result = recallMem({ cwd: root, query, limit: 5 });
+      const result = recallMem({ source: "all", cwd: root, query, limit: 5 });
       const user = result.hits.find((hit) => hit.section === "user");
       expect(user?.strength).toBe("strong");
       expect(user?.excerpt).toContain(marker);
@@ -351,7 +388,7 @@ describe("0.3.2 recall", () => {
           }],
         },
       ]);
-      const result = recallMem({ cwd: root, query: "retry policy" });
+      const result = recallMem({ source: "all", cwd: root, query: "retry policy" });
       expect(
         result.hits.some(
           (hit) =>
@@ -381,7 +418,7 @@ describe("0.3.2 recall", () => {
           turns: [{ role: "assistant", text: "The retry policy uses fixed intervals." }],
         },
       ]);
-      const result = recallMem({ cwd: root, query: "retry policy" });
+      const result = recallMem({ source: "all", cwd: root, query: "retry policy" });
       expect(
         result.hits.some((hit) => hit.section === "user" && hit.excerpt === text),
       ).toBe(true);
@@ -409,6 +446,7 @@ describe("0.3.2 recall", () => {
       },
     ]);
     const result = recallMem({
+      source: "all",
       cwd: root,
       query: "OrbitCallback retry policy",
       limit: 5,
@@ -568,14 +606,14 @@ describe("0.3.2 recall", () => {
     claudeSessions([
       { id: "ask", turns: [{ role: "user", text: "TASK-4419 retry policy" }] },
     ]);
-    const result = recallMem({ cwd: root, query: "TASK-4419 retry policy" });
+    const result = recallMem({ source: "all", cwd: root, query: "TASK-4419 retry policy" });
     expect(result.hits[0]?.path).toBe(".trellis/spec/retry-budget.md");
     expect(result.hits[0]?.excerpt).toContain("at most 4 attempts");
     expect(
       result.hits.every((hit) => hit.section !== "user" || hit.strength === "weak"),
     ).toBe(true);
     fs.rmSync(path.join(root, ".trellis/spec/retry-budget.md"));
-    const alone = recallMem({ cwd: root, query: "TASK-4419 retry policy" });
+    const alone = recallMem({ source: "all", cwd: root, query: "TASK-4419 retry policy" });
     expect(alone.hits.some((hit) => hit.strength === "strong")).toBe(false);
   });
 
@@ -590,6 +628,7 @@ describe("0.3.2 recall", () => {
       },
     ]);
     const result = recallMem({
+      source: "all",
       cwd: root,
       query: "OrbitCallback retry policy",
       limit: 5,
@@ -662,6 +701,24 @@ describe("queryTerms", () => {
 });
 
 describe("recall relevance and safe dedupe", () => {
+  it("scores segmented keywords independently of sentence spacing and optional bigrams", () => {
+    write("docs/timeline.md", "# Notes\n工作台 beta 的 Transco Timeline 存在日期显示问题。支付接口返回问题。TASK-4419 已修复。");
+    for (const query of [
+      "工作台beta里Transco的Timeline有什么问题",
+      "工作台 beta Transco Timeline 问题",
+      "支付接口有什么问题",
+      "工作台有什么问题",
+      "支付 接口 问题",
+      "修复TASK-4419",
+      "Transco Timeline",
+    ]) {
+      expect(recallMem({ cwd: root, query }).hits[0], query)
+        .toMatchObject({ path: "docs/timeline.md", strength: "strong" });
+    }
+    expect(recallMem({ cwd: root, query: "修复TASK-4419" }).hits[0]?.matchedTerms).toContain("task-4419");
+    expect(recallMem({ cwd: root, query: "Transco missing" }).hits[0]?.strength).toBe("weak");
+  });
+
   it("keeps a Chinese body match ahead of an exact title without promoting partial coverage", () => {
     write(".trellis/spec/callback.md", "# 支付回调规则\n回调失败后最多重试四次，永久错误只尝试一次。");
     const todo = "docs/回调重试次数.md";
@@ -729,12 +786,29 @@ describe("recall relevance and safe dedupe", () => {
       { role: "user", text: "No, not for writes." },
       { role: "assistant", text: "retry budget = 2" },
     ]);
-    const result = recallMem({ cwd: root, query: "retry budget", limit: 10, maxChars: 10000 });
+    const result = recallMem({ source: "history", cwd: root, query: "retry budget", limit: 10, maxChars: 10000 });
     expect(result.hits.map((hit) => hit.turn)).toEqual([0, 1, 3]);
   });
 });
 
 describe("discoverDocs", () => {
+  it("keeps later notes discoverable after attachment-only directories, including beyond the depth cap", () => {
+    const attachments = path.join(root, ".trellis/research/attachments");
+    fs.mkdirSync(attachments, { recursive: true });
+    for (let i = 0; i <= 10000; i++) fs.writeFileSync(path.join(attachments, `${i}.json`), "");
+    write(".trellis/workspace/dev/journal-1.md", "# Journal\nLatest decision\n");
+    const check = () => {
+      const found = discoverDocs(root);
+      expect(found.docs.map(doc => doc.relPath)).toEqual([".trellis/workspace/dev/journal-1.md"]);
+      expect(found.warnings).toEqual([]);
+    };
+    check();
+    const deep = path.join(root, ".trellis/research", "nested/".repeat(9));
+    fs.mkdirSync(deep, { recursive: true });
+    fs.renameSync(attachments, path.join(deep, "attachments"));
+    check();
+  });
+
   it("caps large knowledge collections and reports the scan as incomplete", () => {
     for (let i = 0; i < 1001; i++) write(`.trellis/research/topic-${i}.md`, `# Topic ${i}\nneedle\n`);
     const found = discoverDocs(root);
@@ -1377,6 +1451,7 @@ describe("recallMem", () => {
       { role: "assistant", text: "Callback retries at most three." },
     ]);
     const result = recallMem({
+      source: "all",
       cwd: root,
       query: "callback retries three",
       limit: 6,
@@ -1718,7 +1793,7 @@ describe("review regressions: source boundaries and evidence", () => {
       { role: "assistant", text: "needle CONFIRMED_DECISION" },
       { role: "user", text: "Only for test accounts." },
     ]);
-    const ref = recallMem({ cwd: root, query: "needle" }).hits[0]?.ref ?? "";
+    const ref = recallMem({ source: "history", cwd: root, query: "needle" }).hits[0]?.ref ?? "";
     const result = readMemRefs({ cwd: root, refs: [ref] });
     expect(result.reads[0]?.text).toContain(
       "assistant: needle CONFIRMED_DECISION",

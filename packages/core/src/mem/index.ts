@@ -56,6 +56,7 @@ export type {
   ExtractMemDialogueOptions,
   ListMemProjectsOptions,
   RecallSourceKind,
+  RecallScope,
   RecallStrength,
   RecallHit,
   RecallResult,

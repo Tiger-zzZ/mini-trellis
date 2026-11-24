@@ -584,10 +584,15 @@ def _build_compact_current_state(
                 f"Journal: {_repo_relative(repo_root, journal)}, {count_lines(journal)} / 2000 lines."
             )
 
-    if spec_index_paths:
-        lines.append(f"Spec indexes: {len(spec_index_paths)} available.")
-
-    lines.append("Research: use `mini-trellis mem recall <query>` when relevant.")
+    try:
+        from common.knowledge_catalog import knowledge_catalog  # type: ignore[import-not-found]
+    except ModuleNotFoundError:
+        # An inherited hook can run in an older initialized checkout.
+        lines.append("Open .trellis/index.md if present, or the relevant .trellis/spec/ index.")
+    else:
+        entry = knowledge_catalog(repo_root, spec_index_paths)
+        if entry:
+            lines.append(entry)
 
     return "\n".join(lines)
 
@@ -701,22 +706,14 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
 
     output.write("<guidelines>\n")
     output.write(
-        "Memory: use `mini-trellis mem recall <query>` for prior decisions, rejected "
-        "approaches, and project rules. If the excerpt answers the question with its "
-        "source and conditions, cite it and stop; use `mini-trellis mem read <ref>` "
-        "only for missing context. Do not repeat a sufficient lookup.\n"
-        "Keep one current rule in its existing document. On a confirmed or corrected rule, "
-        f"run `{remember_command}` even without an explicit remember request, unless told "
-        "not to save. Future policy is agreed, not implemented. Finish topic, verification "
-        "and journal together; reuse unchanged file contents. Preserve conditions and "
-        "negations. New notes follow the discussion language; updates keep theirs.\n"
-        "Memory-only reply: one short sentence with topic/journal Markdown links; explain "
-        "conflicts or partial writes. With implementation, update stale README/docs/spec/research "
-        "descriptions and status; no separate remember request or journal is needed. Questions, "
-        "reviews and unconfirmed proposals need no recording. Commit only when asked.\n"
+        "Before a design, behavior change or project-specific answer, use the relevant entry above "
+        "if you need project knowledge. For remaining gaps use `mini-trellis mem recall <query>`; "
+        "expand missing context with `mini-trellis mem read <ref>`. If still insufficient, try one rewrite "
+        "using a term from the project. Stop when the evidence suffices.\n"
+        f"On a confirmed or corrected rule, run `{remember_command}` unless asked not to save.\n"
     )
 
-    if source == "compact" and platform in {"cursor", "codebuddy", "zcode"}:
+    if source == "compact" and platform in {"cursor", "codebuddy", "zcode", "kiro"}:
         output.write(
             f"This SessionStart follows compact. {platform.title()} conversation history is not read. "
             "Use `mini-trellis mem recall <query>` then `mini-trellis mem read <ref>` for project notes. "
@@ -734,14 +731,14 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
                 "This SessionStart follows compact. Details missing from the summary may "
                 f"still be in local session {session_id}: use "
                 f"`mini-trellis mem context {session_id}{platform_flag}` from this project, or "
-                "`mini-trellis mem recall <query>` then `mini-trellis mem read <ref>`. "
+                "`mini-trellis mem recall <query> --source history` then `mini-trellis mem read <ref>`. "
                 "Record durable decisions that were not saved yet with "
                 f"`{remember_command}`.\n"
             )
         else:
             output.write(
                 "This SessionStart follows compact. Details missing from the summary may "
-                "still be in local session history: use `mini-trellis mem recall <query>`, "
+                "still be in local session history: use `mini-trellis mem recall <query> --source history`, "
                 "then `mini-trellis mem read <ref>` for the original turns. Record durable "
                 f"decisions that were not saved yet with `{remember_command}`.\n"
             )
@@ -753,12 +750,10 @@ Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. R
 
     context_text = output.getvalue()
     if len(context_text) > MAX_CONTEXT_CHARS:
-        tail = context_text[-300:]
-        context_text = (
-            context_text[: MAX_CONTEXT_CHARS - len(tail) - 80]
-            + "\n[mini-trellis context truncated; read files on demand]\n"
-            + tail
-        )
+        tail = context_text[context_text.rindex("<ready>"):]
+        marker = "\n[mini-trellis context truncated; open .trellis/index.md or .trellis/spec/]\n"
+        head = context_text[: MAX_CONTEXT_CHARS - len(marker) - len(tail)]
+        context_text = head.rpartition("\n")[0].rstrip() + marker + tail
 
     content_hash = hashlib.sha256(context_text.encode("utf-8")).hexdigest()[:24]
 

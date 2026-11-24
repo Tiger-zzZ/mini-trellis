@@ -13,15 +13,21 @@ Start with the document that already explains the topic. Write the decision, its
 
 Project documents under README, `docs/`, and `doc/` participate in recall. The [source reference](recall.md#sources) describes discovery in detail.
 
+Create `.trellis/index.md` on the first topic write. Give each selected topic one line, for example `- .trellis/spec/backend/callbacks.md — changing delivery retries`. Update the line when the topic moves or its purpose changes. Keep the current rule, exceptions, date and status in the owning document. Record a correction next to the current value with its previous value, date and reason.
+
+Hand-written entries can also use `- path.md - when to read` or `- [when to read](path.md)`. Use paths relative to the project root. An entry may point to a README or a document under `docs/` or `doc/` in a nested Git checkout or a package with a `package.json`. This adds a navigation link without expanding recall’s search roots. The startup message gives the number of invalid entries and up to three source line numbers. If no entry is usable, it lists the existing spec indexes.
+
 ## A short spec
 
 ```markdown
 # Callback idempotency
 
+## Current conclusions
+
 Every callback carries an idempotency key. Repeated delivery returns the
 first result. The uniqueness check happens within the ledger transaction.
 
-Verification: the duplicate-delivery test covers retries of the same key.
+Implemented. The duplicate-delivery test covers retries of the same key.
 ```
 
 Link a new spec from the relevant directory's `index.md`. Keep each rule scoped to the module it affects. Ask the agent to use `mini-trellis-update-spec` when maintaining a durable convention.
@@ -31,10 +37,14 @@ Link a new spec from the relevant directory's `index.md`. Keep each rule scoped 
 ```markdown
 # Callback retries
 
-Decision: retry transient failures up to four total attempts, including
-the first. Permanent failures receive one attempt.
+## Current conclusions
 
-Reason: the upstream service has confirmed idempotent handling.
+Agreed on <confirmation date>, pending implementation. Allow up to four total
+attempts for `transient` failures, including the first. Allow one for `permanent`.
+
+## Evidence
+
+The upstream service has confirmed idempotent handling.
 Rejected: deduplication before the ledger transaction broke reconciliation.
 Sources: link the provider documentation and the relevant code or test.
 ```

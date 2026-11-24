@@ -11,7 +11,7 @@
  *   context <session-id>          drill-down: top-N hit turns + surrounding context
  *   extract <session-id>          dump cleaned dialogue (use --grep KW to filter turns)
  *   projects                      list active project cwds (AI-routing entry point)
- *   recall <query>                unified lookup over project docs and dialogue
+ *   recall <query>                project docs by default, optional local dialogue
  *   read <ref...>                 expand refs returned by recall
  *
  * Run `mini-trellis mem help` for the full flag reference.
@@ -318,10 +318,14 @@ function cmdRecall(argv: Argv): void {
     3000,
   );
   const platform = buildFilter(argv.flags).platform;
+  const source = argv.flags.source ?? "docs";
+  if (source !== "docs" && source !== "history" && source !== "all")
+    die("--source expects docs, history, or all");
   if (argv.flags.global)
     die("recall is project-scoped; use --cwd to select a project");
   const result = recallMem({
     query,
+    source,
     cwd,
     limit,
     maxChars: Math.max(0, maxChars - 128),
@@ -330,7 +334,10 @@ function cmdRecall(argv: Argv): void {
   printMemoryResult(result, result.hits, maxChars, (value) => {
     if (argv.flags.json) return JSON.stringify(value);
     const lines: string[] = [];
-    if (value.incomplete) lines.push("(search incomplete — see warnings)");
+    if (value.incomplete)
+      lines.push(`(${value.source} scan incomplete — see warnings)`);
+    if (value.warnings.some((w) => w.kind === "history-gap"))
+      lines.push("(history has missing content — see warnings)");
     if (value.truncated)
       lines.push("(results or excerpts limited by count or output budget)");
     if (!value.hits.length)
@@ -362,7 +369,12 @@ function cmdRecall(argv: Argv): void {
     lines.push(
       `\n${value.hits.length} hit(s)${value.totalHits > value.hits.length ? ` of ${value.totalHits}` : ""}`,
     );
-    return lines.join("\n");
+    const output = lines.join("\n");
+    const hint =
+      "\nTry a project term, identifier, or wording used in the source.";
+    return !value.totalHits && output.length + hint.length + 1 <= maxChars
+      ? output + hint
+      : output;
   });
 }
 
@@ -580,7 +592,7 @@ function cmdHelp(): void {
   console.log(`mini-trellis mem — list/search Claude/Codex/OpenCode/Pi/Droid sessions
 
 commands:
-  recall <query>                find project documents and past dialogue (default 3 hits)
+  recall <query>                find project documents (default 3 hits)
   read <ref...>                 expand refs copied from recall (one batch budget)
   list                          list sessions (default if no command)
   search <keyword>              find sessions whose contents match keyword
@@ -591,6 +603,7 @@ commands:
                                 use this to discover which --cwd to pass to search
 
 flags:
+  --source docs|history|all              recall: documents (default), dialogue, or both
   --platform ${PLATFORM_HELP}   default all
   --since YYYY-MM-DD                     inclusive lower bound
   --until YYYY-MM-DD                     inclusive upper bound
@@ -612,6 +625,7 @@ examples:
   mini-trellis mem search "session insight" --global
   mini-trellis mem extract 5842592d --grep memory
   mini-trellis mem recall "release cadence"
+  mini-trellis mem recall "release cadence" --source history --platform claude
   mini-trellis mem read "<ref copied from recall>"
 
 organize selected history:

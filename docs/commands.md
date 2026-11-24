@@ -24,7 +24,7 @@ For init, `-y` accepts defaults, `-s` skips existing files, and `-f` overwrites 
 
 | Command | Reads | Typical use |
 | --- | --- | --- |
-| `mem recall "query"` | Project documents and local conversations | Find a decision or rule |
+| `mem recall "query"` | Project documents by default | Find a decision or rule |
 | `mem read "ref" ["ref" ...]` | Sources referenced by recall | Expand one or more excerpts |
 | `mem list` | Local session metadata | Select a session |
 | `mem search "keyword"` | Local conversation text | Find the discussion |
@@ -38,6 +38,7 @@ For init, `-y` accepts defaults, `-s` skips existing files, and `-f` overwrites 
 | Option | Applies to | Meaning / default |
 | --- | --- | --- |
 | `--cwd <path>` | recall, read, list, search, context, extract | Choose the project; defaults to the working directory |
+| `--source docs\|history\|all` | recall | Project documents (default), supported conversations, or both |
 | `--platform <name>` | recall and session commands | `claude`, `codex`, `opencode`, `pi`, `droid`, or `all`; defaults to all |
 | `--global` | list, search, context, extract | Include all projects; recall rejects this option |
 | `--since`, `--until` | Session selection | Inclusive date bounds (`YYYY-MM-DD`) |
@@ -50,7 +51,7 @@ For init, `-y` accepts defaults, `-s` skips existing files, and `-f` overwrites 
 | `--phase <name>` | extract | `brainstorm`, `implement`, or `all`; defaults to all |
 | `--json` | All memory commands except help | Machine-readable output |
 
-Recall's platform filter affects transcript sources; documents still participate. Dates filter session commands, not the unified recall results. Read accepts refs from the selected project. Extract is unbounded and does not use `--max-chars`.
+The platform filter applies to history in `--source history` and `--source all`. Dates filter session commands, not the unified recall results. Read accepts refs from the selected project. Extract is unbounded and does not use `--max-chars`.
 
 ```bash
 mini-trellis mem recall "callback retries" --limit 5 --max-chars 5000

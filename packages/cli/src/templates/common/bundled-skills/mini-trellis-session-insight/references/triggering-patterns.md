@@ -4,7 +4,7 @@ Examples of requests that may need earlier project knowledge. Use `mini-trellis 
 
 Patterns are grouped by the *intent* behind the phrasing, not the surface words. The same intent shows up in different languages and registers.
 
-Start with project-scoped `recall`. It returns source-linked excerpts from documents and past conversations. If an excerpt answers the question with its necessary conditions and negations, cite it and stop. Use `read` only for missing context; a hit is not a reason to repeat the query or run another search path.
+Check the relevant catalog entry when project documents may answer the question. Project-scoped `recall` searches documents by default. Use `--source history` for original turns or `--source all` to include both. If an excerpt answers the question with its necessary conditions and negations, cite it and stop. Use `read` only for missing context; a hit is not a reason to repeat the query or run another search path.
 
 ## Past-solution recall
 
@@ -30,7 +30,7 @@ The user is referencing an earlier decision whose rationale may be in project no
 - "关于 X 我们之前是怎么定的?"
 - "之前讨论过 X 的方案吗?"
 
-Reach: `mini-trellis mem recall "<decision keyword>"`. Expand a returned ref only when needed to distinguish a proposal, rejection, or confirmed decision.
+Reach: for the current decision, open its catalog entry or use `mini-trellis mem recall "<decision keyword>"`. If the question needs original wording, an undocumented rationale or a rejection, use `--source history`. Stop once the source establishes the decision and its conditions.
 
 ## Cross-session continuation
 
@@ -43,7 +43,7 @@ The user resumed work after a gap and the context is implicit.
 - "我们上次做到哪了"
 - "接着昨天那个任务"
 
-Reach: check the active journal and current context first. If earlier details are missing, use `mini-trellis mem recall "<work topic or changed path>"`, then read only the refs needed to resume.
+Reach: start with the current context, active journal and linked topic. Use `mini-trellis mem recall "<work topic or changed path>"` for a remaining gap in project knowledge. Use `--source history` if a missing detail belongs to the previous conversation.
 
 ## Familiar-bug debugging
 
@@ -69,7 +69,7 @@ The user is asking whether they keep repeating the same kind of mistake or decis
 - "我老犯这个错?"
 - "这类问题之前出现过几次?"
 
-Reach: `mini-trellis mem recall "<topic>"`. Compare the returned examples and their sources; expand only unresolved context. Describe observed examples rather than treating a limited result set as a complete count.
+Reach: `mini-trellis mem recall "<topic>" --source history`. Compare the returned examples and their sources; expand only unresolved context. Describe observed examples rather than treating a limited result set as a complete count.
 
 ## Session retrospective (on demand)
 
@@ -82,7 +82,7 @@ The user explicitly wants to look back at recent work — not as a forced step, 
 - "记一下这次踩的坑"
 - "复盘下这个任务"
 
-Reach: summarize from the current conversation first. If older context is needed, use `mini-trellis mem recall "<work topic>"` and read only the refs that fill a gap. Include source or file:line citations where useful.
+Reach: summarize from the current conversation first. If older turns are needed, use `mini-trellis mem recall "<work topic>" --source history` and read only the refs that fill a gap. Include source or file:line citations where useful.
 
 For an explicit recording request or a confirmed reusable decision, follow the host's remember guidance: update an existing spec/research topic, check the saved content, and link it from a brief journal entry. Summarizing alone does not turn unconfirmed ideas into decisions. Respect requests not to record; ordinary edits need no automatic note.
 

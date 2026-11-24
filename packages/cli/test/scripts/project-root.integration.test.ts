@@ -159,7 +159,7 @@ describe("project root agreement", () => {
       encoding: "utf8",
     });
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain("Spec indexes: 1 available");
+    expect(result.stdout).toContain("- .trellis/spec/guides/index.md");
     expect(fs.existsSync(path.join(child, ".trellis"))).toBe(false);
     expect(fs.existsSync(path.join(nested, ".trellis/.runtime/hooks"))).toBe(
       true,

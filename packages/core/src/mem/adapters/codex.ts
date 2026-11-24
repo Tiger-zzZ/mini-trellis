@@ -325,7 +325,7 @@ function pushWarningOnce(
 ): void {
   if (!warnings) return;
   if (warnings.some((w) => w.code === code)) return;
-  warnings.push({ code, message });
+  warnings.push({ code, message, kind: "history-gap" });
 }
 
 export function codexExtractDialogue(

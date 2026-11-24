@@ -6,7 +6,7 @@ Use `recall` for project knowledge and `read` for missing context. Full command 
 
 | Command | Purpose |
 | ------ | ------ |
-| `recall <query>` | Search project Markdown and past conversations together. Returns source-linked excerpts; default `3` hits. |
+| `recall <query>` | Search project Markdown by default. Returns source-linked excerpts; default `3` hits. |
 | `read <ref...>` | Expand one or more refs copied from recall, sharing one output budget. |
 | `list` | List sessions. Default when none is given. |
 | `search <keyword>` | Find sessions whose contents match a keyword. |
@@ -20,7 +20,8 @@ Use `recall` for project knowledge and `read` for missing context. Full command 
 
 | Flag | Subcommands | Meaning |
 | ---- | ----------- | ------- |
-| `--platform claude\|codex\|opencode\|pi\|all` | recall / list / search / context / extract / projects | Default `all`; filters conversation sources. |
+| `--source docs\|history\|all` | recall | Project documents (default), past conversations, or both. |
+| `--platform claude\|codex\|opencode\|pi\|droid\|all` | recall / list / search / context / extract / projects | Default `all`; filters conversation sources. |
 | `--since YYYY-MM-DD` | list / search / context / extract / projects | Inclusive lower date bound. |
 | `--until YYYY-MM-DD` | list / search / context / extract / projects | Inclusive upper date bound. |
 | `--global` | list / search / context / extract | Include all projects' conversations, only for explicit cross-project requests. Not supported by `recall`. |
@@ -34,7 +35,7 @@ Use `recall` for project knowledge and `read` for missing context. Full command 
 | `--json` | all | Machine-readable JSON. |
 
 ```bash
-mini-trellis mem recall "deadlock"
+mini-trellis mem recall "deadlock" --source history
 # Only when the excerpts lack necessary context:
 mini-trellis mem read "<ref copied from recall>"
 ```

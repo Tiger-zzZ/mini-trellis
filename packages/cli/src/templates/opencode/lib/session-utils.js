@@ -220,11 +220,14 @@ function buildCompactCurrentState(ctx, specIndexPaths) {
     }
   }
 
-  if (specIndexPaths.length > 0) {
-    lines.push(`Spec indexes: ${specIndexPaths.length} available.`)
+  try {
+    const script = join(directory, ".trellis", "scripts", "common", "knowledge_catalog.py")
+    lines.push(execFileSync(PYTHON_CMD, ["-I", "-X", "utf8", script], {
+      cwd: directory, input: specIndexPaths.join("\n"), encoding: "utf8", timeout: 3000,
+    }).trimEnd())
+  } catch {
+    lines.push("Open .trellis/index.md if present, or the relevant .trellis/spec/ index.")
   }
-
-  lines.push("Research: use `mini-trellis mem recall <query>` when relevant.")
 
   return lines.join("\n")
 }
@@ -256,16 +259,10 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
 
   parts.push("<guidelines>")
   parts.push(
-    "Memory: use `mini-trellis mem recall <query>` for prior decisions, rejected " +
-    "approaches, and project rules. If the excerpt answers the question with its " +
-    "source and conditions, cite it and stop; use `mini-trellis mem read <ref>` " +
-    "only for missing context. Do not repeat a sufficient lookup.\n" +
-    "Research lives in `.trellis/research/`; durable rules belong in `.trellis/spec/`.\n" +
-    "Record a confirmed decision, a rejected approach worth not retrying, or a useful " +
-    "handoff with `/mini-trellis:remember` or `python3 ./.trellis/scripts/add_session.py`. " +
-    "Do not record every turn, and do not create a git commit unless the user asks.\n"
+    "Before a design, behavior change or project-specific answer, open the relevant entry if you need project knowledge. " +
+    "For remaining gaps use `mini-trellis mem recall <query>`. Expand missing context with `mini-trellis mem read <ref>`. " +
+    "If needed, try one rewrite using a term from the project. Stop when the evidence suffices. On a confirmed or corrected rule, run `/mini-trellis:remember` unless asked not to save."
   )
-
 
   parts.push("</guidelines>")
 
@@ -275,9 +272,10 @@ Context loaded. Use journal, spec, research, and \`mini-trellis mem\` on demand.
 
   const context = parts.join("\n\n")
   if (context.length <= MAX_CONTEXT_CHARS) return context
-  const tail = context.slice(-300)
-  return context.slice(0, MAX_CONTEXT_CHARS - tail.length - 80) +
-    "\n[mini-trellis context truncated; read files on demand]\n" + tail
+  const tail = context.slice(context.lastIndexOf("<ready>"))
+  const marker = "\n[mini-trellis context truncated; open .trellis/index.md or .trellis/spec/]\n"
+  const head = context.slice(0, MAX_CONTEXT_CHARS - tail.length - marker.length)
+  return head.slice(0, head.lastIndexOf("\n") + 1).trimEnd() + marker + tail
 }
 
 function getTrellisMetadata(metadata) {

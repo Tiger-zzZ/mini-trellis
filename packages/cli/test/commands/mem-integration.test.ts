@@ -818,6 +818,24 @@ describe("runMem subcommand integration", () => {
     expect(joined).toMatch(/\d+ hit\(s\)/);
   });
 
+  it("keeps the catalog out of search and suggests a rewrite only when a zero-hit hint fits", () => {
+    seedProjectDocs();
+    nodeFs.mkdirSync(nodePath.join(projectCwd, ".trellis"), { recursive: true });
+    nodeFs.writeFileSync(nodePath.join(projectCwd, ".trellis", "index.md"),
+      "- docs/billing.md — CATALOG_ONLY_TOKEN\n");
+    runMem(["recall", "CATALOG_ONLY_TOKEN", "--cwd", projectCwd]);
+    expect(logs.join("\n")).toContain("(no matches)");
+    expect(logs.join("\n")).toContain("Try a project term");
+    logs.length = 0;
+    runMem(["recall", "CATALOG_ONLY_TOKEN", "--cwd", projectCwd, "--max-chars", "45"]);
+    expect(logs.join("\n")).toContain("(no matches)");
+    expect(logs.join("\n")).not.toContain("Try a project term");
+    logs.length = 0;
+    runMem(["recall", "double-charge", "--cwd", projectCwd]);
+    expect(logs.join("\n")).toContain("docs/billing.md");
+    expect(logs.join("\n")).not.toContain("Try a project term");
+  });
+
   it("search stays conversation-only while recall can find project notes", () => {
     seedProjectDocs();
     runMem(["search", "double-charge", "--cwd", projectCwd, "--json"]);
@@ -851,7 +869,7 @@ describe("runMem subcommand integration", () => {
   });
 
   it("recall: surfaces a matching dialogue session by ref", () => {
-    runMem(["recall", "memory leak", "--cwd", projectCwd]);
+    runMem(["recall", "memory leak", "--source", "history", "--cwd", projectCwd]);
     const joined = logs.join("\n");
     expect(joined).toContain("session:v1:");
     expect(joined).toContain("unbounded caches");
@@ -862,8 +880,15 @@ describe("runMem subcommand integration", () => {
     expect(errs.join("\n")).toContain("usage: recall <query>");
   });
 
+  it("rejects an unknown or missing source selector", () => {
+    for (const value of [["--source", "files"], ["--source"]]) {
+      expect(() => runMem(["recall", "needle", ...value])).toThrow(/__exit__:2/);
+    }
+    expect(errs.join("\n")).toContain("--source expects docs, history, or all");
+  });
+
   function recallRef(query: string, sourceKind: string): string {
-    runMem(["recall", query, "--cwd", projectCwd, "--json"]);
+    runMem(["recall", query, "--source", sourceKind === "doc" ? "docs" : "history", "--cwd", projectCwd, "--json"]);
     const result = JSON.parse(logs.join("\n")) as {
       hits: { ref: string; sourceKind: string }[];
     };

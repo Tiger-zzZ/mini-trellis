@@ -9,7 +9,7 @@ How to call `mini-trellis mem` and when that is the right move. Capability, not 
 
 ## What it is
 
-The CLI discovers and searches project Markdown locally without an index service or extra configuration. It also reads native conversation logs from Claude Code, Codex, OpenCode V1, Pi, and Factory Droid. For Antigravity, OpenCode V2, CodeBuddy, Cursor, DeepSeek Harness, ZCode, and Kiro, use `mini-trellis mem recall` to find saved project knowledge. To review a specific conversation from one of these hosts, read a Markdown or plain-text export supplied by the user.
+Open the relevant entry in `.trellis/index.md` when the current context needs project knowledge. By default `mem recall` searches project Markdown locally. Use `--source history` for original wording, rejected alternatives or an undocumented discussion, and `--source all` when both documents and dialogue matter. It reads native conversation logs from Claude Code, Codex, OpenCode V1, Pi, and Factory Droid. For Antigravity, OpenCode V2, CodeBuddy, Cursor, DeepSeek Harness, ZCode, Kiro, and OMP, use `mini-trellis mem recall` to find saved project knowledge. To review a specific conversation from one of these hosts, read a Markdown or plain-text export supplied by the user.
 
 ```bash
 mini-trellis mem recall "<topic or path>"
@@ -41,8 +41,10 @@ Read [Organize selected history](references/organize-history.md) for this reques
 
 ## Evidence and limits
 
-Start with `recall` when earlier decisions or relevant project rules are needed; do not search on every turn. If an excerpt already answers the question with its source and necessary conditions/negations, cite it and stop. `read` is not a mandatory verification step. Use it for missing context, especially a proposal, rejection or condition in neighboring turns. Preserve speakers and chronological order. Reuse refs exactly; they include a source fingerprint. If a source changed or moved, recall again rather than trusting old text. Do not repeat the same lookup or run the legacy dialogue-only `search/context` after sufficient evidence merely to confirm it again; those commands remain available for explicit dialogue-only work.
+If a relevant entry leaves a gap, start with a few space-separated topic words or exact identifiers. Two to five is a useful starting point. Use the language of the titles or passages you have seen. If an excerpt already answers the question with its source and necessary conditions/negations, cite it and stop. `read` is not a mandatory verification step. Use it for missing context, especially a proposal, rejection or condition in neighboring turns. Preserve speakers and chronological order. Reuse refs exactly; they include a source fingerprint. If a source changed or moved, recall again rather than trusting old text. Do not repeat the same lookup or run the legacy dialogue-only `search/context` after sufficient evidence merely to confirm it again; those commands remain available for explicit dialogue-only work.
 
-`weak` is lexical overlap, not a confirmed answer. `incomplete` means some sources were not searched; `truncated` means the output budget or result limit was reached. Check warnings before claiming no memory exists. One keyword rewrite can help; do not loop indefinitely or infer semantic search.
+`weak` describes lexical overlap. If hits are unrelated, missing a condition, contradictory, or absent, expand a relevant ref or try one rewrite for that gap using a term or language from the material. A sufficient excerpt ends that lookup.
+
+`incomplete` means part of the requested source scope could not be scanned. A `history-gap` warning identifies missing content in a readable transcript, including pre-compact replies and encrypted messages. Check these warnings even when the scan finished. `truncated` concerns the returned hits or excerpts. Absence of a hit leaves the historical question open.
 
 Write new notes in the user's requested language, otherwise the discussion language. Preserve an existing document's language and original identifiers. Update the existing topic before creating another; journal entries should link to the topic rather than duplicate it.

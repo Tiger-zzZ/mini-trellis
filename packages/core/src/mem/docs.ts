@@ -317,6 +317,11 @@ function consider(
   });
 }
 
+function isScanEntry(entry: fs.Dirent): boolean {
+  return entry.isDirectory() || entry.isSymbolicLink() ||
+    (entry.isFile() && MARKDOWN_EXT.has(path.extname(entry.name).toLowerCase()));
+}
+
 function hasSkippedMarkdown(
   state: ScanState,
   dir: string,
@@ -334,7 +339,7 @@ function hasSkippedMarkdown(
       return false;
     if (state.directories.has(real)) return false;
     state.directories.add(real);
-    entries = fs.readdirSync(dir, { withFileTypes: true });
+    entries = fs.readdirSync(dir, { withFileTypes: true }).filter(isScanEntry);
   } catch {
     return true;
   }
@@ -406,7 +411,7 @@ function walk(
       return;
     if (state.directories.has(real)) return;
     state.directories.add(real);
-    entries = fs.readdirSync(dir, { withFileTypes: true });
+    entries = fs.readdirSync(dir, { withFileTypes: true }).filter(isScanEntry);
   } catch {
     state.warnings.push({
       code: "doc-unreadable",
@@ -415,9 +420,8 @@ function walk(
     return;
   }
   if (!bypassIgnore) {
-    state.ignored.prime(entries.slice(0, Math.max(0, MAX_ENTRIES - state.entries)).filter(entry =>
-      entry.isDirectory() || entry.isSymbolicLink() || MARKDOWN_EXT.has(path.extname(entry.name).toLowerCase()),
-    ).map(entry => relPosix(state.root, path.join(dir, entry.name))));
+    state.ignored.prime(entries.slice(0, Math.max(0, MAX_ENTRIES - state.entries))
+      .map(entry => relPosix(state.root, path.join(dir, entry.name))));
   }
   for (const entry of entries) {
     if (state.truncated) return;
@@ -522,13 +526,12 @@ export function discoverDocs(start: string): DocDiscovery {
   }
 
   for (const name of fs.existsSync(root) ? fs.readdirSync(root) : []) {
+    if (!/^README.*\.md$/i.test(name)) continue;
     if (++state.entries > MAX_ENTRIES || Date.now() > state.deadline) {
       state.truncated = true;
       break;
     }
-    if (/^README.*\.md$/i.test(name)) {
-      consider(state, path.join(root, name), "root");
-    }
+    consider(state, path.join(root, name), "root");
   }
   for (const name of ["AGENTS.md", "CLAUDE.md"]) {
     const abs = path.join(root, name);
