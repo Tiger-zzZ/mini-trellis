@@ -40,6 +40,7 @@ _CONVERSATION_KEYS = ("conversation_id", "conversationId", "conversationID")
 _TRANSCRIPT_KEYS = ("transcript_path", "transcriptPath", "transcript")
 _NESTED_KEYS = ("input", "properties", "event", "hook_input", "hookInput")
 _KNOWN_PLATFORMS = {
+    "antigravity",
     "claude",
     "codex",
     "cursor",
@@ -114,6 +115,8 @@ _ENV_SESSION_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("snow", ("SNOW_SESSION_ID",)),
 )
 _ENV_CONVERSATION_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    # Verified in agy 1.5.18: shell children receive the conversation ID.
+    ("antigravity", ("ANTIGRAVITY_CONVERSATION_ID",)),
     # REAL in cursor-agent (CLI), undocumented (verified 2026-08-05: the value
     # matches ~/.cursor/chats/<ws>/<id>). The Cursor *IDE* is unverified — a
     # 2026-05 forum request for it drew no staff reply. The invented

@@ -1,6 +1,6 @@
 # Agent 配置
 
-以下集成都可以使用项目 Markdown。启动入口、原始对话读取和 compact 恢复因平台而异。本页对应 v0.4.2。
+以下集成都可以使用项目 Markdown。启动入口、原始对话读取和 compact 恢复因平台而异。
 
 <a id="capabilities"></a>
 ## 平台能力
@@ -18,7 +18,7 @@
 | DeepSeek Harness | `--dsh` | 项目说明与技能 | — | 已保存的项目文档 |
 | CodeBuddy CLI / IDE | `--codebuddy` | SessionStart 与技能 | — | 已保存的项目文档 |
 | ZCode | `--zcode` | 信任后的 SessionStart | — | 已保存的项目文档 |
-| Google Antigravity | `--antigravity` | 项目技能与支持版本的 SessionStart | — | 已保存的项目文档 |
+| Google Antigravity | `--antigravity` | SessionStart 与技能 | 支持 | 当前会话与压缩边界 |
 | Factory Droid | `--droid` | SessionStart 与技能 | 支持 | 当前会话与压缩边界 |
 
 “—”表示尚未解析该平台的原始对话。可以提供 Markdown/文本导出供 [session-insight](history_CN.md) 整理。同一仓库可组合多个初始化参数。
@@ -217,11 +217,13 @@ mini-trellis doctor
 
 与 Codex、ZCode 共用 `.agents/skills/` 中的 remember、session-insight、update-spec。用 `/mini-trellis-remember` 保存决定，后续在新会话用 `mini-trellis mem recall <关键词>` 找到原项目约定。
 
-项目的 `.agents/hooks.json` 注册 `mini-trellis-session-start`。在 CLI 的 `/hooks` 或桌面端自定义面板核对该组，再开启新会话。`doctor` 显示注册与最近观察到的执行。
+项目的 `.agents/hooks.json` 在 `mini-trellis-session-start` 组中注册 `SessionStart` 和 `PreInvocation`。在 CLI 的 `/hooks` 或桌面端自定义面板核对该组，再开启新会话。`doctor` 显示注册与最近观察到的执行。
 
 现行版本使用 `.agents/` 并支持 `SessionStart`。CLI 从 1.5.4 起提供 `cwd`，早期输入则根据挂载目录定位同一个已初始化项目。只识别 `.agent/skills` 或没有 `SessionStart` 的旧版，可以打开项目根目录，让 Agent 读取 `AGENTS.md` 或按文件路径使用共享技能。参见官方[技能](https://antigravity.google/docs/skills)与 [Hook](https://antigravity.google/docs/hooks) 说明。
 
-用 `mini-trellis refresh --antigravity --dry-run` 预览更新。刷新保留已有 Hook 组和启用状态。旧自定义目录已有同名技能时，先移动或改名，再启用共享技能。
+对话压缩后，`PreInvocation` 提供一次交接提示。运行 `mini-trellis mem context <conversationId> --platform antigravity` 可读取压缩前的对话。历史读取器依次检查 `ANTIGRAVITY_APP_DATA_DIR` 和 `~/.gemini/` 下的 `antigravity-cli`、`antigravity`、`antigravity-ide`。多工作区会话在每个所属工作区都可查到。为 search 或 context 加上 `--include-children` 可包含子会话。
+
+仅注册了 SessionStart 的旧版可通过 `mini-trellis refresh --antigravity` 升级，添加 `--dry-run` 可预览。刷新保留已有 Hook 组和启用状态。旧自定义目录已有同名技能时，先移动或改名，再启用共享技能。
 
 <a id="droid"></a>
 ## Factory Droid

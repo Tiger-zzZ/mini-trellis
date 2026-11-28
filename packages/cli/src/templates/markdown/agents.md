@@ -19,7 +19,7 @@ For a memory-only update, reply with one short sentence using actual topic and j
 
 When recall excerpts already answer the question with source and qualifiers, cite them and stop. Expand only missing context; do not repeat a lookup or fall back to dialogue-only `search` merely to reconfirm sufficient evidence.
 
-Use project knowledge or supply Markdown/text exports when working with earlier ZCode, Kiro, OMP, or Antigravity conversations. To organize selected past sessions or supplied exports into project knowledge, use `mini-trellis-session-insight`, update existing documents, and preserve sources.
+Use project knowledge or supply Markdown/text exports when working with earlier ZCode, Kiro, or OMP conversations. To organize selected past sessions or supplied exports into project knowledge, use `mini-trellis-session-insight`, update existing documents, and preserve sources.
 
 mini-trellis does not create or drive tasks.
 

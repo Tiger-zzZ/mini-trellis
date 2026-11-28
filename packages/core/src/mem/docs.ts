@@ -112,8 +112,16 @@ export function resolveProjectRoot(start: string): {
     } catch {
       // No initialized project at this level.
     }
-    if (current === gitRoot || fs.existsSync(path.join(current, ".git"))) {
-      return { root: current, git: gitRoot !== undefined };
+    if (current === gitRoot) return { root: current, git: true };
+    const marker = path.join(current, ".git");
+    if (fs.existsSync(marker)) {
+      // An empty .git mount is a boundary, but contains no repository.
+      const repo = fs.statSync(marker, { throwIfNoEntry: false });
+      const root =
+        repo?.isFile() || fs.existsSync(path.join(marker, "HEAD"))
+          ? current
+          : realStart;
+      return { root, git: gitRoot !== undefined };
     }
     const parent = path.dirname(current);
     if (parent === current) return { root: realStart, git: false };

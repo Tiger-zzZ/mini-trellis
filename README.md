@@ -87,7 +87,7 @@ The [installation guide](https://mini-trellis.github.io/install/) covers require
 
 Claude Code · Codex · Cursor · OpenCode V1/V2 · Pi · OMP · Kiro · DeepSeek Harness · CodeBuddy · ZCode · Antigravity · Factory Droid
 
-Combine init flags, such as `--claude --codex`. Native transcript readers support Claude Code, Codex, OpenCode V1, Pi, and Factory Droid. See [Agent setup](https://mini-trellis.github.io/agents/) for the knowledge entry, recording command, and setup steps for each tool.
+Combine init flags, such as `--claude --codex`. Native transcript readers support Claude Code, Codex, OpenCode V1, Pi, Factory Droid, and Antigravity. See [Agent setup](https://mini-trellis.github.io/agents/) for the knowledge entry, recording command, and setup steps for each tool.
 
 ## Documentation
 

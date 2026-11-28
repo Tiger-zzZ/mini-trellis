@@ -4,7 +4,7 @@
  * `searchMemSessions`, and `extractMemDialogue` entry points.
  */
 
-import { sameProject } from "./filter.js";
+import { sessionInProject } from "./filter.js";
 import { MEM_PLATFORMS } from "./platforms.js";
 import { buildBrainstormWindows } from "./phase.js";
 import { relevanceScore, searchInDialogue } from "./search.js";
@@ -114,27 +114,35 @@ export function prepareSqliteStores(
   return releases;
 }
 
-/** Build a parent → descendants index (transitively flattened) for OpenCode
- * sub-agent chains. Other platforms have no native `parent_id`. */
+function sessionKey(s: MemSessionInfo, id = s.id): string {
+  return `${s.platform}:${id}`;
+}
+
+/** Build a parent → descendants index (transitively flattened) for sub-agent chains. */
 function buildChildIndex(
   sessions: readonly MemSessionInfo[],
 ): Map<string, MemSessionInfo[]> {
   const directChildren = new Map<string, MemSessionInfo[]>();
   for (const s of sessions) {
     if (!s.parent_id) continue;
-    const list = directChildren.get(s.parent_id) ?? [];
+    const parent = sessionKey(s, s.parent_id);
+    const list = directChildren.get(parent) ?? [];
     list.push(s);
-    directChildren.set(s.parent_id, list);
+    directChildren.set(parent, list);
   }
   const out = new Map<string, MemSessionInfo[]>();
   for (const [pid] of directChildren) {
     const stack = [...(directChildren.get(pid) ?? [])];
     const flat: MemSessionInfo[] = [];
+    const visited = new Set([pid]);
     while (stack.length) {
       const cur = stack.pop();
       if (cur === undefined) break;
+      const key = sessionKey(cur);
+      if (visited.has(key)) continue;
+      visited.add(key);
       flat.push(cur);
-      for (const c of directChildren.get(cur.id) ?? []) stack.push(c);
+      for (const c of directChildren.get(key) ?? []) stack.push(c);
     }
     out.set(pid, flat);
   }
@@ -147,7 +155,7 @@ function searchSessionWithChildren(
   childIndex: Map<string, MemSessionInfo[]>,
   warnings: MemWarning[],
 ): SearchHit {
-  const children = childIndex.get(s.id) ?? [];
+  const children = childIndex.get(sessionKey(s)) ?? [];
   if (children.length === 0) return searchSession(s, kw, warnings);
   const merged: DialogueTurn[] = [...extractDialogue(s, warnings)];
   for (const c of children) merged.push(...extractDialogue(c, warnings));
@@ -169,7 +177,7 @@ export function findSessionById(
   if (!needle) return undefined;
   const all = listAll({ ...f, cwd: undefined, limit: WIDE_LIMIT }, warnings);
   const exact = all.filter(
-    (s) => s.id === needle && (!f.cwd || sameProject(s.cwd, f.cwd)),
+    (s) => s.id === needle && sessionInProject(s, f.cwd),
   );
   if (exact.length === 1) return exact[0];
   if (exact.length > 1) {
@@ -184,7 +192,7 @@ export function findSessionById(
   if (!f.cwd) return undefined;
 
   const prefixed = all.filter(
-    (s) => s.id.startsWith(needle) && sameProject(s.cwd, f.cwd),
+    (s) => s.id.startsWith(needle) && sessionInProject(s, f.cwd),
   );
   if (prefixed.length === 1) return prefixed[0];
   if (prefixed.length > 1) {
@@ -314,11 +322,11 @@ export function searchMemSessions(
   const childIndex = includeChildren
     ? buildChildIndex(candidates)
     : new Map<string, MemSessionInfo[]>();
-  const candidateIds = new Set(candidates.map((s) => s.id));
+  const candidateIds = new Set(candidates.map((s) => sessionKey(s)));
   const isAbsorbedChild = (s: MemSessionInfo): boolean =>
     includeChildren &&
     s.parent_id !== undefined &&
-    candidateIds.has(s.parent_id);
+    candidateIds.has(sessionKey(s, s.parent_id));
 
   const matches: MemSearchMatch[] = [];
   const releases = prepareSqliteStores(candidates, warnings);
@@ -333,7 +341,7 @@ export function searchMemSessions(
         session: s,
         hit,
         score: relevanceScore(hit),
-        descendantsMerged: childIndex.get(s.id)?.length ?? 0,
+        descendantsMerged: childIndex.get(sessionKey(s))?.length ?? 0,
       });
     }
   } finally {
@@ -389,4 +397,4 @@ export function extractMemDialogue(
 }
 
 // Re-exports needed by sibling orchestration modules.
-export { extractDialogue, buildChildIndex };
+export { extractDialogue, buildChildIndex, sessionKey };

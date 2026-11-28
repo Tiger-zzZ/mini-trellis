@@ -9,7 +9,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import type { MemFilter } from "./types.js";
+import type { MemFilter, MemSessionInfo } from "./types.js";
 
 /** Single-point range check: `since ≤ t ≤ until`. Pass-through when `iso` is
  * undefined or unparseable. Internal-only — session list filtering uses
@@ -92,4 +92,21 @@ export function sameProject(
   const a = real(sessionCwd);
   const b = real(target);
   return a === b || a.startsWith(b + path.sep);
+}
+
+type SessionWorkspace = Pick<MemSessionInfo, "cwd" | "cwds">;
+
+export function sessionWorkspaces(session: SessionWorkspace): string[] {
+  if (!session.cwds) return session.cwd ? [session.cwd] : [];
+  return [...new Set([...(session.cwd ? [session.cwd] : []), ...session.cwds])];
+}
+
+export function sessionInProject(
+  session: SessionWorkspace,
+  target: string | undefined,
+): boolean {
+  return (
+    !target ||
+    sessionWorkspaces(session).some((cwd) => sameProject(cwd, target))
+  );
 }

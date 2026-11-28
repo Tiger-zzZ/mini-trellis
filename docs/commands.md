@@ -38,7 +38,7 @@ For init, `-y` accepts defaults, `-s` skips existing files, and `-f` overwrites 
 | Option | Applies to | Meaning / default |
 | --- | --- | --- |
 | `--cwd <path>` | recall, read, list, search, context, extract | Choose the project; defaults to the working directory |
-| `--platform <name>` | recall and session commands | `claude`, `codex`, `opencode`, `pi`, `droid`, or `all`; defaults to all |
+| `--platform <name>` | recall and session commands | `claude`, `codex`, `opencode`, `pi`, `droid`, `antigravity`, or `all`; defaults to all |
 | `--global` | list, search, context, extract | Include all projects; recall rejects this option |
 | `--since`, `--until` | Session selection | Inclusive date bounds (`YYYY-MM-DD`) |
 | `--limit N` | recall, list, search, projects | Defaults: recall 3, list/search 50, projects 30 |
@@ -46,7 +46,7 @@ For init, `-y` accepts defaults, `-s` skips existing files, and `-f` overwrites 
 | `--turns N` | context | Matching turns to return; default 3 |
 | `--around N` | context | Neighboring turns per match; default 1 |
 | `--max-chars N` | recall, read, context | Output budget; defaults 3000 / 4000 / 6000 |
-| `--include-children` | search, context | Merge OpenCode V1 child sessions into parents |
+| `--include-children` | search, context | Merge OpenCode V1, Droid, or Antigravity child sessions into parents |
 | `--phase <name>` | extract | `brainstorm`, `implement`, or `all`; defaults to all |
 | `--json` | All memory commands except help | Machine-readable output |
 

@@ -1,4 +1,4 @@
-import { sameProject } from "./filter.js";
+import { sessionInProject } from "./filter.js";
 /** Unified local recall: source-scoped discovery, lexical evidence, versioned refs. */
 import { createHash } from "node:crypto";
 import * as path from "node:path";
@@ -775,7 +775,7 @@ function readSession(
   const session = listAll(
     resolveFilter({ cwd: root, platform, limit: WIDE_LIMIT }),
     warnings,
-  ).find((s) => s.id === evidence.id && sameProject(s.cwd, root));
+  ).find((s) => s.id === evidence.id && sessionInProject(s, root));
   if (!session) {
     warnings.push({
       code: "ref-missing",

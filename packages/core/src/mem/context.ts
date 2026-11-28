@@ -7,6 +7,7 @@
 import { excerptAround, windowAt } from "./lexical.js";
 import {
   buildChildIndex,
+  sessionKey,
   extractDialogue,
   findSessionById,
   listAll,
@@ -252,9 +253,12 @@ export function readMemContext(
   let turns: DialogueTurn[] = extractDialogue(s, warnings);
   let mergedChildren = 0;
   if (options.includeChildren === true) {
-    const all = listAll({ ...f, cwd: undefined, limit: WIDE_LIMIT }, warnings);
+    const all = listAll(
+      { ...f, platform: s.platform, limit: WIDE_LIMIT },
+      warnings,
+    );
     const childIndex = buildChildIndex(all);
-    const kids = childIndex.get(s.id) ?? [];
+    const kids = childIndex.get(sessionKey(s)) ?? [];
     mergedChildren = kids.length;
     for (const c of kids) {
       turns = [...turns, ...extractDialogue(c, warnings)];

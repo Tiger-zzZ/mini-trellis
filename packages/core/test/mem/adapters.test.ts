@@ -87,10 +87,13 @@ const {
 } = await import("../../src/mem/adapters/droid.js");
 const { droidProjectDirName } = await import("../../src/mem/internal/paths.js");
 
-import type { MemFilter, MemSessionInfo } from "../../src/mem/types.js";
+import { pathToFileURL } from "node:url";
+import { MEM_PLATFORMS } from "../../src/mem/platforms.js";
+import type { MemFilter, MemSessionInfo, MemWarning } from "../../src/mem/types.js";
 import {
   findPythonForSqlite,
   runPythonScript,
+  writeAntigravityIndex,
 } from "./sqlite-fixture.js";
 
 /** Minimal global-scope filter; overrides merge in. */
@@ -2047,3 +2050,193 @@ describe("droidListSessions / droidExtractDialogue", () => {
     expect(droidSearch(session, "retracted").count).toBe(0);
   });
 });
+
+describe.skipIf(!SQLITE_PY)(
+  "Antigravity WAL index and transcript steps",
+  () => {
+    const adapter = MEM_PLATFORMS.antigravity;
+    const custom = nodePath.join(fakeHome, "custom");
+    const gemini = nodePath.join(fakeHome, ".gemini");
+    function transcript(root: string, id: string, name = "transcript.jsonl") {
+      return nodePath.join(
+        root,
+        "brain",
+        id,
+        ".system_generated",
+        "logs",
+        name,
+      );
+    }
+    beforeEach(() => vi.stubEnv("ANTIGRAVITY_APP_DATA_DIR", "~/custom"));
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      rimraf(custom);
+      rimraf(gemini);
+      snapshotTestState.unstablePath = null;
+    });
+
+    it("lists readable conversations across products, retaining the preferred transcript and each workspace", () => {
+      const a = nodePath.join(fakeHome, "项目 space");
+      const b = nodePath.join(fakeHome, "other");
+      const paths = ["file:///bad%xx", pathToFileURL(a).href, b, b];
+      writeAntigravityIndex(custom, [
+        ["main", paths, undefined, "2026-06-01 12:00:00.123456789+02:30"],
+        ["missing", paths],
+      ]);
+      writeJsonl(transcript(custom, "main"), [
+        { type: "USER_INPUT", content: "short" },
+      ]);
+      const full = transcript(custom, "main", "transcript_full.jsonl");
+      writeJsonl(full, [
+        { created_at: "bad" },
+        { created_at: "2026-06-01 09:29:59.123456789" },
+      ]);
+      for (const product of [
+        "antigravity-cli",
+        "antigravity",
+        "antigravity-ide",
+      ]) {
+        const root = nodePath.join(gemini, product);
+        writeAntigravityIndex(root, [
+          ["main", paths],
+          [product, [b], "main"],
+        ]);
+        writeJsonl(transcript(root, "main"), []);
+        writeJsonl(transcript(root, product), []);
+      }
+      const warnings: MemWarning[] = [];
+      const all = adapter.list(mkFilter({ cwd: b }), warnings);
+      expect(warnings).toEqual([]);
+      expect(all.map((s) => s.id)).toEqual([
+        "main",
+        "antigravity-cli",
+        "antigravity",
+        "antigravity-ide",
+      ]);
+      expect(all[0]).toMatchObject({
+        title: "Title main",
+        cwd: a,
+        cwds: [a, b],
+        filePath: full,
+        created: "2026-06-01T09:29:59.123Z",
+        updated: "2026-06-01T09:30:00.123Z",
+      });
+      expect(all[1]).not.toHaveProperty("cwds");
+      expect(all[1]).toMatchObject({
+        parent_id: "main",
+        updated: nodeFs.statSync(all[1].filePath).mtime.toISOString(),
+      });
+      expect(adapter.list(mkFilter({ cwd: a }), []).map((s) => s.id)).toEqual([
+        "main",
+      ]);
+    });
+
+    it("omits empty and whitespace-only titles from session JSON", () => {
+      writeAntigravityIndex(custom, [
+        ["empty", []],
+        ["blank", []],
+      ]);
+      runPython(`
+import sqlite3
+with sqlite3.connect(${JSON.stringify(nodePath.join(custom, "conversation_summaries.db"))}) as db:
+    db.execute("UPDATE conversation_summaries SET title = CASE conversation_id WHEN 'empty' THEN '' ELSE '   ' END")
+`);
+      for (const id of ["empty", "blank"])
+        writeJsonl(transcript(custom, id), []);
+      const sessions = adapter.list(mkFilter(), []);
+      expect(sessions).toHaveLength(2);
+      for (const session of sessions) {
+        expect(session.title).toBeUndefined();
+        expect(JSON.parse(JSON.stringify(session))).not.toHaveProperty("title");
+      }
+    });
+
+    it("isolates user requests, records tool-only phase boundaries, and excludes checkpoint text from search", () => {
+      const filePath = transcript(custom, "dialogue");
+      const session: MemSessionInfo = {
+        platform: "antigravity",
+        id: "dialogue",
+        filePath,
+      };
+      writeJsonl(filePath, [
+        {
+          type: "USER_INPUT",
+          content:
+            "<USER_REQUEST>raw question</USER_REQUEST><PLAN>secret</PLAN>",
+        },
+        {
+          type: "USER_INPUT",
+          content:
+            "<ADDITIONAL_METADATA>x</ADDITIONAL_METADATA>follow up<USER_SETTINGS_CHANGE>y</USER_SETTINGS_CHANGE><SYSTEM_MESSAGE>z</SYSTEM_MESSAGE>",
+        },
+        { type: "USER_INPUT", content: "# AGENTS.md instructions for repo" },
+        ...["GENERIC", "SYSTEM_MESSAGE", "ERROR_MESSAGE"].map((type) => ({
+          type,
+          content: "secret",
+        })),
+        {
+          type: "PLANNER_RESPONSE",
+          thinking: "secret",
+          tool_calls: [
+            {
+              name: "run_command",
+              args: { CommandLine: "task.py create --slug demo" },
+            },
+            {
+              name: "run_command",
+              args: { command: "task.py start .trellis/tasks/demo" },
+            },
+            {
+              name: "run_command",
+              args: { cmd: "task.py create --slug next" },
+            },
+          ],
+        },
+        {
+          type: "PLANNER_RESPONSE",
+          content: "answer<system-reminder>secret</system-reminder>",
+        },
+        {
+          type: "CHECKPOINT",
+          content: "<system-reminder>secret</system-reminder>summary only",
+        },
+      ]);
+      const { turns, events } = adapter.collect(session, []);
+      expect(turns.slice(0, -1).map((t) => t.text)).toEqual([
+        "raw question",
+        "follow up",
+        "answer",
+      ]);
+      expect(turns.at(-1)).toMatchObject({
+        kind: "marker",
+        text: expect.stringContaining("summary only"),
+      });
+      expect(events.map((e) => [e.action, e.turnIndex])).toEqual([
+        ["create", 2],
+        ["start", 2],
+        ["create", 2],
+      ]);
+      expect(adapter.search(session, "summary", []).count).toBe(0);
+      expect(adapter.search(session, "secret", []).count).toBe(0);
+    });
+
+    it("distinguishes missing, corrupt, and unstable indexes", () => {
+      const warnings: MemWarning[] = [];
+      expect(adapter.list(mkFilter(), warnings)).toEqual([]);
+      expect(warnings).toEqual([]);
+      writeAntigravityIndex(custom, []);
+      const file = nodePath.join(custom, "conversation_summaries.db");
+      snapshotTestState.unstablePath = file;
+      expect(adapter.list(mkFilter(), warnings)).toEqual([]);
+      expect(warnings.map((w) => w.code)).toContain(
+        "antigravity-db-snapshot-unstable",
+      );
+      snapshotTestState.unstablePath = null;
+      nodeFs.writeFileSync(file, "broken");
+      expect(adapter.list(mkFilter(), warnings)).toEqual([]);
+      expect(warnings.map((w) => w.code)).toContain(
+        "antigravity-db-unreadable",
+      );
+    });
+  },
+);

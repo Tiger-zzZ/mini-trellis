@@ -39,6 +39,7 @@ import {
   readManifest,
   updateManifestForTemplates,
   MANIFEST_PATH,
+  type MiniTrellisManifest,
 } from "../utils/managed-manifest.js";
 import { writeFileAtomic } from "../utils/atomic-write.js";
 import { readCursorHooksConfigIssue } from "../utils/cursor-hooks-config.js";
@@ -107,12 +108,13 @@ function renderedJsonMerge(
   relative: string,
   filePath: string,
   content: string,
+  manifest: MiniTrellisManifest,
 ): "merge" | "unchanged" | "conflict" {
   if (!fs.existsSync(filePath)) return "merge";
   try {
     const current = fs.readFileSync(filePath, "utf8");
     if (relative === ANTIGRAVITY_HOOKS_PATH)
-      return mergeAntigravityHooks(current, content) === current
+      return mergeAntigravityHooks(current, content, manifest) === current
         ? "unchanged"
         : "merge";
     if (isDroidConfigPath(relative))
@@ -245,7 +247,7 @@ export function buildRefreshPlan(
           continue;
         }
       }
-      const action = renderedJsonMerge(relative, filePath, content);
+      const action = renderedJsonMerge(relative, filePath, content, manifest);
       items.push({
         path: relative,
         action,

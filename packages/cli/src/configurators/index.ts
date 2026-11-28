@@ -150,7 +150,7 @@ export function getConfiguredPlatforms(cwd: string): Set<AITool> {
       platforms.add(id);
     } else if (id === "antigravity") {
       const { state } = readAntigravityRegistration(cwd);
-      if (state === "enabled" || state === "disabled") platforms.add(id);
+      if (state !== "missing" && state !== "invalid") platforms.add(id);
     }
   }
   return platforms;

@@ -3,6 +3,7 @@
  * per-platform counts.
  */
 
+import { sessionWorkspaces } from "./filter.js";
 import { listAll, resolveFilter, WIDE_LIMIT } from "./sessions.js";
 import {
   MEM_SOURCE_KINDS,
@@ -35,21 +36,22 @@ export function listMemProjects(
 
   const byCwd = new Map<string, MemProjectSummary>();
   for (const s of all) {
-    if (!s.cwd) continue;
-    const ts = s.updated ?? s.created ?? "";
-    let agg = byCwd.get(s.cwd);
-    if (!agg) {
-      agg = {
-        cwd: s.cwd,
-        last_active: ts,
-        sessions: 0,
-        by_platform: emptyByPlatform(),
-      };
-      byCwd.set(s.cwd, agg);
+    for (const cwd of sessionWorkspaces(s)) {
+      const ts = s.updated ?? s.created ?? "";
+      let agg = byCwd.get(cwd);
+      if (!agg) {
+        agg = {
+          cwd,
+          last_active: ts,
+          sessions: 0,
+          by_platform: emptyByPlatform(),
+        };
+        byCwd.set(cwd, agg);
+      }
+      agg.sessions++;
+      agg.by_platform[s.platform]++;
+      if (ts > agg.last_active) agg.last_active = ts;
     }
-    agg.sessions++;
-    agg.by_platform[s.platform]++;
-    if (ts > agg.last_active) agg.last_active = ts;
   }
 
   return [...byCwd.values()].sort((a, b) =>
