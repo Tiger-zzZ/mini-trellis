@@ -13,6 +13,7 @@ export const MEM_SOURCE_KINDS = [
   "opencode",
   "pi",
   "droid",
+  "antigravity",
 ] as const;
 export type MemSourceKind = (typeof MEM_SOURCE_KINDS)[number];
 export type MemSourceFilter = MemSourceKind | "all";
@@ -53,10 +54,12 @@ export interface MemSessionInfo {
   id: string;
   title?: string;
   cwd?: string;
+  /** All workspace paths when a session spans multiple workspaces. */
+  cwds?: string[];
   created?: string;
   updated?: string;
   filePath: string;
-  /** Parent session id for sub-agent chains (OpenCode, Droid Task sessions). */
+  /** Parent session id for sub-agent chains (OpenCode, Droid, Antigravity). */
   parent_id?: string;
 }
 
@@ -188,7 +191,7 @@ export interface ListMemSessionsOptions {
 export interface SearchMemSessionsOptions {
   keyword: string;
   filter?: MemFilter;
-  /** Merge OpenCode sub-agent descendants into their parent before searching. */
+  /** Merge OpenCode, Droid, or Antigravity sub-agent descendants into their parent before searching. */
   includeChildren?: boolean;
 }
 

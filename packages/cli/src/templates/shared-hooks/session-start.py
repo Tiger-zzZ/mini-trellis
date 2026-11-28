@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 import tempfile
 from io import StringIO
 from pathlib import Path
+from typing import BinaryIO, Iterator
 
 
 def _normalize_windows_shell_path(path_str: str) -> str:
@@ -83,8 +84,9 @@ def _resolve_project_dir(start: Path) -> Path:
         trellis = current / ".trellis"
         if trellis.is_dir() and not trellis.is_symlink():
             return current
-        if (current / ".git").exists():
-            return current
+        marker = current / ".git"
+        if marker.exists():
+            return current if marker.is_file() or (marker / "HEAD").is_file() else start.resolve()
         if current == current.parent:
             return start.resolve()
         current = current.parent
@@ -280,7 +282,8 @@ def _resolve_context_key(trellis_dir: Path, input_data: dict) -> str | None:
         sys.path.insert(0, str(scripts_dir))
     from common.active_task import resolve_context_key  # type: ignore[import-not-found]
 
-    return resolve_context_key(input_data, platform=_detect_platform(input_data))
+    platform = _detect_platform(input_data)
+    return resolve_context_key(input_data, platform=platform, allow_environment_context=platform != "antigravity")
 
 
 def _persist_context_key_for_bash(context_key: str | None) -> None:
@@ -376,7 +379,7 @@ def _load_trellis_config(trellis_dir: Path, input_data: dict) -> tuple:
 
     try:
         from common.config import get_default_package, get_packages, get_spec_scope, is_monorepo  # type: ignore[import-not-found]
-        from common.paths import get_current_task  # type: ignore[import-not-found]
+        from common.active_task import resolve_active_task  # type: ignore[import-not-found]
 
         repo_root = trellis_dir.parent
         is_mono = is_monorepo(repo_root)
@@ -385,11 +388,10 @@ def _load_trellis_config(trellis_dir: Path, input_data: dict) -> tuple:
 
         # Get active task's package
         task_pkg = None
-        current = get_current_task(
-            repo_root,
-            input_data,
-            platform=_detect_platform(input_data),
-        )
+        platform = _detect_platform(input_data)
+        current = resolve_active_task(
+            repo_root, input_data, platform, allow_environment_context=platform != "antigravity",
+        ).task_path
         if current:
             task_json = repo_root / current / "task.json"
             if task_json.is_file():
@@ -544,13 +546,16 @@ def _collect_spec_index_paths(trellis_dir: Path, allowed_pkgs: set | None) -> li
     return paths
 
 
-def _session_id_from_hook(hook_input: dict) -> str | None:
+def _session_id_from_hook(
+    hook_input: dict,
+    keys: tuple[str, ...] = ("session_id", "sessionId", "sessionID", "conversationId", "conversation_id"),
+) -> str | None:
     """Return the session id the host put on SessionStart stdin.
 
     Field names match `resolve_context_key`. An empty or missing value stays
     missing — the hook does not substitute the newest session on disk.
     """
-    for key in ("session_id", "sessionId", "sessionID"):
+    for key in keys:
         value = hook_input.get(key)
         if isinstance(value, str):
             trimmed = value.strip()
@@ -656,10 +661,133 @@ def _main_impl():
         return
     global _LAST_PROJECT_DIR
     _LAST_PROJECT_DIR = project_dir
-    context_key = None
-    if antigravity_dir is None:
-        context_key = _resolve_context_key(trellis_dir, hook_input)
+    platform = _detect_platform(hook_input)
+    if platform == "antigravity":
+        native_id = _session_id_from_hook(hook_input, ("conversationId", "conversation_id"))
+        hook_input = {
+            "conversationId": native_id or os.environ.get("ANTIGRAVITY_CONVERSATION_ID", "").strip(),
+            "transcriptPath": hook_input.get("transcriptPath"),
+            "hookEventName": hook_input.get("hookEventName", "SessionStart"),
+        }
+    context_key = _resolve_context_key(trellis_dir, hook_input)
+    # Missing identity fails open. compact/clear/resume always deliver again.
+    context_dir = trellis_dir / ".runtime" / "context" / (platform or "unknown")
+    status_path = None
+    if context_key:
+        context_hash = hashlib.sha256(context_key.encode("utf-8")).hexdigest()[:24]
+        status_path = context_dir / f"{context_hash}.json"
+    if status_path and not status_path.resolve().is_relative_to(trellis_dir):
+        status_path = None
+    if platform == "antigravity":
+        if hook_input.get("hookEventName") == "PreInvocation":
+            if status_path is None or _pending_antigravity_checkpoint(
+                hook_input.get("transcriptPath"), _read_context_state(status_path)
+            ) is None:
+                print("{}", flush=True)
+                return
+
+        from common.recording_lock import recording_lock  # type: ignore[import-not-found]
+        # Re-read state under the lock so overlapping invocations deliver once.
+        with recording_lock(project_dir):
+            _deliver_context(trellis_dir, hook_input, platform, context_key, status_path)
+    else:
         _persist_context_key_for_bash(context_key)
+        _deliver_context(trellis_dir, hook_input, platform, context_key, status_path)
+
+
+def _read_context_state(status_path: Path | None) -> dict:
+    from common.io import read_json  # type: ignore[import-not-found]
+    previous = read_json(status_path) if status_path else None
+    return previous if isinstance(previous, dict) else {}
+
+
+def _save_context_state(path: Path | None, state: dict) -> None:
+    if path is None:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        from common.io import write_json  # type: ignore[import-not-found]
+        write_json(path, state)
+    except OSError:
+        pass  # Optional dedupe metadata.
+
+
+def _reverse_complete_lines(handle: BinaryIO) -> Iterator[bytes]:
+    """Yield newline-terminated records newest first, ignoring an unfinished tail."""
+    end = handle.seek(0, os.SEEK_END)
+    fragments: list[bytes] = []
+    terminated = False
+    while end:
+        size = min(end, 64 * 1024)
+        end -= size
+        handle.seek(end)
+        block = handle.read(size)
+        if len(block) != size:
+            return  # The file was truncated during this scan.
+        parts = block.split(b"\n")
+        for part in reversed(parts[1:]):
+            if terminated:
+                fragments.append(part)
+                yield b"".join(reversed(fragments))
+                fragments.clear()
+            terminated = True
+        if terminated:
+            fragments.append(parts[0])
+    if terminated:
+        yield b"".join(reversed(fragments))
+
+
+def _pending_antigravity_checkpoint(raw_path: object, previous: dict) -> dict | None:
+    if not isinstance(raw_path, str):
+        return None
+    path = Path(raw_path)
+    try:
+        if not path.is_absolute() or not path.is_file():
+            return None
+        with path.open("rb") as handle:
+            for line in _reverse_complete_lines(handle):
+                try:
+                    step = json.loads(line)
+                except (ValueError, RecursionError):
+                    continue
+                if not isinstance(step, dict):
+                    continue
+                if step.get("type") == "PLANNER_RESPONSE":
+                    return None
+                if step.get("type") == "CHECKPOINT":
+                    index = step.get("step_index")
+                    index = index if type(index) is int else None
+                    saved_step = previous.get("last_checkpoint_step")
+                    if isinstance(index, int) and isinstance(saved_step, int) and index < saved_step:
+                        return None
+                    digest = hashlib.sha256(line.rstrip(b"\r\n")).hexdigest()[:16]
+                    if index == saved_step and digest == previous.get("last_checkpoint_hash"):
+                        return None
+                    return {"last_checkpoint_step": index, "last_checkpoint_hash": digest}
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def _deliver_context(trellis_dir: Path, hook_input: dict, platform: str | None, context_key: str | None, status_path: Path | None):
+    previous = _read_context_state(status_path)
+    source = hook_input.get("source") if isinstance(hook_input.get("source"), str) else ""
+    metadata = previous
+    if platform == "antigravity":
+        event = hook_input.get("hookEventName", "SessionStart")
+        if event == "PreInvocation":
+            checkpoint = _pending_antigravity_checkpoint(hook_input.get("transcriptPath"), previous)
+            if checkpoint is None:
+                print("{}", flush=True)
+                return
+            metadata = checkpoint
+            source = "compact"
+        elif event == "SessionStart":
+            metadata = {key: previous[key] for key in ("last_checkpoint_step", "last_checkpoint_hash") if key in previous}
+            source = "startup"
+        else:
+            print("{}", flush=True)
+            return
 
     # Load config for scope filtering and legacy detection
     is_mono, packages, scope_config, task_pkg, default_pkg = _load_trellis_config(
@@ -671,10 +799,6 @@ def _main_impl():
     output = StringIO()
 
     spec_index_paths = _collect_spec_index_paths(trellis_dir, allowed_pkgs)
-    source = hook_input.get("source") if isinstance(hook_input.get("source"), str) else ""
-    platform = _detect_platform(hook_input)
-    if platform == "antigravity":
-        source = "startup"
     if platform in {"codex", "zcode"}:
         remember_command = "$mini-trellis-remember"
     elif platform in {"kiro", "antigravity", "droid"}:
@@ -723,15 +847,19 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
             f"Record durable decisions that were not saved yet with `{remember_command}`.\n"
         )
     elif source == "compact":
+        hook_label = (
+            "invocation" if platform == "antigravity" and hook_input.get("hookEventName") == "PreInvocation"
+            else "SessionStart"
+        )
+        output.write(f"This {hook_label} follows compact. Details missing from the summary may ")
         session_id = _session_id_from_hook(hook_input)
         if session_id:
             platform_flag = (
                 f" --platform {platform}"
-                if platform in {"claude", "codex", "opencode", "pi", "droid"}
+                if platform in {"claude", "codex", "opencode", "pi", "droid", "antigravity"}
                 else ""
             )
             output.write(
-                "This SessionStart follows compact. Details missing from the summary may "
                 f"still be in local session {session_id}: use "
                 f"`mini-trellis mem context {session_id}{platform_flag}` from this project, or "
                 "`mini-trellis mem recall <query>` then `mini-trellis mem read <ref>`. "
@@ -740,7 +868,6 @@ mini-trellis SessionStart context. Orient from journal, spec, and research.
             )
         else:
             output.write(
-                "This SessionStart follows compact. Details missing from the summary may "
                 "still be in local session history: use `mini-trellis mem recall <query>`, "
                 "then `mini-trellis mem read <ref>` for the original turns. Record durable "
                 f"decisions that were not saved yet with `{remember_command}`.\n"
@@ -762,83 +889,49 @@ Context loaded. Use journal, spec, research, and `mini-trellis mem` on demand. R
 
     content_hash = hashlib.sha256(context_text.encode("utf-8")).hexdigest()[:24]
 
-    if platform == "antigravity":
-        antigravity_result = {
-            "injectSteps": [{"systemMessage": {"systemMessage": context_text}}],
-        }
-        print(json.dumps(antigravity_result, ensure_ascii=False), flush=True)
-        _write_runtime_status(
-            trellis_dir,
-            platform,
-            "ok",
-            len(context_text),
-            content_hash=content_hash,
-            source=source,
-        )
-        return
-
     # Kiro SessionStart adds a hook's stdout directly to the
     # conversation context — no JSON envelope. Emit the bare overview text.
     # Conditionally isolated: all other platforms keep the JSON path below.
-    if _detect_platform(hook_input) == "kiro":
+    if platform == "kiro":
         print(context_text, flush=True)
         _write_runtime_status(trellis_dir, platform, "ok", len(context_text), context_key=context_key, content_hash=content_hash, source=source)
         return
 
-    # Missing identity fails open. compact/clear/resume always deliver again.
-    context_dir = trellis_dir / ".runtime" / "context" / (platform or "unknown")
-    status_path = None
-    if context_key:
-        context_hash = hashlib.sha256(context_key.encode("utf-8")).hexdigest()[:24]
-        status_path = context_dir / f"{context_hash}.json"
-    try:
-        previous = (
-            json.loads(status_path.read_text(encoding="utf-8"))
-            if status_path is not None
-            else {}
-        )
-    except (OSError, ValueError):
-        previous = {}
-    if not isinstance(previous, dict):
-        previous = {}
+    state = {**metadata, "source": source, "content_hash": content_hash}
     if source == "startup" and context_key and previous.get("source") == source and previous.get("content_hash") == content_hash:
+        if state != previous:
+            _save_context_state(status_path, state)
         _write_runtime_status(trellis_dir, platform, "deduped", output_chars=0, context_key=context_key, content_hash=content_hash, source=source)
         print("{}", flush=True)
         return
 
-    result: dict[str, object] = {
-        # Claude Code / Qoder / CodeBuddy / Droid / Gemini / Copilot / Trae /
-        # ZCode format.
-        "hookSpecificOutput": {
-            "hookEventName": "SessionStart",
-            "additionalContext": context_text,
-        },
-    }
-    # Cursor and the other shared hosts use the top-level compatibility field.
-    # Codex's SessionStart contract accepts the nested shape above; leaving the
-    # extra field out there avoids an ambiguous duplicate. ZCode already had
-    # the same exception for its own parser.
-    if platform not in {"codex", "zcode", "codebuddy", "droid"}:
-        result["additional_context"] = context_text
-    # Droid otherwise prints the whole injected context in the chat view at
-    # every startup; the detailed transcript still keeps it.
-    if platform == "droid":
-        result["suppressOutput"] = True
+    result: dict[str, object]
+    if platform == "antigravity":
+        result = {"injectSteps": [{"systemMessage": {"systemMessage": context_text}}]}
+    else:
+        result = {
+            # Claude Code / Qoder / CodeBuddy / Droid / Gemini / Copilot / Trae /
+            # ZCode format.
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": context_text,
+            },
+        }
+        # Cursor and the other shared hosts use the top-level compatibility field.
+        # Codex's SessionStart contract accepts the nested shape above; leaving the
+        # extra field out there avoids an ambiguous duplicate. ZCode already had
+        # the same exception for its own parser.
+        if platform not in {"codex", "zcode", "codebuddy", "droid"}:
+            result["additional_context"] = context_text
+        # Droid otherwise prints the whole injected context in the chat view at
+        # every startup; the detailed transcript still keeps it.
+        if platform == "droid":
+            result["suppressOutput"] = True
 
     # Output JSON - stdout is already configured for UTF-8
     print(json.dumps(result, ensure_ascii=False), flush=True)
     _write_runtime_status(trellis_dir, platform, "ok", len(context_text), context_key=context_key, content_hash=content_hash, source=source)
-    try:
-        if status_path is not None:
-            status_path.parent.mkdir(parents=True, exist_ok=True)
-            temp = status_path.with_name(f".{status_path.name}.{os.getpid()}.tmp")
-            temp.write_text(
-                json.dumps({"source": source, "content_hash": content_hash}),
-                encoding="utf-8",
-            )
-            os.replace(temp, status_path)
-    except OSError:
-        pass
+    _save_context_state(status_path, state)
 
 
 if __name__ == "__main__":

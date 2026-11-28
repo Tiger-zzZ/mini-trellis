@@ -4,7 +4,7 @@
 
 ## 选择材料
 
-原始历史读取支持 Claude Code、Codex、OpenCode V1、Pi 和 Factory Droid。在当前项目列出会话，从 JSON 结果复制完整 ID：
+原始历史读取支持 Claude Code、Codex、OpenCode V1、Pi、Factory Droid 和 Antigravity。在当前项目列出会话，从 JSON 结果复制完整 ID：
 
 ```bash
 mini-trellis mem list --platform claude --json --limit 10

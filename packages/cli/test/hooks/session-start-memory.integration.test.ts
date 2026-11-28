@@ -182,7 +182,8 @@ describe.skipIf(!hasPython())("session-start memory contract", () => {
         assertMemoryPayload(text);
         expect(text).toContain(remember);
         expect(text).not.toContain(other);
-        if (source === "compact") expect(text).toContain("follows compact");
+        if (source === "compact")
+          expect(text).toContain("This SessionStart follows compact.");
         else expect(text).not.toContain("follows compact");
         if (host === "zcode") {
           expect(text).not.toContain("local session history");

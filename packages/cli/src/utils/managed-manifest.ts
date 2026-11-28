@@ -8,6 +8,7 @@ const MANIFEST_VERSION = 1;
 
 export interface MiniTrellisManifest {
   version: number;
+  antigravityCommandHash?: string;
   files: Record<string, string>;
 }
 
@@ -33,7 +34,13 @@ export function readManifest(cwd: string): MiniTrellisManifest {
       parsed.files &&
       typeof parsed.files === "object"
     ) {
-      return { version: MANIFEST_VERSION, files: { ...parsed.files } };
+      return {
+        version: MANIFEST_VERSION,
+        files: { ...parsed.files },
+        ...(typeof parsed.antigravityCommandHash === "string"
+          ? { antigravityCommandHash: parsed.antigravityCommandHash }
+          : {}),
+      };
     }
   } catch {
     // Missing or malformed manifests are treated as an empty ownership set.

@@ -22,6 +22,7 @@ import {
 } from "vitest";
 import * as nodeFs from "node:fs";
 import * as nodePath from "node:path";
+import { findPythonForSqlite, writeAntigravityIndex } from "../../../core/test/mem/sqlite-fixture.js";
 
 const { fakeHome } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -199,6 +200,7 @@ describe("runMem subcommand integration", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    nodeFs.rmSync(nodePath.join(fakeHome, ".gemini"), { recursive: true, force: true });
     nodeFs.rmSync(CLAUDE_PROJECTS, { recursive: true, force: true });
     nodeFs.rmSync(nodePath.join(fakeHome, ".pi"), {
       recursive: true,
@@ -207,6 +209,118 @@ describe("runMem subcommand integration", () => {
     nodeFs.rmSync(projectCwd, { recursive: true, force: true });
     noop();
   });
+
+  it.skipIf(!findPythonForSqlite())(
+    "reads Antigravity dialogue and child sessions from the secondary workspace",
+    () => {
+      const root = nodePath.join(fakeHome, ".gemini", "antigravity-cli");
+      const first = nodePath.join(fakeHome, "primary");
+      const parent = sessionId; // The Claude fixture has the same host-local ID.
+      const child = "agy-child";
+      writeAntigravityIndex(root, [
+        [parent, [first, projectCwd, projectCwd]],
+        [child, [projectCwd], parent],
+      ]);
+      const transcript = (id: string) =>
+        nodePath.join(
+          root,
+          "brain",
+          id,
+          ".system_generated",
+          "logs",
+          "transcript.jsonl",
+        );
+      const command = (cmd: string) => ({
+        type: "PLANNER_RESPONSE",
+        tool_calls: [{ name: "run_command", args: { CommandLine: cmd } }],
+      });
+      writeJsonl(transcript(parent), [
+        command("task.py create --slug demo"),
+        { type: "USER_INPUT", content: "budget discussion" },
+        command("task.py start .trellis/tasks/demo"),
+        { type: "PLANNER_RESPONSE", content: "allow two retries" },
+        { type: "CHECKPOINT", content: "summary only" },
+        { type: "USER_INPUT", content: "after compaction" },
+      ]);
+      writeJsonl(transcript(child), [
+        { type: "USER_INPUT", content: "child evidence" },
+      ]);
+      function json(...args: string[]) {
+        logs.length = 0;
+        runMem([
+          ...args,
+          "--platform",
+          "antigravity",
+          "--cwd",
+          projectCwd,
+          "--json",
+        ]);
+        return JSON.parse(logs.join("\n"));
+      }
+      expect(json("list")).toHaveLength(2);
+      expect(json("search", "child", "--include-children")).toMatchObject([
+        { session: { id: parent }, descendants_merged: 1 },
+      ]);
+      logs.length = 0;
+      runMem([
+        "search",
+        "child evidence",
+        "--include-children",
+        "--cwd",
+        projectCwd,
+        "--json",
+      ]);
+      expect(JSON.parse(logs.join("\n"))).toMatchObject([
+        { session: { platform: "antigravity", id: parent } },
+      ]);
+      expect(json("context", parent.slice(0, 8))).toMatchObject({
+        anchor: "before-compaction",
+        turns: [{ text: "budget discussion" }, { text: "allow two retries" }],
+      });
+      for (const [scope, visible] of [
+        [["--cwd", first], false],
+        [["--cwd", projectCwd], true],
+        [["--global"], true],
+      ] as const) {
+        logs.length = 0;
+        runMem([
+          "context",
+          parent,
+          "--platform",
+          "antigravity",
+          "--include-children",
+          "--grep",
+          "child",
+          "--around",
+          "0",
+          ...scope,
+          "--json",
+        ]);
+        expect(JSON.parse(logs.join("\n"))).toMatchObject({
+          merged_children: visible ? 1 : 0,
+          turns: visible ? [{ text: "child evidence" }] : [],
+        });
+      }
+      expect(json("extract", parent, "--phase", "brainstorm")).toMatchObject({
+        windows: [{ label: "demo" }],
+        turns: [{ text: "budget discussion" }],
+      });
+      expect(json("projects")).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ cwd: first, sessions: 1 }),
+          expect.objectContaining({ cwd: projectCwd, sessions: 2 }),
+        ]),
+      );
+      const { hits } = json("recall", "allow two retries");
+      expect(hits[0]).toMatchObject({
+        sourceKind: "antigravity",
+        sessionId: parent,
+      });
+      expect(json("read", hits[0].ref).reads[0].text).toContain(
+        "allow two retries",
+      );
+    },
+  );
 
   // ---------- list ----------
 
@@ -961,7 +1075,7 @@ describe("runMem subcommand integration", () => {
     runMem(["help"]);
     const joined = logs.join("\n");
     expect(joined).toContain("mini-trellis mem");
-    expect(joined).toContain("claude|codex|opencode|pi|droid|all");
+    expect(joined).toContain("claude|codex|opencode|pi|droid|antigravity|all");
   });
 
   it("unknown command exits non-zero with 'unknown command' error", () => {

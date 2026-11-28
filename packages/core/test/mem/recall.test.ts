@@ -846,6 +846,18 @@ describe("discoverDocs", () => {
     fs.rmSync(outside, { recursive: true, force: true });
   });
 
+  it("keeps recall scoped to the selected workspace below an empty .git mount", () => {
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-mount-"));
+    try {
+      fs.mkdirSync(path.join(parent, ".git"));
+      const project = path.join(parent, "project");
+      fs.mkdirSync(project);
+      expect(discoverDocs(project).root).toBe(fs.realpathSync(project));
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
   it("finds documents in a non-git project reached through a symlinked prefix", () => {
     // `consider` compares realpaths; a root kept as the symlinked spelling
     // (macOS /tmp → /private/tmp, /var → /private/var) would make every file

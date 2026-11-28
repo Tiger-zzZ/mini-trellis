@@ -38,7 +38,7 @@ init 的 `-y` 接受默认选项，`-s` 跳过已有文件，`-f` 覆盖已有�
 | 参数 | 适用命令 | 含义与默认值 |
 | --- | --- | --- |
 | `--cwd <path>` | recall、read、list、search、context、extract | 选择项目，默认当前工作目录 |
-| `--platform <name>` | recall、会话命令 | `claude`、`codex`、`opencode`、`pi`、`droid` 或 `all`，默认 all |
+| `--platform <name>` | recall、会话命令 | `claude`、`codex`、`opencode`、`pi`、`droid`、`antigravity` 或 `all`，默认 all |
 | `--global` | list、search、context、extract | 包含所有项目；recall 不接受该参数 |
 | `--since`、`--until` | 会话筛选 | 包含边界的日期范围，格式 `YYYY-MM-DD` |
 | `--limit N` | recall、list、search、projects | 默认分别为 3、50、50、30 |
@@ -46,7 +46,7 @@ init 的 `-y` 接受默认选项，`-s` 跳过已有文件，`-f` 覆盖已有�
 | `--turns N` | context | 返回的命中轮次，默认 3 |
 | `--around N` | context | 每条命中的相邻轮次，默认 1 |
 | `--max-chars N` | recall、read、context | 输出预算，默认 3000 / 4000 / 6000 |
-| `--include-children` | search、context | 将 OpenCode V1 子会话合入父会话 |
+| `--include-children` | search、context | 将 OpenCode V1、Droid 或 Antigravity 子会话合入父会话 |
 | `--phase <name>` | extract | `brainstorm`、`implement` 或 `all`，默认 all |
 | `--json` | 除 help 外的全部记忆命令 | 输出机器可读 JSON |
 

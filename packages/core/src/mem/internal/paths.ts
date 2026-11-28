@@ -86,6 +86,15 @@ function expandHome(p: string): string {
   return p;
 }
 
+export function antigravityAppDataDirs(): string[] {
+  const custom = process.env.ANTIGRAVITY_APP_DATA_DIR?.trim();
+  const roots = ["antigravity-cli", "antigravity", "antigravity-ide"].map(
+    (name) => path.join(HOME, ".gemini", name),
+  );
+  if (custom) roots.unshift(expandHome(custom));
+  return [...new Set(roots.map((root) => path.resolve(root)))];
+}
+
 export const PI_AGENT_DIR = expandHome(
   process.env.PI_CODING_AGENT_DIR ?? path.join(HOME, ".pi", "agent"),
 );

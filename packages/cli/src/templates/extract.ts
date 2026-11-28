@@ -102,6 +102,7 @@ export function collectTrellisScriptTemplates(): Map<string, string> {
 
   function walk(directory: string): void {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      if (entry.name === "__pycache__") continue;
       const absolute = path.join(directory, entry.name);
       if (entry.isDirectory()) {
         walk(absolute);
@@ -151,6 +152,7 @@ async function copyDirRecursive(
   ensureDir(dest);
 
   for (const entry of fs.readdirSync(src)) {
+    if (entry === "__pycache__") continue;
     const srcPath = path.join(src, entry);
     const destPath = path.join(dest, entry);
     const stat = fs.statSync(srcPath);

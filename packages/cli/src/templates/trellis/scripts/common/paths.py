@@ -73,8 +73,9 @@ def get_repo_root(start_path: Path | None = None) -> Path:
         trellis = current / DIR_WORKFLOW
         if trellis.is_dir() and not trellis.is_symlink():
             return current
-        if (current / ".git").exists():
-            return current
+        marker = current / ".git"
+        if marker.exists():
+            return current if marker.is_file() or (marker / "HEAD").is_file() else start
         if current == current.parent:
             break
         current = current.parent

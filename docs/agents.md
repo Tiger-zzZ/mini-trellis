@@ -1,6 +1,6 @@
 # Agent setup
 
-All listed integrations can use project Markdown. Startup delivery, raw conversation reading, and compact recovery depend on the platform. This page covers v0.4.2.
+All listed integrations can use project Markdown. Startup delivery, raw conversation reading, and compact recovery depend on the platform.
 
 ## Capabilities
 
@@ -17,7 +17,7 @@ All listed integrations can use project Markdown. Startup delivery, raw conversa
 | DeepSeek Harness | `--dsh` | Instructions and skills | — | Saved project documents |
 | CodeBuddy CLI / IDE | `--codebuddy` | SessionStart and skills | — | Saved project documents |
 | ZCode | `--zcode` | SessionStart, after trust | — | Saved project documents |
-| Google Antigravity | `--antigravity` | Project skills and SessionStart on supported builds | — | Saved project documents |
+| Google Antigravity | `--antigravity` | SessionStart and skills | Yes | Current session / boundary |
 | Factory Droid | `--droid` | SessionStart and skills | Yes | Current session / boundary |
 
 A dash means native transcripts are not parsed. You can supply Markdown/text exports to [session-insight](history.md). Combine init flags to use more than one agent in a repository.
@@ -213,11 +213,13 @@ mini-trellis doctor
 
 The integration shares remember, session-insight, and update-spec with Codex and ZCode under `.agents/skills/`. Use `/mini-trellis-remember` to save a decision and `mini-trellis mem recall <query>` to find the project rule in a later session.
 
-The project `.agents/hooks.json` registers `mini-trellis-session-start`. Check the group in `/hooks` in the CLI or in the desktop Customizations panel, then open a new session. `doctor` reports the installed registration and the last observed execution.
+The project `.agents/hooks.json` registers `SessionStart` and `PreInvocation` in the `mini-trellis-session-start` group. Check the group in `/hooks` in the CLI or in the desktop Customizations panel, then open a new session. `doctor` reports the installed registration and the last observed execution.
 
 Current builds use `.agents/` and support `SessionStart`. CLI 1.5.4 and later include `cwd`. For earlier payloads, the mounted workspace paths must resolve to the same initialized project. On older builds that only discover `.agent/skills` or lack `SessionStart`, open the project root and ask the agent to use `AGENTS.md` or read the shared skill by path. See the [Antigravity skills](https://antigravity.google/docs/skills) and [hooks](https://antigravity.google/docs/hooks) references.
 
-Preview updates with `mini-trellis refresh --antigravity --dry-run`. Refresh keeps existing hook groups and their enablement choices. If a legacy customization directory already contains a skill under the same name, move or rename that copy before enabling the shared skill.
+After a transcript checkpoint, `PreInvocation` delivers a one-time handoff. Run `mini-trellis mem context <conversationId> --platform antigravity` to read the turns before compaction. The history reader checks `ANTIGRAVITY_APP_DATA_DIR`, then the `antigravity-cli`, `antigravity`, and `antigravity-ide` directories under `~/.gemini/`. A conversation is visible from each of its workspaces. Use `--include-children` with search or context to include subagent sessions.
+
+Upgrade a SessionStart-only installation with `mini-trellis refresh --antigravity`. Add `--dry-run` to preview. Refresh keeps existing hook groups and their enablement choices. If a legacy customization directory already contains a skill under the same name, move or rename that copy before enabling the shared skill.
 
 <a id="droid"></a>
 ## Factory Droid

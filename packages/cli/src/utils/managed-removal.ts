@@ -6,6 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { type MiniTrellisManifest, readManifest } from "./managed-manifest.js";
 import { DIR_NAMES, FILE_NAMES } from "../constants/paths.js";
 import { scrubKiroHooks } from "./kiro-hooks.js";
 import { DROID_CONFIG_PATHS, scrubDroidHooks } from "./droid-hooks.js";
@@ -68,13 +69,15 @@ export interface BuildManagedRemovalPlanOptions {
   strictPaths?: boolean;
 }
 
-export function buildStructuredFileSpecs(): Map<string, StructuredFileSpec> {
+export function buildStructuredFileSpecs(
+  manifest?: MiniTrellisManifest,
+): Map<string, StructuredFileSpec> {
   const specs: StructuredFileSpec[] = [
     {
       posixPath: ANTIGRAVITY_HOOKS_PATH,
       reason:
         "Remove mini-trellis SessionStart; preserve other Antigravity hooks",
-      scrub: scrubAntigravityHooks,
+      scrub: (content) => scrubAntigravityHooks(content, manifest),
     },
     ...DROID_CONFIG_PATHS.map(
       (posixPath): StructuredFileSpec => ({
@@ -153,7 +156,7 @@ export function buildManagedRemovalPlan(
   hashes: Record<string, string>,
   options: BuildManagedRemovalPlanOptions = {},
 ): ManagedRemovalPlan {
-  const structured = buildStructuredFileSpecs();
+  const structured = buildStructuredFileSpecs(readManifest(cwd));
   const allPosixPaths = Object.keys(hashes);
   const deletions: PlannedDeletion[] = [];
   const modifications: PlannedModification[] = [];

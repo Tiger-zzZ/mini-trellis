@@ -268,11 +268,20 @@ export function buildDoctorReport(cwd: string): DoctorReport {
           detail:
             "SessionStart is missing; run mini-trellis refresh --antigravity",
         });
+      else if (
+        registration.state === "legacy-enabled" ||
+        registration.state === "legacy-disabled"
+      )
+        checks.push({
+          name,
+          level: "warn",
+          detail: `SessionStart only (${registration.state}). Run mini-trellis refresh --antigravity to add PreInvocation.`,
+        });
       else
         checks.push({
           name,
           level: registration.state === "disabled" ? "warn" : "ok",
-          detail: `Antigravity SessionStart is registered (${registration.state})`,
+          detail: `Antigravity SessionStart and PreInvocation are registered (${registration.state})`,
         });
     }
     if (platform === "zcode") {

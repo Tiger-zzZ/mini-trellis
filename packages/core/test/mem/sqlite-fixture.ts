@@ -47,3 +47,23 @@ export function runPythonScript(
     nodeFs.rmSync(pyDir, { recursive: true, force: true });
   }
 }
+
+/** Leave committed index rows in the WAL, as an active Antigravity host does. */
+export function writeAntigravityIndex(
+  root: string,
+  rows: readonly (readonly [id: string, workspaces: string[], parent?: string, updated?: string])[],
+): void {
+  nodeFs.mkdirSync(root, { recursive: true });
+  runPythonScript(root, findPythonForSqlite(), `
+import json, os, sqlite3
+db = sqlite3.connect(${JSON.stringify(nodePath.join(root, "conversation_summaries.db"))})
+db.execute("PRAGMA journal_mode=WAL")
+db.execute("CREATE TABLE conversation_summaries (conversation_id TEXT PRIMARY KEY, title TEXT, workspace_uris TEXT, parent_conversation_id TEXT, last_modified_time TEXT)")
+db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+for row in json.loads(${JSON.stringify(JSON.stringify(rows))}):
+    session, paths, parent, updated = (row + [None, None])[:4]
+    db.execute("INSERT INTO conversation_summaries VALUES (?, ?, ?, ?, ?)", (session, "Title " + session, json.dumps(paths), parent, updated))
+db.commit()
+os._exit(0)
+`);
+}

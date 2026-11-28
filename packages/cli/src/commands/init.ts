@@ -444,7 +444,16 @@ async function handleReinit(
   // mergeManagedBlockFile preserves everything outside the markers.
   updateManagedManifest(cwd, platformsToAdd, context);
   await createRootFiles(cwd);
+  if (platformsToAdd.includes("antigravity")) printAntigravityHint();
   return true;
+}
+
+function printAntigravityHint(): void {
+  console.log(
+    chalk.gray(
+      "  Antigravity: check mini-trellis-session-start in /hooks (CLI) or Customizations (App/IDE), then start a new session. Record sessions with /mini-trellis-remember.",
+    ),
+  );
 }
 
 function printRecallHint(): void {
@@ -603,6 +612,7 @@ export async function init(options: InitOptions): Promise<void> {
   }
 
   console.log(chalk.green("\n✓ mini-trellis initialized."));
+  if (tools.includes("antigravity")) printAntigravityHint();
   const recordCommands: string[] = [];
   if (tools.includes("claude") || tools.includes("opencode")) {
     recordCommands.push("/mini-trellis:remember");

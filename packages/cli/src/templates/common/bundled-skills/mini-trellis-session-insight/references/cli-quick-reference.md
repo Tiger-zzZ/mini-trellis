@@ -20,7 +20,7 @@ Use `recall` for project knowledge and `read` for missing context. Full command 
 
 | Flag | Subcommands | Meaning |
 | ---- | ----------- | ------- |
-| `--platform claude\|codex\|opencode\|pi\|all` | recall / list / search / context / extract / projects | Default `all`; filters conversation sources. |
+| `--platform claude\|codex\|opencode\|pi\|droid\|antigravity\|all` | recall / list / search / context / extract / projects | Default `all`; filters conversation sources. |
 | `--since YYYY-MM-DD` | list / search / context / extract / projects | Inclusive lower date bound. |
 | `--until YYYY-MM-DD` | list / search / context / extract / projects | Inclusive upper date bound. |
 | `--global` | list / search / context / extract | Include all projects' conversations, only for explicit cross-project requests. Not supported by `recall`. |
@@ -30,7 +30,7 @@ Use `recall` for project knowledge and `read` for missing context. Full command 
 | `--turns N` | context | Hit turns to return. Default `3`. |
 | `--around N` | context | Surrounding turns per hit. Default `1`. |
 | `--max-chars N` | recall / read / context | Character budget. Defaults: recall stdout `3000`, read stdout `4000`, context text `6000`. |
-| `--include-children` | search / context | Merge OpenCode sub-agent sessions into parent. |
+| `--include-children` | search / context | Merge OpenCode, Droid, or Antigravity sub-agent sessions into parent. |
 | `--json` | all | Machine-readable JSON. |
 
 ```bash
